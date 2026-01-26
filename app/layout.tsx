@@ -21,7 +21,7 @@ const playfairDisplay = Playfair_Display({
 
 export const metadata: Metadata = {
   title: "SapoConnect",
-  description: "Plataforma educacional",
+  description: "Alternativa otimizada ao EduConnect",
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
