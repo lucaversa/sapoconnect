@@ -82,6 +82,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       // Mostrar toast baseado nas mudanças de status
       if (previousStatus === 'active' && info.status === 'expired') {
         const reason = sessionManagerRef.current.getDisconnectReason();
+        if (reason === DisconnectReason.LOGOUT_USER) {
+          sessionManagerRef.current.clearDisconnectReason();
+          setReconnectFailed(false);
+          return;
+        }
         if (reason) {
           toast.error(reason);
           sessionManagerRef.current.clearDisconnectReason();
@@ -115,6 +120,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     await sessionManager.logout(reason);
     setUser(null);
     setSessionStatus('expired');
+    setReconnectFailed(false);
 
     // Mostrar toast baseado no motivo
     if (reason === DisconnectReason.LOGOUT_USER) {
