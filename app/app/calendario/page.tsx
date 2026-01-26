@@ -16,6 +16,21 @@ import { TotvsOfflineBanner } from '@/components/totvs-offline-banner';
 import { useHorario } from '@/hooks/use-horario';
 import { useUserInfo } from '@/hooks/use-user-info';
 import { isTotvsOfflineError } from '@/lib/api-response-error';
+import { motion, type Variants } from 'framer-motion';
+
+const pageVariants: Variants = {
+  hidden: { opacity: 0, y: 6 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1], when: 'beforeChildren', staggerChildren: 0.04 },
+  },
+};
+
+const sectionVariants: Variants = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } },
+};
 
 export default function CalendarioPage() {
   const { data, error, isLoading, isFetching, refetch, dataUpdatedAt } = useHorario();
@@ -103,12 +118,19 @@ export default function CalendarioPage() {
     : null;
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <motion.div
+      className="p-4 sm:p-6 space-y-6"
+      variants={pageVariants}
+      initial="hidden"
+      animate="show"
+    >
       {isOffline && (
-        <TotvsOfflineBanner />
+        <motion.div variants={sectionVariants}>
+          <TotvsOfflineBanner />
+        </motion.div>
       )}
       {/* Header */}
-      <div className="flex flex-col gap-4">
+      <motion.div variants={sectionVariants} className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
@@ -238,10 +260,12 @@ export default function CalendarioPage() {
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* EventCalendar Component */}
-      <EventCalendar events={eventos} initialView="week" />
-    </div>
+      <motion.div variants={sectionVariants}>
+        <EventCalendar events={eventos} initialView="week" />
+      </motion.div>
+    </motion.div>
   );
 }

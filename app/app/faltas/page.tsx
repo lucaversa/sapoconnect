@@ -23,6 +23,21 @@ import { EmptyState } from '@/components/empty-state';
 import { TotvsOfflineBanner } from '@/components/totvs-offline-banner';
 import { useFaltas, FaltasItem } from '@/hooks/use-faltas';
 import { isTotvsOfflineError } from '@/lib/api-response-error';
+import { motion, type Variants } from 'framer-motion';
+
+const pageVariants: Variants = {
+  hidden: { opacity: 0, y: 6 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1], when: 'beforeChildren', staggerChildren: 0.04 },
+  },
+};
+
+const sectionVariants: Variants = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } },
+};
 
 export default function FaltasPage() {
   const { data, error, isLoading, isFetching, refetch, dataUpdatedAt } = useFaltas();
@@ -91,12 +106,19 @@ export default function FaltasPage() {
   const disciplinasCriticas = faltas.filter(f => f.status === 'acima').length;
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <motion.div
+      className="p-4 sm:p-6 space-y-6"
+      variants={pageVariants}
+      initial="hidden"
+      animate="show"
+    >
       {isOffline && (
-        <TotvsOfflineBanner />
+        <motion.div variants={sectionVariants}>
+          <TotvsOfflineBanner />
+        </motion.div>
       )}
       {/* Header */}
-      <div className="flex flex-col gap-4">
+      <motion.div variants={sectionVariants} className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
@@ -177,10 +199,10 @@ export default function FaltasPage() {
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Legenda */}
-      <div className="flex flex-wrap gap-2 sm:gap-4 p-3 sm:p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+      <motion.div variants={sectionVariants} className="flex flex-wrap gap-2 sm:gap-4 p-3 sm:p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
         {[
           { icon: CheckCircle, color: 'text-emerald-500', label: 'Seguro' },
           { icon: AlertTriangle, color: 'text-amber-500', label: 'Próximo do limite' },
@@ -191,13 +213,14 @@ export default function FaltasPage() {
             <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{label}</span>
           </div>
         ))}
-      </div>
+      </motion.div>
 
       {/* Lista de Faltas */}
-      {faltas.length === 0 ? (
-        <EmptyState title="Nenhuma falta registrada" description="Não há informações de faltas disponíveis." icon="clipboard" />
-      ) : (
-        <div className="space-y-3">
+      <motion.div variants={sectionVariants}>
+        {faltas.length === 0 ? (
+          <EmptyState title="Nenhuma falta registrada" description="Não há informações de faltas disponíveis." icon="clipboard" />
+        ) : (
+          <div className="space-y-3">
           {faltas.map((item) => {
             const statusConfig = getStatusConfig(item.status);
             const StatusIcon = statusConfig.icon;
@@ -341,8 +364,9 @@ export default function FaltasPage() {
               </div>
             );
           })}
-        </div>
-      )}
-    </div>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
   );
 }

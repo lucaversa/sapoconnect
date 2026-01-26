@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { AnimatePresence, motion, type Variants } from 'framer-motion';
 import { toast } from 'sonner';
 import { PageLoading } from '@/components/page-loading';
 import { ApiError } from '@/components/api-error';
@@ -155,6 +156,19 @@ function calcularMediaGlobal(periodos: Periodo[]): string | null {
   return mediaGlobal.toFixed(1);
 }
 
+const pageVariants: Variants = {
+  hidden: { opacity: 0, y: 6 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1], when: 'beforeChildren', staggerChildren: 0.04 },
+  },
+};
+const sectionVariants: Variants = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } },
+};
+
 export default function HistoricoPage() {
   const { data, error, isLoading, isFetching, refetch, dataUpdatedAt } = useHistorico();
 
@@ -254,11 +268,18 @@ export default function HistoricoPage() {
   const mediaGlobal = calcularMediaGlobal(periodos);
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <motion.div
+      className="p-4 sm:p-6 space-y-6"
+      variants={pageVariants}
+      initial="hidden"
+      animate="show"
+    >
       {isOffline && (
-        <TotvsOfflineBanner />
+        <motion.div variants={sectionVariants}>
+          <TotvsOfflineBanner />
+        </motion.div>
       )}
-      <div className="flex flex-col gap-4">
+      <motion.div variants={sectionVariants} className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
@@ -338,9 +359,9 @@ export default function HistoricoPage() {
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
-      <div className="flex flex-wrap gap-2 sm:gap-4 p-3 sm:p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+      <motion.div variants={sectionVariants} className="flex flex-wrap gap-2 sm:gap-4 p-3 sm:p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
         {[
           { icon: CheckCircle2, color: 'text-emerald-500', label: 'Concluída' },
           { icon: XCircle, color: 'text-amber-500', label: 'Pendente' },
@@ -352,10 +373,10 @@ export default function HistoricoPage() {
             <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{label}</span>
           </div>
         ))}
-      </div>
+      </motion.div>
 
       {periodosLetivos.length > 0 && (
-        <div className="space-y-4">
+        <motion.div variants={sectionVariants} className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <GraduationCap className="w-5 h-5 text-emerald-500" />
             Períodos Letivos
@@ -428,8 +449,17 @@ export default function HistoricoPage() {
                     </div>
                   </div>
 
-                  {isExpanded && (
-                    <div className="border-t border-gray-100 dark:border-gray-700">
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.div
+                        key={`periodo-${periodo.nome}`}
+                        initial={{ height: 0, opacity: 0, y: -4 }}
+                        animate={{ height: 'auto', opacity: 1, y: 0 }}
+                        exit={{ height: 0, opacity: 0, y: -4 }}
+                        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                        className="overflow-hidden"
+                      >
+                        <div className="border-t border-gray-100 dark:border-gray-700">
                       {periodo.disciplinas.map((disciplina, idx) => {
                         const statusConfig = getStatusConfig(disciplina.status);
                         const StatusIcon = statusConfig.icon;
@@ -491,16 +521,18 @@ export default function HistoricoPage() {
                         );
                       })}
                     </div>
-                  )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
                 </div>
               );
             })}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {outrosBlocos.length > 0 && (
-        <div className="space-y-4">
+        <motion.div variants={sectionVariants} className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-blue-500" />
             Outros Componentes
@@ -556,8 +588,17 @@ export default function HistoricoPage() {
                     </div>
                   </button>
 
-                  {isExpanded && (
-                    <div className="border-t border-gray-100 dark:border-gray-700">
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.div
+                        key={`bloco-${bloco.nome}`}
+                        initial={{ height: 0, opacity: 0, y: -4 }}
+                        animate={{ height: 'auto', opacity: 1, y: 0 }}
+                        exit={{ height: 0, opacity: 0, y: -4 }}
+                        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                        className="overflow-hidden"
+                      >
+                        <div className="border-t border-gray-100 dark:border-gray-700">
                       {bloco.disciplinas.map((disciplina, idx) => {
                         const statusConfig = getStatusConfig(disciplina.status);
                         const StatusIcon = statusConfig.icon;
@@ -619,13 +660,15 @@ export default function HistoricoPage() {
                         );
                       })}
                     </div>
-                  )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
                 </div>
               );
             })}
           </div>
-        </div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }

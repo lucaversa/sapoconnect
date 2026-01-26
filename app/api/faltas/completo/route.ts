@@ -126,14 +126,26 @@ function parseFaltasHTML(html: string): FaltasItem[] {
     const cor = porcentagemMatch && porcentagemMatch[1] ? porcentagemMatch[1] : '#000000';
 
     const porcentagemValor = parseFloat(porcentagem.replace(',', '.').replace('%', ''));
+    const limiteValor = parseFloat(limiteFaltas.replace(',', '.').replace('%', ''));
 
     let status: 'abaixo' | 'proximo' | 'acima' = 'abaixo';
-    if (cor === '#000000') {
-      status = 'abaixo';
-    } else if (cor === '#1e84bf') {
-      status = 'proximo';
+    if (!isNaN(limiteValor) && limiteValor > 0 && !isNaN(porcentagemValor)) {
+      const percentDoLimite = (porcentagemValor / limiteValor) * 100;
+      if (percentDoLimite <= 50) {
+        status = 'abaixo';
+      } else if (percentDoLimite < 75) {
+        status = 'proximo';
+      } else {
+        status = 'acima';
+      }
     } else {
-      status = 'acima';
+      if (cor === '#000000') {
+        status = 'abaixo';
+      } else if (cor === '#1e84bf') {
+        status = 'proximo';
+      } else {
+        status = 'acima';
+      }
     }
 
     itens.push({

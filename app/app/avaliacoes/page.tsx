@@ -21,6 +21,34 @@ import { EmptyState } from '@/components/empty-state';
 import { TotvsOfflineBanner } from '@/components/totvs-offline-banner';
 import { useAvaliacoes, useAvaliacoesNotas } from '@/hooks/use-avaliacoes';
 import { isTotvsOfflineError } from '@/lib/api-response-error';
+import { AnimatePresence, motion, type Variants } from 'framer-motion';
+
+const TOTAL_PONTOS = 100;
+const pageVariants: Variants = {
+  hidden: { opacity: 0, y: 6 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1], when: 'beforeChildren', staggerChildren: 0.04 },
+  },
+};
+const sectionVariants: Variants = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } },
+};
+
+function parseNumber(value?: string): number | null {
+  if (value === undefined || value === null) return null;
+  const trimmed = value.toString().trim();
+  if (trimmed === '') return null;
+  const parsed = parseFloat(trimmed.replace(',', '.'));
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function formatNumber(value: number, decimals = 1): string {
+  const formatted = value.toFixed(decimals).replace('.', ',');
+  return formatted.replace(/,0+$/, '');
+}
 
 export default function AvaliacoesPage() {
   const { data: disciplinasData, error, isLoading, isFetching, refetch, dataUpdatedAt } = useAvaliacoes();
@@ -135,12 +163,19 @@ export default function AvaliacoesPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <motion.div
+      className="p-4 sm:p-6 space-y-6"
+      variants={pageVariants}
+      initial="hidden"
+      animate="show"
+    >
       {isOffline && (
-        <TotvsOfflineBanner />
+        <motion.div variants={sectionVariants}>
+          <TotvsOfflineBanner />
+        </motion.div>
       )}
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <motion.div variants={sectionVariants} className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
             Avaliações
@@ -168,10 +203,10 @@ export default function AvaliacoesPage() {
         >
           <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
         </button>
-      </div>
+      </motion.div>
 
       {/* Lista de Disciplinas */}
-      <div className="space-y-3">
+      <motion.div variants={sectionVariants} className="space-y-3">
         {disciplinas.map((disciplina) => {
           const resultado = expandedCodigo === disciplina.codigo ? avaliacoesData : undefined;
           const status = resultado?.somativaGeralPorcentagem !== undefined
@@ -251,8 +286,17 @@ export default function AvaliacoesPage() {
               </button>
 
               {/* Conteúdo Expandido */}
-              {isExpanded && (
-                <div className="border-t border-gray-100 dark:border-gray-700">
+              <AnimatePresence initial={false}>
+                {isExpanded && (
+                  <motion.div
+                    key={`avaliacoes-${disciplina.codigo}`}
+                    initial={{ height: 0, opacity: 0, y: -4 }}
+                    animate={{ height: 'auto', opacity: 1, y: 0 }}
+                    exit={{ height: 0, opacity: 0, y: -4 }}
+                    transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="border-t border-gray-100 dark:border-gray-700">
                   {notasError && (!resultado || resultado.categorias.length === 0) ? (
                     <div className="p-4 text-center">
                       <p className="text-sm text-red-600 dark:text-red-400">
@@ -376,6 +420,45 @@ export default function AvaliacoesPage() {
                           );
                         })}
                       </div>
+                      {(() => {
+                        const mediaParaAprovacao = resultado.mediaParaAprovacao ?? 60;
+                        let pontosLancados = 0;
+                        let valorLancado = 0;
+
+                        resultado.categorias.forEach((categoria) => {
+                          categoria.avaliacoes.forEach((avaliacao) => {
+                            const nota = parseNumber(avaliacao.nota);
+                            const valor = parseNumber(avaliacao.valor);
+                            if (nota !== null) {
+                              pontosLancados += nota;
+                              if (valor !== null) {
+                                valorLancado += valor;
+                              }
+                            }
+                          });
+                        });
+
+                        const pontosNecessarios = Math.max(0, mediaParaAprovacao - pontosLancados);
+                        const pontosRestantes = Math.max(0, TOTAL_PONTOS - valorLancado);
+                        const percentNecessario = pontosRestantes > 0
+                          ? (pontosNecessarios / pontosRestantes) * 100
+                          : 0;
+
+                        return (
+                          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200/60 bg-emerald-50/50 px-4 py-3 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200">
+                            <span className="font-medium">
+                              Necessário {formatNumber(pontosNecessarios)} pontos em {formatNumber(pontosRestantes)} restantes ({formatNumber(percentNecessario)}%)
+                            </span>
+                            {pontosRestantes === 0 && pontosNecessarios > 0 ? (
+                              <span className="text-amber-700 dark:text-amber-300">Sem pontos restantes</span>
+                            ) : (
+                              <span className="text-emerald-700/80 dark:text-emerald-300/80">
+                                Média: {mediaParaAprovacao} / Total: {TOTAL_PONTOS}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   ) : notasLoading ? (
                     <div className="p-8 text-center">
@@ -388,11 +471,13 @@ export default function AvaliacoesPage() {
                     </div>
                   )}
                 </div>
-              )}
+              </motion.div>
+            )}
+          </AnimatePresence>
             </div>
           );
         })}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
