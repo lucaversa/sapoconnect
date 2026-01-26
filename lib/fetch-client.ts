@@ -112,6 +112,10 @@ export async function apiFetch(
         throw new SessionExpiredError();
       }
 
+      if (response.ok && !skipAuth) {
+        sessionManager.markSessionActive();
+      }
+
       return response;
 
     } catch (error) {

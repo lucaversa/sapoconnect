@@ -348,6 +348,7 @@ class SessionManager {
 
   markSessionActive(): void {
     this.setState({
+      status: 'active',
       lastRefreshedAt: Date.now(),
       lastCheckedAt: Date.now(),
     });

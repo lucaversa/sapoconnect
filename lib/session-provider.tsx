@@ -108,12 +108,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           reconnectToastIdRef.current = null;
         }
       } else if (info.status === 'error') {
+        if (reconnectToastIdRef.current === 'reconnect') {
+          toast.dismiss('reconnect');
+          reconnectToastIdRef.current = null;
+        }
         toast.error('Sistema da TOTVS possivelmente fora do ar.');
       }
     });
 
     return () => unsubscribe();
   }, [pathname, router]);
+
+  useEffect(() => {
+    if (sessionStatus !== 'refreshing' && reconnectToastIdRef.current === 'reconnect') {
+      toast.dismiss('reconnect');
+      reconnectToastIdRef.current = null;
+    }
+  }, [sessionStatus]);
 
   const logout = useCallback(async (reason: DisconnectReason = DisconnectReason.LOGOUT_USER) => {
     const sessionManager = sessionManagerRef.current;

@@ -278,7 +278,16 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json(parseAvaliacoesHTML(html));
+    const resultado = parseAvaliacoesHTML(html);
+
+    if (!resultado.categorias || resultado.categorias.length === 0) {
+      return NextResponse.json(
+        { error: 'Falha ao validar sessÃ£o. Tente novamente.', code: 'SESSION_EXPIRED' },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.json(resultado);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     return NextResponse.json(
