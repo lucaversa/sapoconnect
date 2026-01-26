@@ -1,0 +1,427 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 166 100% 34%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 166 100% 34%;
+    --radius: 0.75rem;
+
+    --success: 152 69% 42%;
+    --warning: 38 92% 50%;
+    --error: 4 90% 58%;
+
+    --gray-50: 210 40% 98%;
+    --gray-100: 214 32% 91%;
+    --gray-200: 213 27% 84%;
+    --gray-300: 211 24% 76%;
+    --gray-400: 214 20% 69%;
+    --gray-500: 215 16% 47%;
+    --gray-600: 215 19% 35%;
+    --gray-700: 215 25% 27%;
+    --gray-800: 217 33% 17%;
+    --gray-900: 222 47% 11%;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 217 33% 17%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 166 100% 34%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 215 25% 27%;
+    --input: 215 25% 27%;
+    --ring: 166 100% 34%;
+  }
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before {
+    @apply border-border;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  body {
+    @apply relative font-normal bg-gray-50 text-foreground dark:bg-gray-900;
+  }
+}
+
+/* Progress bar animation */
+@keyframes grow {
+  from {
+    width: 0%;
+  }
+  to {
+    width: var(--progress-width);
+  }
+}
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-200 dark:bg-gray-700 rounded-full;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-300 dark:bg-gray-600;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* ===== React Big Calendar - Preservar intacto ===== */
+
+/* ===== GERAL ===== */
+.rbc-calendar {
+  font-family: inherit;
+  @apply text-sm;
+}
+
+.rbc-toolbar {
+  display: none !important; /* Força esconder toolbar nativa */
+}
+
+.rbc-toolbar * {
+  display: none !important; /* Esconde todos os filhos também */
+}
+
+/* ===== HEADER (Dias da Semana) ===== */
+.rbc-header {
+  @apply py-2.5 px-2 text-center text-xs font-semibold uppercase tracking-wide;
+  @apply text-gray-500 dark:text-gray-400;
+  @apply bg-gray-50/50 dark:bg-gray-900/30;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.rbc-header + .rbc-header {
+  border-left: 1px solid hsl(var(--border));
+}
+
+/* ===== MONTH VIEW ===== */
+.rbc-month-view {
+  @apply bg-white dark:bg-gray-800;
+  border: 1px solid hsl(var(--border));
+  @apply rounded-lg overflow-hidden;
+}
+
+.rbc-month-row {
+  border-bottom: 1px solid hsl(var(--border));
+  @apply min-h-[120px];
+}
+
+.rbc-month-row:last-child {
+  @apply border-b-0;
+}
+
+.rbc-day-bg {
+  border-right: 1px solid hsl(var(--border));
+  @apply transition-all duration-150;
+  @apply hover:bg-gray-50/50 dark:hover:bg-gray-700/30;
+  @apply cursor-pointer;
+}
+
+.rbc-day-bg:last-child {
+  @apply border-r-0;
+}
+
+.rbc-today {
+  @apply bg-primary/[0.04] dark:bg-primary/[0.08];
+}
+
+.rbc-off-range {
+  @apply text-gray-400 dark:text-gray-600;
+}
+
+.rbc-off-range-bg {
+  @apply bg-gray-50/30 dark:bg-gray-900/30;
+}
+
+/* ===== Date Numbers ===== */
+.rbc-date-cell {
+  @apply p-1.5 text-right;
+}
+
+.rbc-date-cell > a,
+.rbc-date-cell > button {
+  @apply inline-flex items-center justify-center;
+  @apply w-7 h-7 rounded-full text-sm;
+  @apply text-gray-700 dark:text-gray-300 font-medium;
+  @apply transition-all duration-150;
+}
+
+.rbc-date-cell > a:hover,
+.rbc-date-cell > button:hover {
+  @apply bg-gray-100 dark:bg-gray-700 scale-105;
+}
+
+.rbc-now > a,
+.rbc-now > button {
+  @apply bg-primary text-white font-semibold shadow-sm;
+}
+
+.rbc-now > a:hover,
+.rbc-now > button:hover {
+  @apply bg-primary shadow-md scale-105;
+}
+
+/* ===== EVENTOS - Estilo Google Agenda ===== */
+/* Base para TODOS os eventos */
+.rbc-event,
+.rbc-event:focus {
+  border: 2px solid hsl(var(--primary)) !important;
+  outline: none !important;
+  border-radius: 5px !important;
+  padding: 6px 8px !important;
+  transition: all 150ms ease !important;
+  cursor: pointer !important;
+  background: hsl(var(--primary)) !important;
+  color: white !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
+  overflow: hidden !important;
+}
+
+/* Garantir espaço entre eventos consecutivos */
+.rbc-time-slot .rbc-event {
+  height: calc(100% - 4px) !important;
+  margin-bottom: 4px !important;
+}
+
+.rbc-event:hover {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15) !important;
+  background: hsl(var(--primary) / 0.9) !important;
+  z-index: 10 !important;
+}
+
+.dark .rbc-event,
+.dark .rbc-event:focus {
+  border: 2px solid hsl(var(--primary)) !important;
+  background: hsl(var(--primary)) !important;
+  color: white !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+
+.dark .rbc-event:hover {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4) !important;
+  background: hsl(var(--primary) / 0.85) !important;
+}
+
+.rbc-event.rbc-selected,
+.rbc-event.rbc-selected:focus {
+  @apply ring-2 ring-white ring-offset-2 ring-offset-primary;
+  transform: scale(1.02) !important;
+}
+
+.rbc-event-label {
+  display: none !important; /* Horário já está dentro do componente */
+}
+
+.rbc-event-content {
+  color: white !important;
+  overflow: hidden !important;
+}
+
+/* Altura mínima para eventos do mês - 2 linhas */
+.rbc-month-view .rbc-event {
+  min-height: 42px !important;
+  padding: 7px 10px !important;
+}
+
+/* Aumenta espaçamento entre eventos no mês */
+.rbc-row-segment {
+  padding: 2px !important;
+}
+
+/* ===== WEEK & DAY VIEW ===== */
+.rbc-time-view {
+  border: 1px solid hsl(var(--border));
+  @apply rounded-lg overflow-hidden bg-white dark:bg-gray-800;
+}
+
+.rbc-time-header {
+  border-bottom: 2px solid hsl(var(--border));
+}
+
+.rbc-time-header-content {
+  border-left: 1px solid hsl(var(--border));
+}
+
+.rbc-time-header-gutter {
+  @apply bg-gray-50/50 dark:bg-gray-900/30;
+}
+
+.rbc-allday-cell {
+  @apply bg-gray-50/30 dark:bg-gray-900/20;
+}
+
+.rbc-time-content {
+  border-top: none;
+}
+
+.rbc-time-column {
+  @apply min-h-[120px];
+}
+
+.rbc-timeslot-group {
+  border-bottom: 1px solid hsl(var(--border));
+  @apply min-h-[120px];
+}
+
+.rbc-time-slot {
+  border-top: 1px dashed hsl(var(--border) / 0.4);
+}
+
+.rbc-time-slot:first-child {
+  @apply border-t-0;
+}
+
+/* Week/Day view usa os estilos base */
+
+.rbc-label {
+  @apply text-xs text-gray-500 dark:text-gray-400 px-2 font-medium;
+}
+
+.rbc-time-gutter {
+  @apply bg-gray-50/50 dark:bg-gray-900/30;
+}
+
+.rbc-current-time-indicator {
+  @apply bg-primary;
+  height: 2px !important;
+  box-shadow: 0 0 8px hsl(var(--primary) / 0.5);
+}
+
+.rbc-current-time-indicator::before {
+  content: '';
+  @apply absolute w-2.5 h-2.5 rounded-full bg-primary;
+  left: -5px;
+  top: -4.5px;
+  box-shadow: 0 0 8px hsl(var(--primary) / 0.6);
+}
+
+/* ===== AGENDA VIEW ===== */
+.rbc-agenda-view {
+  border: 1px solid hsl(var(--border));
+  @apply rounded-lg overflow-hidden;
+}
+
+.rbc-agenda-view table {
+  @apply w-full;
+}
+
+.rbc-agenda-table {
+  @apply border-0;
+}
+
+.rbc-agenda-date-cell,
+.rbc-agenda-time-cell {
+  @apply py-3 px-4 text-sm font-medium;
+  @apply bg-gray-50 dark:bg-gray-900/50;
+  @apply text-gray-700 dark:text-gray-300;
+}
+
+.rbc-agenda-event-cell {
+  @apply py-3 px-4;
+}
+
+.rbc-agenda-table tbody > tr {
+  border-bottom: 1px solid hsl(var(--border));
+  @apply transition-colors hover:bg-gray-50/50 dark:hover:bg-gray-700/30;
+}
+
+.rbc-agenda-table tbody > tr:last-child {
+  @apply border-b-0;
+}
+
+.rbc-agenda-table tbody > tr > td + td {
+  border-left: 1px solid hsl(var(--border));
+}
+
+/* ===== Show More ===== */
+.rbc-show-more {
+  @apply text-xs font-semibold text-primary hover:text-primary/80;
+  @apply bg-primary/5 hover:bg-primary/10;
+  @apply px-2 py-1 rounded;
+  @apply transition-all;
+}
+
+/* ===== Overlay ===== */
+.rbc-overlay {
+  @apply bg-white dark:bg-gray-800;
+  @apply border border-gray-200 dark:border-gray-700;
+  @apply rounded-xl shadow-2xl;
+  @apply p-4;
+  backdrop-filter: blur(8px);
+}
+
+.rbc-overlay-header {
+  @apply text-sm font-semibold mb-3 pb-2;
+  @apply text-gray-900 dark:text-white;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+/* ===== Seleção ===== */
+.rbc-slot-selection {
+  @apply bg-primary/20 dark:bg-primary/30;
+  border: 2px dashed hsl(var(--primary));
+}
+
+/* ===== Addons ===== */
+.rbc-addons-dnd .rbc-addons-dnd-resizable {
+  @apply relative;
+}
+
+.rbc-addons-dnd .rbc-addons-dnd-resize-anchor {
+  @apply absolute bottom-0 left-0 right-0 h-2;
+  @apply cursor-ns-resize;
+  @apply opacity-0 hover:opacity-100;
+  @apply bg-primary/30;
+  @apply transition-opacity;
+}
