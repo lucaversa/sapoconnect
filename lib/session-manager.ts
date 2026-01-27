@@ -46,6 +46,7 @@ class SessionManager {
   private checkInterval: NodeJS.Timeout | null = null;
   private visibilityHandler: (() => void) | null = null;
   private backgroundReconnectPromise: Promise<boolean> | null = null;
+  private lastReconnectError: string | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -130,6 +131,18 @@ class SessionManager {
     }
   }
 
+  private async getErrorMessage(response: Response): Promise<string | null> {
+    try {
+      const payload = await response.json();
+      if (payload && typeof payload.error === 'string') {
+        return payload.error;
+      }
+    } catch {
+      // ignore parse errors
+    }
+    return null;
+  }
+
   private shouldUseCache(): boolean {
     const now = Date.now();
     const timeSinceCheck = now - this.state.lastCheckedAt;
@@ -164,7 +177,7 @@ class SessionManager {
           });
           return { ...this.state };
         } else if (response.status === 401) {
-          this.setState({ status: 'expired', lastCheckedAt: Date.now() });
+          this.setState({ status: 'expired', user: null, lastCheckedAt: Date.now() });
           return { ...this.state };
         } else {
           this.setState({ status: 'error', lastCheckedAt: Date.now() });
@@ -191,10 +204,12 @@ class SessionManager {
 
     const credentials = await getCredentials();
     if (!credentials) {
+      this.lastReconnectError = DisconnectReason.SESSION_EXPIRED;
       return false;
     }
 
     this.setState({ status: 'refreshing' });
+    this.lastReconnectError = null;
 
     this.refreshPromise = (async () => {
       try {
@@ -222,18 +237,27 @@ class SessionManager {
           }
         }
 
+        const errorMessage = await this.getErrorMessage(response);
+
         if (response.status >= 500) {
+          this.lastReconnectError = errorMessage || DisconnectReason.SERVER_ERROR;
           this.setState({ status: 'error' });
           return false;
         }
 
         if (response.status === 401 || response.status === 400) {
           await clearCredentials();
+          this.lastReconnectError = errorMessage || DisconnectReason.SESSION_EXPIRED;
         }
 
-        this.setState({ status: 'expired' });
+        if (!this.lastReconnectError) {
+          this.lastReconnectError = errorMessage || 'Não foi possível atualizar a sessão.';
+        }
+
+        this.setState({ status: 'expired', user: null });
         return false;
       } catch {
+        this.lastReconnectError = DisconnectReason.SERVER_ERROR;
         this.setState({ status: 'error' });
         return false;
       } finally {
@@ -253,10 +277,12 @@ class SessionManager {
 
     const credentials = await getCredentials();
     if (!credentials) {
+      this.lastReconnectError = DisconnectReason.SESSION_EXPIRED;
       return false;
     }
 
     this.setState({ status: 'refreshing' });
+    this.lastReconnectError = null;
 
     this.refreshPromise = (async () => {
       try {
@@ -278,17 +304,27 @@ class SessionManager {
           }
         }
 
+        const errorMessage = await this.getErrorMessage(response);
+
         if (response.status >= 500) {
+          this.lastReconnectError = errorMessage || DisconnectReason.SERVER_ERROR;
           this.setState({ status: 'error' });
           return false;
         }
 
         if (response.status === 401 || response.status === 400) {
           await clearCredentials();
+          this.lastReconnectError = errorMessage || DisconnectReason.SESSION_EXPIRED;
         }
+
+        if (!this.lastReconnectError) {
+          this.lastReconnectError = errorMessage || 'Não foi possível atualizar a sessão.';
+        }
+
         this.setState({ status: 'expired', user: null });
         return false;
       } catch {
+        this.lastReconnectError = DisconnectReason.SERVER_ERROR;
         this.setState({ status: 'error' });
         return false;
       } finally {
@@ -313,6 +349,10 @@ class SessionManager {
 
   getDisconnectReason(): DisconnectReason | null {
     return this.disconnectReason;
+  }
+
+  getLastReconnectError(): string | null {
+    return this.lastReconnectError;
   }
 
   clearDisconnectReason(): void {

@@ -175,9 +175,16 @@ export default function HistoricoPage() {
   const handleRefresh = async () => {
     const toastId = toast.loading('Atualizando...', { id: 'refresh-historico' });
     try {
-      await refetch();
+      const result = await refetch();
+      if (result.error) {
+        throw result.error;
+      }
       toast.success('Atualizado com sucesso!', { id: toastId });
-    } catch {
+    } catch (err) {
+      if (isTotvsOfflineError(err)) {
+        toast.error('Sistema da TOTVS possivelmente fora do ar.', { id: toastId });
+        return;
+      }
       toast.error('Erro ao atualizar. Tente novamente.', { id: toastId });
     }
   };

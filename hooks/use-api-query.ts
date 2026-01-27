@@ -1,6 +1,6 @@
 'use client';
 
-import { useQuery, UseQueryOptions, useQueryClient } from '@tanstack/react-query';
+import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 import { apiFetch, SessionExpiredError } from '@/lib/fetch-client';
 import { parseApiError, isSessionExpiredApiError } from '@/lib/api-response-error';
 
@@ -11,8 +11,6 @@ export function useApiQuery<T>(
   url: string,
   options?: QueryOptions<T>
 ) {
-  const queryClient = useQueryClient();
-
   const result = useQuery({
     queryKey,
     queryFn: async () => {
@@ -20,9 +18,6 @@ export function useApiQuery<T>(
       if (!response.ok) {
         const apiError = await parseApiError(response);
         if (isSessionExpiredApiError(apiError)) {
-          // Invalida APENAS este query quando há erro de sessão
-          queryClient.invalidateQueries({ queryKey });
-          queryClient.resetQueries({ queryKey });
           throw new SessionExpiredError();
         }
         throw apiError;

@@ -60,17 +60,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         const reconnected = await sessionManager.reconnect();
         if (!reconnected) {
           const currentState = sessionManager.getCurrentState();
+          const credentials = await getCredentials();
+
+          if (credentials) {
+            setUser({ ra: credentials.codUsuario });
+          }
+
           if (currentState.status === 'error') {
-            const credentials = await getCredentials();
-            if (credentials) {
-              setUser({ ra: credentials.codUsuario });
-            }
             setSessionStatus('error');
             setReconnectFailed(false);
             return;
           }
+
+          setSessionStatus('expired');
           setReconnectFailed(true);
-          router.push('/login');
+          if (!credentials) {
+            router.push('/login');
+          }
         }
       }
 
@@ -86,7 +92,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
       setUser((prev) => {
         if (info.user) return info.user;
-        if (info.status === 'error') return prev;
+        if (info.status === 'error' || info.status === 'expired') return prev;
         return null;
       });
       setSessionStatus(info.status);
@@ -109,9 +115,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           toast.error('Sessão expirada. Faça login novamente.');
         }
         setReconnectFailed(true);
-        if (!publicPaths.includes(pathname)) {
-          router.push('/login');
-        }
       } else if (info.status === 'refreshing' && previousStatus !== 'refreshing') {
         // Mostrar toast de reconexão
         reconnectToastIdRef.current = 'reconnect';
@@ -140,6 +143,24 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       reconnectToastIdRef.current = null;
     }
   }, [sessionStatus]);
+
+  const handleManualReconnect = useCallback(async () => {
+    const sessionManager = sessionManagerRef.current;
+    const refreshed = await sessionManager.refreshSession();
+
+    if (refreshed) {
+      setReconnectFailed(false);
+      return;
+    }
+
+    const currentState = sessionManager.getCurrentState();
+    if (currentState.status === 'error') {
+      return;
+    }
+
+    const errorMessage = sessionManager.getLastReconnectError();
+    toast.error(errorMessage || 'Não foi possível atualizar a sessão.', { id: 'reconnect' });
+  }, []);
 
   useEffect(() => {
     const currentRa = user?.ra ?? null;
@@ -208,18 +229,26 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
                 Sessão expirada
               </p>
               <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                Não foi possível reconectar automaticamente.
+                Não foi possível reconectar automaticamente. Atualize a sessão para continuar.
               </p>
             </div>
-            <button
-              onClick={() => {
-                setReconnectFailed(false);
-                router.push('/login');
-              }}
-              className="px-3 py-1.5 text-xs font-medium rounded bg-amber-600 text-white"
-            >
-              Login
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleManualReconnect}
+                className="px-3 py-1.5 text-xs font-medium rounded bg-amber-600 text-white"
+              >
+                Atualizar sessão
+              </button>
+              <button
+                onClick={() => {
+                  setReconnectFailed(false);
+                  router.push('/login');
+                }}
+                className="px-3 py-1.5 text-xs font-medium rounded border border-amber-300 text-amber-700"
+              >
+                Login
+              </button>
+            </div>
           </div>
         </div>
       )}
