@@ -1,4 +1,4 @@
-import { encrypt, decrypt, getOrCreateDeviceId } from './crypto';
+import { encrypt, decrypt, getDeviceId, getOrCreateDeviceId, setDeviceId } from './crypto';
 
 const DB_NAME = 'sapoconnect_db';
 const DB_VERSION = 1;
@@ -9,6 +9,7 @@ interface StoredCredentials {
   salt: string;
   iv: string;
   timestamp: number;
+  deviceId?: string;
 }
 
 interface Credentials {
@@ -46,6 +47,7 @@ export async function saveCredentials(credentials: Credentials): Promise<void> {
     salt,
     iv,
     timestamp: Date.now(),
+    deviceId,
   };
 
   return new Promise((resolve, reject) => {
@@ -80,7 +82,22 @@ export async function getCredentials(): Promise<Credentials | null> {
         }
 
         try {
-          const deviceId = getOrCreateDeviceId();
+          let deviceId = getDeviceId();
+
+          if (!deviceId && storedData.deviceId) {
+            deviceId = storedData.deviceId;
+            try {
+              setDeviceId(deviceId);
+            } catch {
+              // ignore storage errors
+            }
+          }
+
+          if (!deviceId) {
+            resolve(null);
+            return;
+          }
+
           const decrypted = await decrypt(
             storedData.encrypted,
             storedData.salt,

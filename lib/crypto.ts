@@ -81,13 +81,22 @@ export async function decrypt(
   return decoder.decode(decryptedData);
 }
 
+const DEVICE_ID_KEY = 'sapoconnect_device_id';
+
+export function getDeviceId(): string | null {
+  return localStorage.getItem(DEVICE_ID_KEY);
+}
+
+export function setDeviceId(deviceId: string): void {
+  localStorage.setItem(DEVICE_ID_KEY, deviceId);
+}
+
 export function getOrCreateDeviceId(): string {
-  const DEVICE_ID_KEY = 'sapoconnect_device_id';
-  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+  let deviceId = getDeviceId();
 
   if (!deviceId) {
     deviceId = generateRandomId();
-    localStorage.setItem(DEVICE_ID_KEY, deviceId);
+    setDeviceId(deviceId);
   }
 
   return deviceId;

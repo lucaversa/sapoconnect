@@ -13,6 +13,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
     if (typeof window === 'undefined') return;
 
     try {
+      if (navigator.storage?.persist) {
+        navigator.storage.persist().catch(() => {});
+      }
+    } catch {
+      // ignore persistence request errors
+    }
+
+    try {
       const cached = localStorage.getItem(QUERY_PERSIST_KEY);
       if (cached) {
         const data = JSON.parse(cached);
