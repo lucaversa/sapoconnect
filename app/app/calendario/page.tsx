@@ -5,7 +5,7 @@ import { Calendar as CalendarIcon, RefreshCw, Sun, CalendarDays, Download } from
 import { format, formatDistanceToNow, isAfter, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { EventCalendar, CalendarEvent } from '@/components/event-calendar';
+import { EventCalendar, CalendarEvent, EventViewDialog } from '@/components/event-calendar';
 import { HorarioResponse } from '@/types/calendario';
 import { aulasToCalendarEvents } from '@/lib/event-calendar-adapter';
 import { exportCalendarioToPDF } from '@/lib/calendar-export';
@@ -36,6 +36,8 @@ export default function CalendarioPage() {
   const { data, error, isLoading, isFetching, refetch, dataUpdatedAt } = useHorario();
   const { ra } = useUserInfo();
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
 
   const handleRefresh = async () => {
     const toastId = toast.loading('Atualizando...', { id: 'refresh-calendar' });
@@ -175,7 +177,17 @@ export default function CalendarioPage() {
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {/* Próxima Aula */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
+          <button
+            type="button"
+            onClick={() => {
+              if (!proximaAula) return;
+              setSelectedEvent(proximaAula);
+              setIsEventDialogOpen(true);
+            }}
+            disabled={!proximaAula}
+            className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-900 disabled:cursor-default disabled:opacity-75 hover:bg-emerald-50/40 dark:hover:bg-emerald-900/10"
+            aria-label={proximaAula ? 'Abrir detalhes da prÃ³xima aula' : 'Nenhuma prÃ³xima aula'}
+          >
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
                 <CalendarIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
@@ -196,7 +208,7 @@ export default function CalendarioPage() {
                 )}
               </div>
             </div>
-          </div>
+          </button>
 
           {/* Próximo Sábado Letivo */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
@@ -266,6 +278,15 @@ export default function CalendarioPage() {
       <motion.div variants={sectionVariants}>
         <EventCalendar events={eventos} initialView="week" />
       </motion.div>
+
+      <EventViewDialog
+        event={selectedEvent}
+        isOpen={isEventDialogOpen}
+        onClose={() => {
+          setIsEventDialogOpen(false);
+          setSelectedEvent(null);
+        }}
+      />
     </motion.div>
   );
 }
