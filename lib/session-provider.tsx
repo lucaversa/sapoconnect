@@ -90,6 +90,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return null;
       });
       setSessionStatus(info.status);
+      if (info.status === 'active') {
+        setReconnectFailed(false);
+      }
 
       // Mostrar toast baseado nas mudanças de status
       if (previousStatus === 'active' && info.status === 'expired') {
