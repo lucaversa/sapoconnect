@@ -4,18 +4,16 @@ import { useEffect } from 'react';
 import { QueryClientProvider, dehydrate, hydrate } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { queryClient } from '@/lib/query-client';
+import { QUERY_PERSIST_KEY, QUERY_PERSIST_THROTTLE_MS } from '@/lib/query-persist';
 import { SessionProvider } from '@/lib/session-provider';
 import { Toaster } from 'sonner';
-
-const PERSIST_KEY = 'sapoconnect_query_cache_v1';
-const PERSIST_THROTTLE_MS = 1000;
 
 export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     try {
-      const cached = localStorage.getItem(PERSIST_KEY);
+      const cached = localStorage.getItem(QUERY_PERSIST_KEY);
       if (cached) {
         const data = JSON.parse(cached);
         hydrate(queryClient, data);
@@ -31,11 +29,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         timeoutId = null;
         try {
           const dehydrated = dehydrate(queryClient);
-          localStorage.setItem(PERSIST_KEY, JSON.stringify(dehydrated));
+          localStorage.setItem(QUERY_PERSIST_KEY, JSON.stringify(dehydrated));
         } catch {
           // ignore persistence errors
         }
-      }, PERSIST_THROTTLE_MS);
+      }, QUERY_PERSIST_THROTTLE_MS);
     });
 
     return () => {

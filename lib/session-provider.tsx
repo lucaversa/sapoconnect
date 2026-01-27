@@ -5,6 +5,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import { getSessionManager, SessionInfo, SessionUserData, DisconnectReason } from './session-manager';
 import { getCredentials } from './storage';
+import { queryClient } from './query-client';
+import { QUERY_PERSIST_KEY } from './query-persist';
 
 interface SessionContextValue {
   user: SessionUserData | null;
@@ -30,6 +32,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const isInitialized = useRef(false);
   const previousStatusRef = useRef<SessionInfo['status']>('active');
   const reconnectToastIdRef = useRef<string | null>(null);
+  const lastUserRaRef = useRef<string | null>(null);
+
+  const clearPersistedCache = useCallback(() => {
+    queryClient.clear();
+    try {
+      localStorage.removeItem(QUERY_PERSIST_KEY);
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
 
   useEffect(() => {
     if (isInitialized.current) return;
@@ -126,9 +138,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, [sessionStatus]);
 
+  useEffect(() => {
+    const currentRa = user?.ra ?? null;
+    if (currentRa && lastUserRaRef.current && currentRa !== lastUserRaRef.current) {
+      clearPersistedCache();
+    }
+    if (currentRa) {
+      lastUserRaRef.current = currentRa;
+    }
+  }, [user?.ra, clearPersistedCache]);
+
   const logout = useCallback(async (reason: DisconnectReason = DisconnectReason.LOGOUT_USER) => {
     const sessionManager = sessionManagerRef.current;
     await sessionManager.logout(reason);
+    clearPersistedCache();
+    lastUserRaRef.current = null;
     setUser(null);
     setSessionStatus('expired');
     setReconnectFailed(false);
