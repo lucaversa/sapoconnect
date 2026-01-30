@@ -16,6 +16,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { PageLoading } from '@/components/page-loading';
+import { PullToRefresh } from '@/components/pull-to-refresh';
 import { ApiError } from '@/components/api-error';
 import { EmptyState } from '@/components/empty-state';
 import { TotvsOfflineBanner } from '@/components/totvs-offline-banner';
@@ -205,7 +206,7 @@ export default function AvaliacoesPage() {
         <button
           onClick={handleRefresh}
           disabled={isFetching}
-          className="flex items-center justify-center w-10 h-10 text-gray-500 border border-gray-200 rounded-lg dark:border-gray-800 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+          className="hidden sm:flex items-center justify-center w-10 h-10 text-gray-500 border border-gray-200 rounded-lg dark:border-gray-800 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
           aria-label="Atualizar"
         >
           <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
@@ -485,6 +486,7 @@ export default function AvaliacoesPage() {
           );
         })}
       </motion.div>
+      <PullToRefresh onRefresh={handleRefresh} />
     </motion.div>
   );
 }

@@ -2,22 +2,20 @@
 
 import {
   Clock,
-  Calendar,
   Info,
   CheckCircle,
   XCircle,
   AlertTriangle,
   BookOpen,
-  Hash,
   TrendingDown,
   Shield,
-  Timer,
   RefreshCw
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { PageLoading } from '@/components/page-loading';
+import { PullToRefresh } from '@/components/pull-to-refresh';
 import { ApiError } from '@/components/api-error';
 import { EmptyState } from '@/components/empty-state';
 import { TotvsOfflineBanner } from '@/components/totvs-offline-banner';
@@ -227,7 +225,7 @@ export default function FaltasPage() {
           <button
             onClick={handleRefresh}
             disabled={isFetching}
-            className="flex items-center justify-center w-10 h-10 text-gray-500 border border-gray-200 rounded-lg dark:border-gray-800 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+            className="hidden sm:flex items-center justify-center w-10 h-10 text-gray-500 border border-gray-200 rounded-lg dark:border-gray-800 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
             aria-label="Atualizar"
           >
             <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
@@ -331,7 +329,7 @@ export default function FaltasPage() {
                           </h3>
                         </div>
 
-                        <span className={`px-2.5 py-1 text-xs font-medium rounded-lg ${statusConfig.bg} ${statusConfig.color} border ${statusConfig.border} whitespace-nowrap`}>
+                        <span className={`w-fit self-start sm:self-auto px-2 py-0.5 sm:px-2.5 sm:py-1 text-[11px] sm:text-xs font-medium rounded-lg ${statusConfig.bg} ${statusConfig.color} border ${statusConfig.border} whitespace-nowrap`}>
                           {statusConfig.label}
                         </span>
                       </div>
@@ -377,87 +375,57 @@ export default function FaltasPage() {
                       </div>
                     )}
                   </div>
+                  {/* Posso faltar a partir de? */}
+                  <div className="mt-3 w-full max-w-[420px] rounded-lg border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-950/30 px-3 py-2">
+                    <div className="flex items-start gap-2">
+                      <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold">
+                          Posso faltar a partir de?
+                        </p>
+                        {(() => {
+                          if (faltarInfo.status === 'insufficient') {
+                            return (
+                              <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                                Dados insuficientes.
+                              </p>
+                            );
+                          }
+                          if (faltarInfo.status === 'limit') {
+                            return (
+                              <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                                Já está no limite.
+                              </p>
+                            );
+                          }
+                          if (faltarInfo.status === 'no-events') {
+                            return (
+                              <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                                Sem aulas futuras.
+                              </p>
+                            );
+                          }
+                          if (faltarInfo.status === 'impossible') {
+                            return (
+                              <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                                Não é possível.
+                              </p>
+                            );
+                          }
 
-                  {/* Estatísticas de aulas */}
-                  {(item.aulasTotal !== undefined || item.aulasRealizadas !== undefined || item.diasRestantes !== undefined) && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {item.aulasTotal !== undefined && (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-100 dark:border-blue-900/50">
-                          <Timer className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                          <span className="text-xs text-blue-700 dark:text-blue-300">
-                            <span className="font-semibold">{item.aulasTotal}</span> aulas totais
-                          </span>
-                        </div>
-                      )}
-                      {item.aulasRealizadas !== undefined && (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg border border-emerald-100 dark:border-emerald-900/50">
-                          <CheckCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                          <span className="text-xs text-emerald-700 dark:text-emerald-300">
-                            <span className="font-semibold">{item.aulasRealizadas}</span> realizadas
-                          </span>
-                        </div>
-                      )}
-                      {item.diasRestantes !== undefined && (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-100 dark:border-amber-900/50">
-                          <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                          <span className="text-xs text-amber-700 dark:text-amber-300">
-                            <span className="font-semibold">{item.diasRestantes}</span> dias restantes
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="w-full sm:w-[240px] rounded-lg border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-950/30 px-3 py-2">
-                        <div className="flex items-start gap-2">
-                          <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 mt-0.5" />
-                          <div>
-                            <p className="text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold">
-                              Posso faltar a partir de?
+                          const dateLabel = format(faltarInfo.date, 'dd/MM/yyyy');
+                          return (
+                            <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                              <span className="font-semibold text-indigo-800 dark:text-indigo-200">
+                                Data: {dateLabel}
+                              </span>{' '}
+                              • Restarão {faltarInfo.daysRemaining} dias de aula ({formatPercent(faltarInfo.percentRemaining)}) • Total {formatPercent(faltarInfo.totalPercent)}
                             </p>
-                            {(() => {
-                              if (faltarInfo.status === 'insufficient') {
-                                return (
-                                  <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
-                                    Dados insuficientes.
-                                  </p>
-                                );
-                              }
-                              if (faltarInfo.status === 'limit') {
-                                return (
-                                  <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
-                                    Já está no limite.
-                                  </p>
-                                );
-                              }
-                              if (faltarInfo.status === 'no-events') {
-                                return (
-                                  <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
-                                    Sem aulas futuras.
-                                  </p>
-                                );
-                              }
-                              if (faltarInfo.status === 'impossible') {
-                                return (
-                                  <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
-                                    Não é possível.
-                                  </p>
-                                );
-                              }
-
-                              const dateLabel = format(faltarInfo.date, 'dd/MM/yyyy');
-                              return (
-                                <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
-                                  <span className="font-semibold text-indigo-800 dark:text-indigo-200">
-                                    Data: {dateLabel}
-                                  </span>{' '}
-                                  • Restarão {faltarInfo.daysRemaining} dias de aula ({formatPercent(faltarInfo.percentRemaining)}) • Total {formatPercent(faltarInfo.totalPercent)}
-                                </p>
-                              );
-                            })()}
-                          </div>
-                        </div>
+                          );
+                        })()}
                       </div>
                     </div>
-                  )}
+                  </div>
 
                   {/* Barra de progresso */}
                   <div className="mt-4">
@@ -495,7 +463,8 @@ export default function FaltasPage() {
           })}
           </div>
         )}
-      </motion.div>
+      <PullToRefresh onRefresh={handleRefresh} />
+    </motion.div>
     </motion.div>
   );
 }
