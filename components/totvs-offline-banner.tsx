@@ -12,7 +12,12 @@ export function TotvsOfflineBanner({
       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
         <WifiOff className="h-4 w-4 text-amber-700" />
       </div>
-      <p className="text-sm font-medium">{message}</p>
+      <p className="text-sm font-medium">
+        {message}
+        <span className="mt-1 block text-xs font-normal text-amber-700 sm:hidden">
+          Arraste para baixo para atualizar.
+        </span>
+      </p>
     </div>
   );
 }
