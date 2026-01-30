@@ -4,9 +4,9 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef } f
 import { useRouter, usePathname } from 'next/navigation';
 import { toast } from 'sonner';
 import { getSessionManager, SessionInfo, SessionUserData, DisconnectReason } from './session-manager';
-import { getCredentials } from './storage';
+import { clearQueryCache, getCredentials } from './storage';
 import { queryClient } from './query-client';
-import { QUERY_PERSIST_KEY } from './query-persist';
+import { QUERY_PERSIST_KEY_PREFIX, QUERY_PERSIST_USER_KEY, getPersistKeyForUser } from './query-persist';
 
 interface SessionContextValue {
   user: SessionUserData | null;
@@ -34,13 +34,30 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const reconnectToastIdRef = useRef<string | null>(null);
   const lastUserRaRef = useRef<string | null>(null);
 
-  const clearPersistedCache = useCallback(() => {
+  const clearPersistedCache = useCallback((raToClear?: string | null) => {
     queryClient.clear();
+    const keysToClear = new Set<string>();
+    keysToClear.add(QUERY_PERSIST_KEY_PREFIX);
+    if (raToClear) {
+      keysToClear.add(getPersistKeyForUser(raToClear));
+    }
     try {
-      localStorage.removeItem(QUERY_PERSIST_KEY);
+      const storedRa = localStorage.getItem(QUERY_PERSIST_USER_KEY);
+      if (storedRa) {
+        keysToClear.add(getPersistKeyForUser(storedRa));
+      }
     } catch {
       // ignore storage errors
     }
+
+    keysToClear.forEach((key) => {
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        // ignore storage errors
+      }
+      void clearQueryCache(key).catch(() => {});
+    });
   }, []);
 
   useEffect(() => {
@@ -109,10 +126,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         if (reason) {
-          toast.error(reason);
           sessionManagerRef.current.clearDisconnectReason();
-        } else {
-          toast.error('Sessão expirada. Faça login novamente.');
         }
         setReconnectFailed(true);
       } else if (info.status === 'refreshing' && previousStatus !== 'refreshing') {
@@ -163,20 +177,41 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    try {
+      const storedRa = localStorage.getItem(QUERY_PERSIST_USER_KEY);
+      if (storedRa) {
+        lastUserRaRef.current = storedRa;
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  useEffect(() => {
     const currentRa = user?.ra ?? null;
     if (currentRa && lastUserRaRef.current && currentRa !== lastUserRaRef.current) {
-      clearPersistedCache();
+      clearPersistedCache(lastUserRaRef.current);
     }
     if (currentRa) {
       lastUserRaRef.current = currentRa;
+      try {
+        localStorage.setItem(QUERY_PERSIST_USER_KEY, currentRa);
+      } catch {
+        // ignore storage errors
+      }
     }
   }, [user?.ra, clearPersistedCache]);
 
   const logout = useCallback(async (reason: DisconnectReason = DisconnectReason.LOGOUT_USER) => {
     const sessionManager = sessionManagerRef.current;
     await sessionManager.logout(reason);
-    clearPersistedCache();
+    clearPersistedCache(lastUserRaRef.current);
     lastUserRaRef.current = null;
+    try {
+      localStorage.removeItem(QUERY_PERSIST_USER_KEY);
+    } catch {
+      // ignore storage errors
+    }
     setUser(null);
     setSessionStatus('expired');
     setReconnectFailed(false);

@@ -4,8 +4,8 @@ import { useEffect } from 'react';
 import { QueryClientProvider, dehydrate, hydrate } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { queryClient } from '@/lib/query-client';
-import { QUERY_PERSIST_KEY, QUERY_PERSIST_THROTTLE_MS } from '@/lib/query-persist';
-import { SessionProvider } from '@/lib/session-provider';
+import { QUERY_PERSIST_KEY_PREFIX, QUERY_PERSIST_THROTTLE_MS, getPersistKeyFromStorage } from '@/lib/query-persist';
+import { getQueryCache, saveQueryCache } from '@/lib/storage';
 import { Toaster } from 'sonner';
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -20,31 +20,70 @@ export function Providers({ children }: { children: React.ReactNode }) {
       // ignore persistence request errors
     }
 
-    try {
-      const cached = localStorage.getItem(QUERY_PERSIST_KEY);
-      if (cached) {
-        const data = JSON.parse(cached);
-        hydrate(queryClient, data);
+    let isCancelled = false;
+
+    const hydrateCache = async () => {
+      const persistedKey = getPersistKeyFromStorage();
+      const fallbackKeys = persistedKey === QUERY_PERSIST_KEY_PREFIX
+        ? []
+        : [QUERY_PERSIST_KEY_PREFIX];
+
+      const tryHydrate = (payload: string | null) => {
+        if (!payload || isCancelled) return false;
+        try {
+          const data = JSON.parse(payload);
+          hydrate(queryClient, data);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
+      let hydrated = false;
+      try {
+        hydrated = tryHydrate(localStorage.getItem(persistedKey));
+        if (!hydrated) {
+          fallbackKeys.some((key) => {
+            hydrated = tryHydrate(localStorage.getItem(key));
+            return hydrated;
+          });
+        }
+      } catch {
+        // ignore localStorage errors
       }
-    } catch {
-      // ignore cache hydration errors
-    }
+
+      if (!hydrated) {
+        const idbCached =
+          (await getQueryCache<ReturnType<typeof dehydrate>>(persistedKey)) ||
+          (fallbackKeys.length
+            ? await getQueryCache<ReturnType<typeof dehydrate>>(fallbackKeys[0])
+            : null);
+        if (idbCached && !isCancelled) {
+          hydrate(queryClient, idbCached);
+        }
+      }
+    };
+
+    hydrateCache();
 
     let timeoutId: number | null = null;
     const unsubscribe = queryClient.getQueryCache().subscribe(() => {
       if (timeoutId) return;
       timeoutId = window.setTimeout(() => {
         timeoutId = null;
+        const persistKey = getPersistKeyFromStorage();
+        const dehydrated = dehydrate(queryClient);
         try {
-          const dehydrated = dehydrate(queryClient);
-          localStorage.setItem(QUERY_PERSIST_KEY, JSON.stringify(dehydrated));
+          localStorage.setItem(persistKey, JSON.stringify(dehydrated));
         } catch {
-          // ignore persistence errors
+          // ignore localStorage errors
         }
+        void saveQueryCache(persistKey, dehydrated).catch(() => {});
       }, QUERY_PERSIST_THROTTLE_MS);
     });
 
     return () => {
+      isCancelled = true;
       unsubscribe();
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -54,11 +93,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SessionProvider>
-        {children}
-        <Toaster richColors position="top-right" />
-        <ReactQueryDevtools initialIsOpen={false} />
-      </SessionProvider>
+      {children}
+      <Toaster richColors position="top-right" />
+      <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   );
 }

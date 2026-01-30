@@ -17,6 +17,7 @@ export interface FaltasItem {
   aulasTotal?: number;
   aulasRealizadas?: number;
   diasRestantes?: number;
+  eventosFuturos?: string[];
 }
 
 export interface FaltasResponse {

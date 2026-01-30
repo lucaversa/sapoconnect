@@ -503,7 +503,7 @@ export default function CalendarioPage() {
 
       {/* EventCalendar Component */}
       <motion.div variants={sectionVariants}>
-        <EventCalendar events={eventos} initialView="week" />
+        <EventCalendar events={eventos} initialView="day" />
       </motion.div>
 
       <EventViewDialog

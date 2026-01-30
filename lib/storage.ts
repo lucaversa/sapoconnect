@@ -1,8 +1,9 @@
 import { encrypt, decrypt, getDeviceId, getOrCreateDeviceId, setDeviceId } from './crypto';
 
 const DB_NAME = 'sapoconnect_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'credentials';
+const CACHE_STORE_NAME = 'query_cache';
 
 interface StoredCredentials {
   encrypted: string;
@@ -28,6 +29,9 @@ function openDatabase(): Promise<IDBDatabase> {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
+      }
+      if (!db.objectStoreNames.contains(CACHE_STORE_NAME)) {
+        db.createObjectStore(CACHE_STORE_NAME);
       }
     };
   });
@@ -142,4 +146,70 @@ export async function clearCredentials(): Promise<void> {
 export async function hasStoredCredentials(): Promise<boolean> {
   const credentials = await getCredentials();
   return credentials !== null;
+}
+
+export async function saveQueryCache(key: string, data: unknown): Promise<void> {
+  const db = await openDatabase();
+  const transaction = db.transaction(CACHE_STORE_NAME, 'readwrite');
+  const store = transaction.objectStore(CACHE_STORE_NAME);
+
+  const payload = {
+    data,
+    timestamp: Date.now(),
+  };
+
+  return new Promise((resolve, reject) => {
+    const request = store.put(payload, key);
+    request.onsuccess = () => {
+      db.close();
+      resolve();
+    };
+    request.onerror = () => {
+      db.close();
+      reject(request.error);
+    };
+  });
+}
+
+export async function getQueryCache<T = unknown>(key: string): Promise<T | null> {
+  try {
+    const db = await openDatabase();
+    const transaction = db.transaction(CACHE_STORE_NAME, 'readonly');
+    const store = transaction.objectStore(CACHE_STORE_NAME);
+
+    return new Promise((resolve, reject) => {
+      const request = store.get(key);
+
+      request.onsuccess = () => {
+        db.close();
+        const stored = request.result as { data?: T } | undefined;
+        resolve(stored?.data ?? null);
+      };
+
+      request.onerror = () => {
+        db.close();
+        reject(request.error);
+      };
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function clearQueryCache(key?: string): Promise<void> {
+  const db = await openDatabase();
+  const transaction = db.transaction(CACHE_STORE_NAME, 'readwrite');
+  const store = transaction.objectStore(CACHE_STORE_NAME);
+
+  return new Promise((resolve, reject) => {
+    const request = key ? store.delete(key) : store.clear();
+    request.onsuccess = () => {
+      db.close();
+      resolve();
+    };
+    request.onerror = () => {
+      db.close();
+      reject(request.error);
+    };
+  });
 }

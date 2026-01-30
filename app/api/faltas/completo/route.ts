@@ -33,6 +33,7 @@ interface FaltasItemEnriquecido extends FaltasItem {
   aulasTotal?: number;
   aulasRealizadas?: number;
   diasRestantes?: number;
+  eventosFuturos?: string[];
 }
 
 class TotvsFetchError extends Error {
@@ -234,6 +235,24 @@ async function fetchFromTOTVS(url: string, cookies: string): Promise<string> {
   return response.text();
 }
 
+interface AulaAgendada {
+  data: string;
+  hora: string;
+  datetime: Date;
+  datetimeLocal: string;
+}
+
+interface AulaStats {
+  total: number;
+  datas: Set<string>;
+  aulas: AulaAgendada[];
+}
+
+function formatLocalDateTime(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
+}
+
 export async function GET() {
   try {
     const externalCookies = await getExternalCookies();
@@ -333,11 +352,7 @@ export async function GET() {
 
       // Criar mapa de estatísticas de aulas por disciplina (do horário)
       // Armazena cada aula com sua data/hora completa para calcular realizadas corretamente
-      const aulasPorDisciplina = new Map<string, {
-        total: number;
-        datas: Set<string>;
-        aulas: Array<{ data: string; hora: string; datetime: Date }>;
-      }>();
+      const aulasPorDisciplina = new Map<string, AulaStats>();
 
       aulas.forEach((aula) => {
         const nomeNormalizado = normalizarNome(aula.disciplina);
@@ -356,6 +371,7 @@ export async function GET() {
             data: aula.data_inicial_iso,
             hora: aula.inicio,
             datetime: aulaDateTime,
+            datetimeLocal: formatLocalDateTime(aulaDateTime),
           });
         }
       });
@@ -389,17 +405,24 @@ export async function GET() {
 
         // 2. Buscar estatísticas de aulas do horário
         const nomeNormalizado = normalizarNome(falta.disciplina);
-        if (aulasPorDisciplina.has(nomeNormalizado)) {
-          const stats = aulasPorDisciplina.get(nomeNormalizado)!;
+        let stats = aulasPorDisciplina.get(nomeNormalizado);
+        if (!stats) {
+          stats = Array.from(aulasPorDisciplina.entries())
+            .find(([nome]) => nomesSimilares(falta.disciplina, nome))?.[1];
+        }
+
+        if (stats) {
           resultado.aulasTotal = stats.total;
           resultado.diasRestantes = stats.datas.size;
-        } else {
-          for (const [nome, stats] of Array.from(aulasPorDisciplina.entries())) {
-            if (nomesSimilares(falta.disciplina, nome)) {
-              resultado.aulasTotal = stats.total;
-              resultado.diasRestantes = stats.datas.size;
-              break;
-            }
+
+          if (stats.aulas.length > 0) {
+            const agora = new Date();
+            const futuras = stats.aulas
+              .filter((aula) => aula.datetime > agora)
+              .sort((a, b) => a.datetime.getTime() - b.datetime.getTime())
+              .map((aula) => aula.datetimeLocal);
+
+            resultado.eventosFuturos = futuras;
           }
         }
 

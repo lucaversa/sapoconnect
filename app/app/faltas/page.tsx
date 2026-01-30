@@ -14,7 +14,7 @@ import {
   Timer,
   RefreshCw
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { PageLoading } from '@/components/page-loading';
@@ -38,6 +38,84 @@ const sectionVariants: Variants = {
   hidden: { opacity: 0, y: 8 },
   show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } },
 };
+
+type FaltarRestanteInfo =
+  | { status: 'insufficient' }
+  | { status: 'limit' }
+  | { status: 'no-events' }
+  | { status: 'impossible' }
+  | {
+    status: 'possible';
+    date: Date;
+    eventsRemaining: number;
+    daysRemaining: number;
+    percentRemaining: number;
+    totalPercent: number;
+  };
+
+function parsePercent(value?: string): number | null {
+  if (!value) return null;
+  const normalized = value.replace('%', '').replace(',', '.').trim();
+  const parsed = parseFloat(normalized);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function formatPercent(value: number, decimals = 1): string {
+  const formatted = value.toFixed(decimals).replace('.', ',');
+  return `${formatted.replace(/,0+$/, '')}%`;
+}
+
+function capitalize(value: string): string {
+  if (!value) return value;
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function getFaltarRestanteInfo(item: FaltasItem): FaltarRestanteInfo {
+  const limite = parsePercent(item.limiteFaltas);
+  const porEvento = parsePercent(item.umaFaltaPct);
+  const percentualAtual = item.porcentagemValor;
+
+  if (limite === null || porEvento === null) {
+    return { status: 'insufficient' };
+  }
+
+  if (percentualAtual >= limite) {
+    return { status: 'limit' };
+  }
+
+  const eventosFuturos = (item.eventosFuturos || [])
+    .map((date) => new Date(date))
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  if (eventosFuturos.length === 0) {
+    return { status: 'no-events' };
+  }
+
+  const totalEventos = eventosFuturos.length;
+
+  for (let i = 0; i < totalEventos; i += 1) {
+    const eventosRestantes = totalEventos - i;
+    const percentSeFaltar = percentualAtual + eventosRestantes * porEvento;
+
+    if (percentSeFaltar <= limite + 0.0001) {
+      const daysRemaining = new Set(
+        eventosFuturos.slice(i).map((eventDate) => format(eventDate, 'yyyy-MM-dd'))
+      ).size;
+
+      return {
+        status: 'possible',
+        date: eventosFuturos[i],
+        eventsRemaining: eventosRestantes,
+        daysRemaining,
+        percentRemaining: eventosRestantes * porEvento,
+        totalPercent: percentSeFaltar,
+      };
+    }
+  }
+
+  return { status: 'impossible' };
+}
 
 export default function FaltasPage() {
   const { data, error, isLoading, isFetching, refetch, dataUpdatedAt } = useFaltas();
@@ -231,6 +309,7 @@ export default function FaltasPage() {
           {faltas.map((item) => {
             const statusConfig = getStatusConfig(item.status);
             const StatusIcon = statusConfig.icon;
+            const faltarInfo = getFaltarRestanteInfo(item);
 
             return (
               <div
@@ -239,28 +318,20 @@ export default function FaltasPage() {
               >
                 <div className="p-4">
                   {/* Header da disciplina */}
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 sm:w-12 sm:h-12 ${statusConfig.bg} rounded-xl flex items-center justify-center flex-shrink-0 border ${statusConfig.border}`}>
                       <StatusIcon className={`w-5 h-5 sm:w-6 sm:h-6 ${statusConfig.color}`} />
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="min-w-0">
                           <h3 className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base leading-tight">
                             {item.disciplina}
                           </h3>
-                          <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            <span className="flex items-center gap-1">
-                              <Hash className="w-3 h-3" />
-                              {item.codigo}
-                            </span>
-                            <span>•</span>
-                            <span>Turma {item.turma}</span>
-                          </div>
                         </div>
 
-                        <span className={`self-start px-2.5 py-1 text-xs font-medium rounded-lg ${statusConfig.bg} ${statusConfig.color} border ${statusConfig.border} whitespace-nowrap`}>
+                        <span className={`px-2.5 py-1 text-xs font-medium rounded-lg ${statusConfig.bg} ${statusConfig.color} border ${statusConfig.border} whitespace-nowrap`}>
                           {statusConfig.label}
                         </span>
                       </div>
@@ -334,6 +405,57 @@ export default function FaltasPage() {
                           </span>
                         </div>
                       )}
+
+                      <div className="w-full sm:w-[240px] rounded-lg border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-950/30 px-3 py-2">
+                        <div className="flex items-start gap-2">
+                          <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 mt-0.5" />
+                          <div>
+                            <p className="text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold">
+                              Posso faltar a partir de?
+                            </p>
+                            {(() => {
+                              if (faltarInfo.status === 'insufficient') {
+                                return (
+                                  <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                                    Dados insuficientes.
+                                  </p>
+                                );
+                              }
+                              if (faltarInfo.status === 'limit') {
+                                return (
+                                  <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                                    Já está no limite.
+                                  </p>
+                                );
+                              }
+                              if (faltarInfo.status === 'no-events') {
+                                return (
+                                  <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                                    Sem aulas futuras.
+                                  </p>
+                                );
+                              }
+                              if (faltarInfo.status === 'impossible') {
+                                return (
+                                  <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                                    Não é possível.
+                                  </p>
+                                );
+                              }
+
+                              const dateLabel = format(faltarInfo.date, 'dd/MM/yyyy');
+                              return (
+                                <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                                  <span className="font-semibold text-indigo-800 dark:text-indigo-200">
+                                    Data: {dateLabel}
+                                  </span>{' '}
+                                  • Restarão {faltarInfo.daysRemaining} dias de aula ({formatPercent(faltarInfo.percentRemaining)}) • Total {formatPercent(faltarInfo.totalPercent)}
+                                </p>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
 
