@@ -35,6 +35,7 @@ import {
   AgendaView,
   CalendarEvent,
   CalendarView,
+  DayCellsHeight,
   DayView,
   EventGap,
   EventHeight,
@@ -190,6 +191,8 @@ export function EventCalendar({
     }
   }, [currentDate, view])
 
+  const timeCellsHeight = view === "day" ? DayCellsHeight : WeekCellsHeight
+
   return (
     <div
       className="flex flex-col rounded-lg border has-data-[slot=month-view]:flex-1"
@@ -197,7 +200,7 @@ export function EventCalendar({
         {
           "--event-height": `${EventHeight}px`,
           "--event-gap": `${EventGap}px`,
-          "--week-cells-height": `${WeekCellsHeight}px`,
+          "--week-cells-height": `${timeCellsHeight}px`,
         } as React.CSSProperties
       }
     >

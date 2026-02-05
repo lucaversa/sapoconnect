@@ -19,9 +19,9 @@ import {
   DraggableEvent,
   DroppableCell,
   EventItem,
+  DayCellsHeight,
   isMultiDayEvent,
   useCurrentTimeIndicator,
-  WeekCellsHeight,
   type CalendarEvent,
 } from "@/components/event-calendar"
 import { EndHour, StartHour } from "@/components/event-calendar/constants"
@@ -126,8 +126,8 @@ export function DayView({
       // Calculate top position and height
       const startHour = getHours(adjustedStart) + getMinutes(adjustedStart) / 60
       const endHour = getHours(adjustedEnd) + getMinutes(adjustedEnd) / 60
-      const top = (startHour - StartHour) * WeekCellsHeight
-      const height = (endHour - startHour) * WeekCellsHeight
+      const top = (startHour - StartHour) * DayCellsHeight
+      const height = (endHour - startHour) * DayCellsHeight
 
       // Find a column for this event
       let columnIndex = 0

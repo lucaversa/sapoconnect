@@ -17,6 +17,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { saveCredentials } from '@/lib/storage';
+import { forceCheckSession } from '@/lib/auth-client';
 import { AlertCircle, Loader2, Shield, Github, Lock, Code, GraduationCap, Server, ExternalLink } from 'lucide-react';
 
 export function LoginForm() {
@@ -46,6 +47,8 @@ export function LoginForm() {
       }
 
       await saveCredentials({ codUsuario, senha });
+      // Atualiza o estado da sessÃ£o no client para remover o banner de sessÃ£o expirada.
+      void forceCheckSession();
       router.push('/app/calendario');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
