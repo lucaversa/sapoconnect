@@ -185,7 +185,7 @@ export default function CalendarioPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
           {/* Próxima Aula */}
           <button
             type="button"
@@ -195,8 +195,8 @@ export default function CalendarioPage() {
               setIsEventDialogOpen(true);
             }}
             disabled={!proximaAula}
-            className="group bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-900 disabled:cursor-default disabled:opacity-75 hover:bg-emerald-50/40 dark:hover:bg-emerald-900/10"
-            aria-label={proximaAula ? 'Abrir detalhes da prÃ³xima aula' : 'Nenhuma prÃ³xima aula'}
+            className="group h-full bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-900 disabled:cursor-default disabled:opacity-75 hover:bg-emerald-50/40 dark:hover:bg-emerald-900/10"
+            aria-label={proximaAula ? 'Abrir detalhes da próxima aula' : 'Nenhuma próxima aula'}
           >
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -235,7 +235,7 @@ export default function CalendarioPage() {
               setIsEventDialogOpen(true);
             }}
             disabled={!proximoSabado}
-            className="group bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-900 disabled:cursor-default disabled:opacity-75 hover:bg-amber-50/40 dark:hover:bg-amber-900/10"
+            className="group h-full bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-900 disabled:cursor-default disabled:opacity-75 hover:bg-amber-50/40 dark:hover:bg-amber-900/10"
             aria-label={proximoSabado ? 'Abrir detalhes do próximo sábado letivo' : 'Nenhum sábado letivo programado'}
           >
             <div className="flex items-start gap-3">
@@ -267,7 +267,7 @@ export default function CalendarioPage() {
           </button>
 
           {/* Aulas Hoje */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
+          <div className="h-full bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
                 <CalendarDays className="w-5 h-5 text-blue-600 dark:text-blue-400" />

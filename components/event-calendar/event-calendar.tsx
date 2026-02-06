@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react"
 import { RiCalendarCheckLine } from "@remixicon/react"
 import {
   addDays,
@@ -71,11 +71,14 @@ export function EventCalendar({
   className,
   initialView = "week",
 }: EventCalendarProps) {
+  const SWIPE_THRESHOLD_PX = 48
+  const SWIPE_DIRECTION_FACTOR = 1.2
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState<CalendarView>(initialView)
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
 
   const handleViewChange = (newView: CalendarView) => {
     setView(newView)
@@ -149,6 +152,56 @@ export function EventCalendar({
     setIsEventDialogOpen(true)
   }
 
+  const shouldIgnoreSwipeTarget = (target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) return false
+    return !!target.closest(
+      'button, a, input, textarea, select, [role="button"], [data-swipe-ignore="true"]'
+    )
+  }
+
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (isEventDialogOpen || event.touches.length !== 1) {
+      touchStartRef.current = null
+      return
+    }
+
+    if (shouldIgnoreSwipeTarget(event.target)) {
+      touchStartRef.current = null
+      return
+    }
+
+    const touch = event.touches[0]
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY }
+  }
+
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    const start = touchStartRef.current
+    touchStartRef.current = null
+
+    if (!start || event.changedTouches.length !== 1) return
+
+    const touch = event.changedTouches[0]
+    const deltaX = touch.clientX - start.x
+    const deltaY = touch.clientY - start.y
+    const absX = Math.abs(deltaX)
+    const absY = Math.abs(deltaY)
+
+    if (absX < SWIPE_THRESHOLD_PX || absX <= absY * SWIPE_DIRECTION_FACTOR) {
+      return
+    }
+
+    if (deltaX < 0) {
+      handleNext()
+      return
+    }
+
+    handlePrevious()
+  }
+
+  const handleTouchCancel = () => {
+    touchStartRef.current = null
+  }
+
   const viewTitle = useMemo(() => {
     const formatShort = (date: Date) => {
         const month = format(date, "MMM", { locale: ptBR }).replace(".", "")
@@ -196,6 +249,9 @@ export function EventCalendar({
   return (
     <div
       className="flex flex-col rounded-lg border has-data-[slot=month-view]:flex-1"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
       style={
         {
           "--event-height": `${EventHeight}px`,

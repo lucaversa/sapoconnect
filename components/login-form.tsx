@@ -47,7 +47,7 @@ export function LoginForm() {
       }
 
       await saveCredentials({ codUsuario, senha });
-      // Atualiza o estado da sessÃ£o no client para remover o banner de sessÃ£o expirada.
+      // Atualiza o estado da sessão no client para remover o banner de sessão expirada.
       void forceCheckSession();
       router.push('/app/calendario');
     } catch (err) {
@@ -117,7 +117,7 @@ export function LoginForm() {
 
             <div className="space-y-1 sm:space-y-2 animate-in fade-in slide-in-from-top-2 duration-300 delay-200">
               <Label htmlFor="senha" className="text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-medium">
-                Senha
+                Senha (EduConnect)
               </Label>
               <Input
                 id="senha"
@@ -171,7 +171,7 @@ export function LoginForm() {
             <DialogDescription className="sr-only"></DialogDescription>
           </DialogHeader>
 
-        <div className="space-y-4 mt-2">
+          <div className="space-y-4 mt-2">
             <div className="flex gap-3">
               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                 <Lock className="h-5 w-5 text-primary" />
@@ -186,7 +186,7 @@ export function LoginForm() {
               </div>
             </div>
 
-        <div className="flex gap-3">
+            <div className="flex gap-3">
               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                 <Code className="h-5 w-5 text-primary" />
               </div>
@@ -209,7 +209,7 @@ export function LoginForm() {
               </div>
             </div>
 
-        <div className="flex gap-3">
+            <div className="flex gap-3">
               <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                 <GraduationCap className="h-5 w-5 text-primary" />
               </div>
@@ -223,7 +223,7 @@ export function LoginForm() {
               </div>
             </div>
 
-        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
               <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
                 <strong className="text-gray-600 dark:text-gray-300">Importante:</strong> Este aplicativo não substitui o portal oficial da faculdade. Solicitações, financeiro e demais requerimentos devem ser tratados diretamente pelo portal da instituição.
               </p>

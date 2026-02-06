@@ -31,6 +31,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const sessionManagerRef = useRef(getSessionManager());
   const isInitialized = useRef(false);
   const previousStatusRef = useRef<SessionInfo['status']>('active');
+  const hasHandledFirstStatusUpdateRef = useRef(false);
   const reconnectToastIdRef = useRef<string | null>(null);
   const lastUserRaRef = useRef<string | null>(null);
 
@@ -90,8 +91,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           }
 
           setSessionStatus('expired');
-          setReconnectFailed(true);
-          if (!credentials) {
+          if (credentials) {
+            setReconnectFailed(true);
+          } else {
+            setReconnectFailed(false);
             router.push('/login');
           }
         }
@@ -118,6 +121,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Mostrar toast baseado nas mudanças de status
+      if (!hasHandledFirstStatusUpdateRef.current) {
+        hasHandledFirstStatusUpdateRef.current = true;
+        return;
+      }
+
       if (previousStatus === 'active' && info.status === 'expired') {
         const reason = sessionManagerRef.current.getDisconnectReason();
         if (reason === DisconnectReason.LOGOUT_USER) {
@@ -157,6 +165,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       reconnectToastIdRef.current = null;
     }
   }, [sessionStatus]);
+
+  useEffect(() => {
+    if (pathname !== '/login' || !reconnectFailed) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setReconnectFailed(false);
+    }, 4500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [pathname, reconnectFailed]);
 
   const handleManualReconnect = useCallback(async () => {
     const sessionManager = sessionManagerRef.current;
@@ -252,6 +270,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     reconnectFailed,
     sessionStatus,
   };
+  const isOnLoginPage = pathname === '/login';
 
   return (
     <SessionContext.Provider value={value}>
@@ -263,27 +282,34 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
                 Sessão expirada
               </p>
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+              <p className={`text-xs text-amber-600 dark:text-amber-400 mt-1 ${isOnLoginPage ? 'hidden' : ''}`}>
                 Não foi possível reconectar automaticamente. Atualize a sessão para continuar.
               </p>
+              {isOnLoginPage && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  Sua sessão expirou. Faça login novamente para continuar.
+                </p>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleManualReconnect}
-                className="px-3 py-1.5 text-xs font-medium rounded bg-amber-600 text-white"
-              >
-                Atualizar sessão
-              </button>
-              <button
-                onClick={() => {
-                  setReconnectFailed(false);
-                  router.push('/login');
-                }}
-                className="px-3 py-1.5 text-xs font-medium rounded border border-amber-300 text-amber-700"
-              >
-                Login
-              </button>
-            </div>
+            {!isOnLoginPage && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleManualReconnect}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-md border border-amber-700 bg-amber-700 text-white hover:bg-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-300 dark:bg-amber-300 dark:text-amber-950 dark:hover:bg-amber-200"
+                >
+                  Atualizar sessão
+                </button>
+                <button
+                  onClick={() => {
+                    setReconnectFailed(false);
+                    router.push('/login');
+                  }}
+                  className="px-3 py-1.5 text-xs font-semibold rounded-md border border-amber-500 bg-amber-100 text-amber-800 hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-200 dark:bg-amber-900/60 dark:text-amber-100 dark:hover:bg-amber-900"
+                >
+                  Login
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

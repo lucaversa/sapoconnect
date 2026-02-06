@@ -19,6 +19,8 @@ export interface DetalheAula {
 }
 
 type DetalheAulaResponse = DetalheAula;
+const DETALHE_STALE_TIME_MS = 10 * 60 * 1000;
+const EMPTY_PROFESSOR_STALE_TIME_MS = 0;
 
 export function useDetalheAula(id: string | null) {
   return useQuery<DetalheAulaResponse>({
@@ -37,6 +39,12 @@ export function useDetalheAula(id: string | null) {
       return response.json();
     },
     enabled: !!id,
-    staleTime: 10 * 60 * 1000, // 10 minutos
+    staleTime: (query) => {
+      const cached = query.state.data as DetalheAulaResponse | undefined;
+      if (!cached) return EMPTY_PROFESSOR_STALE_TIME_MS;
+      return cached.professores.length > 0
+        ? DETALHE_STALE_TIME_MS
+        : EMPTY_PROFESSOR_STALE_TIME_MS;
+    },
   });
 }

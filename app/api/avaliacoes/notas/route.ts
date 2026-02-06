@@ -282,7 +282,7 @@ export async function POST(request: Request) {
 
     if (!resultado.categorias || resultado.categorias.length === 0) {
       return NextResponse.json(
-        { error: 'Falha ao validar sessÃ£o. Tente novamente.', code: 'SESSION_EXPIRED' },
+        { error: 'Falha ao validar sessão. Tente novamente.', code: 'SESSION_EXPIRED' },
         { status: 401 }
       );
     }
