@@ -267,18 +267,15 @@ export default function CalendarioPage() {
           </button>
 
           {/* Aulas Hoje */}
-          <div className="h-full bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
+          <div className="h-full bg-white dark:bg-gray-800 rounded-2xl p-3 sm:p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
                 <CalendarDays className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-gray-500 dark:text-gray-400">Aulas Hoje</p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-white mt-1">
+                <p className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white mt-0.5">
                   {aulasHojeCount}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {aulasHojeCount === 1 ? 'aula hoje' : 'aulas hoje'}
                 </p>
               </div>
             </div>
