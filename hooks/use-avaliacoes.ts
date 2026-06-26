@@ -28,12 +28,21 @@ export interface CategoriaComAvaliacoes {
 export interface ResultadoAvaliacoes {
   categorias: CategoriaComAvaliacoes[];
   somativaGeral?: number;
-  somativaGeralPorcentagem?: number;
   mediaParaAprovacao: number;
 }
 
 export interface AvaliacoesResponse {
   disciplinas?: DisciplinaOpcao[];
+}
+
+export interface DisciplinaComAvaliacoes extends DisciplinaOpcao {
+  resultado?: ResultadoAvaliacoes;
+  error?: string;
+  code?: string;
+}
+
+export interface AvaliacoesCompletoResponse {
+  disciplinas?: DisciplinaComAvaliacoes[];
 }
 
 export function useAvaliacoes() {
@@ -49,6 +58,23 @@ export function useAvaliacoes() {
         throw apiError;
       }
       return response.json() as Promise<AvaliacoesResponse>;
+    },
+  });
+}
+
+export function useAvaliacoesCompleto() {
+  return useQuery({
+    queryKey: queryKeys.avaliacoesCompleto(),
+    queryFn: async () => {
+      const response = await apiFetch('/api/avaliacoes/completo');
+      if (!response.ok) {
+        const apiError = await parseApiError(response);
+        if (isSessionExpiredApiError(apiError)) {
+          throw new SessionExpiredError();
+        }
+        throw apiError;
+      }
+      return response.json() as Promise<AvaliacoesCompletoResponse>;
     },
   });
 }

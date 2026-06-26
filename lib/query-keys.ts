@@ -2,6 +2,7 @@ export const queryKeys = {
   session: ['session'] as const,
   faltas: () => ['faltas'] as const,
   avaliacoes: () => ['avaliacoes'] as const,
+  avaliacoesCompleto: () => ['avaliacoes', 'completo'] as const,
   avaliacoesNotas: (codigo?: string) => ['avaliacoes', 'notas', codigo ?? ''] as const,
   calendario: () => ['calendario'] as const,
   historico: () => ['historico'] as const,

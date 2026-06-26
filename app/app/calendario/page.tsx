@@ -22,7 +22,6 @@ import { PageLoading } from '@/components/page-loading';
 import { PullToRefresh } from '@/components/pull-to-refresh';
 import { ApiError } from '@/components/api-error';
 import { EmptyState } from '@/components/empty-state';
-import { TotvsOfflineBanner } from '@/components/totvs-offline-banner';
 import { useHorario } from '@/hooks/use-horario';
 import { useUserInfo } from '@/hooks/use-user-info';
 import { isTotvsOfflineError } from '@/lib/api-response-error';
@@ -105,8 +104,6 @@ export default function CalendarioPage() {
     return sabadosFuturos[0] || null;
   }
 
-  const isOffline = isTotvsOfflineError(error);
-
   if (isLoading) {
     return <PageLoading message="Carregando calendário..." />;
   }
@@ -136,15 +133,10 @@ export default function CalendarioPage() {
       initial="hidden"
       animate="show"
     >
-      {isOffline && (
-        <motion.div variants={sectionVariants}>
-          <TotvsOfflineBanner />
-        </motion.div>
-      )}
       {/* Header */}
       <motion.div variants={sectionVariants} className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
               Horários
             </h1>
@@ -155,23 +147,18 @@ export default function CalendarioPage() {
               {lastUpdatedLabel && (
                 <span>Atualizado {lastUpdatedLabel}</span>
               )}
-              {isFetching && data?.aulas?.length ? (
-                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  Atualizando dados...
-                </span>
-              ) : null}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             <button
               onClick={handleExportPDF}
               disabled={isExporting || isLoading || !data?.aulas?.length}
-              className="flex items-center justify-center w-10 h-10 text-gray-500 border border-gray-200 rounded-lg dark:border-gray-800 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+              className="flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-emerald-600 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none dark:border-emerald-500 dark:bg-emerald-500 dark:text-gray-950 dark:hover:bg-emerald-400 dark:focus-visible:ring-offset-gray-900 dark:disabled:border-gray-800 dark:disabled:bg-gray-800 dark:disabled:text-gray-500 sm:flex-none"
               aria-label="Exportar PDF"
               title="Exportar horário para PDF"
             >
               <Download className={`w-4 h-4 ${isExporting ? 'animate-pulse' : ''}`} />
+              <span className="truncate">{isExporting ? 'Gerando PDF...' : 'Exportar horário em PDF'}</span>
             </button>
             <button
               onClick={handleRefresh}

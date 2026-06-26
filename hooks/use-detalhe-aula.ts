@@ -39,6 +39,8 @@ export function useDetalheAula(id: string | null) {
       return response.json();
     },
     enabled: !!id,
+    retry: 2,
+    refetchOnMount: 'always',
     staleTime: (query) => {
       const cached = query.state.data as DetalheAulaResponse | undefined;
       if (!cached) return EMPTY_PROFESSOR_STALE_TIME_MS;

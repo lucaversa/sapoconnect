@@ -253,6 +253,14 @@ function formatLocalDateTime(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
 }
 
+function parseLocalDate(dateIso: string): Date | null {
+  const match = dateIso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day), 0, 0, 0, 0);
+}
+
 export async function GET() {
   try {
     const externalCookies = await getExternalCookies();
@@ -365,7 +373,8 @@ export async function GET() {
           stats.datas.add(aula.data_inicial_iso.split('T')[0]);
           // Criar Date completo da aula para verificar se já ocorreu
           const [hora, min] = aula.inicio.split(':').map(Number);
-          const aulaDateTime = new Date(aula.data_inicial_iso);
+          const aulaDateTime = parseLocalDate(aula.data_inicial_iso);
+          if (!aulaDateTime) return;
           aulaDateTime.setHours(hora, min, 0, 0);
           stats.aulas.push({
             data: aula.data_inicial_iso,

@@ -1,8 +1,9 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { Calendar, Clock, MapPin, Users, BookOpen, Building, GraduationCap } from "lucide-react"
+import { Calendar, Clock, MapPin, Users, BookOpen, GraduationCap, RefreshCw } from "lucide-react"
 import { useDetalheAula } from "@/hooks/use-detalhe-aula"
 
 import { Button } from "@/components/ui/button"
@@ -26,7 +27,44 @@ export function EventViewDialog({
   onClose,
 }: EventViewDialogProps) {
   // Buscar detalhes adicionais (professor) se tiver detalheId
-  const { data: detalhe, isLoading: isLoadingDetalhe } = useDetalheAula(event?.detalheId || null)
+  const {
+    data: detalhe,
+    isLoading: isLoadingDetalhe,
+    isFetching: isFetchingDetalhe,
+    error: detalheError,
+    refetch: refetchDetalhe,
+  } = useDetalheAula(event?.detalheId || null)
+  const emptyProfessorRetryRef = useRef<{ detalheId: string | null; attempts: number }>({
+    detalheId: null,
+    attempts: 0,
+  })
+
+  useEffect(() => {
+    const detalheId = event?.detalheId || null
+
+    if (!isOpen || !detalheId) {
+      emptyProfessorRetryRef.current = { detalheId, attempts: 0 }
+      return
+    }
+
+    if (emptyProfessorRetryRef.current.detalheId !== detalheId) {
+      emptyProfessorRetryRef.current = { detalheId, attempts: 0 }
+    }
+
+    if (
+      detalhe &&
+      detalhe.professores.length === 0 &&
+      !isFetchingDetalhe &&
+      emptyProfessorRetryRef.current.attempts < 2
+    ) {
+      emptyProfessorRetryRef.current.attempts += 1
+      const timeoutId = window.setTimeout(() => {
+        void refetchDetalhe()
+      }, 900)
+
+      return () => window.clearTimeout(timeoutId)
+    }
+  }, [detalhe, event?.detalheId, isFetchingDetalhe, isOpen, refetchDetalhe])
 
   if (!event) return null
 
@@ -56,6 +94,8 @@ export function EventViewDialog({
 
   const info = parseDescription()
   const professores = detalhe?.professores || []
+  const hasDetalheId = !!event.detalheId
+  const isProfessorLoading = isLoadingDetalhe || isFetchingDetalhe
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -140,7 +180,7 @@ export function EventViewDialog({
             )}
 
             {/* Professor(es) */}
-            {professores.length > 0 && (
+            {hasDetalheId && (
               <>
                 <div className="border-t border-gray-200 dark:border-gray-700" />
 
@@ -150,19 +190,36 @@ export function EventViewDialog({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                      {professores.length === 1 ? 'Professor' : 'Professores'}
+                      {professores.length === 1 ? "Professor" : "Professores"}
                     </p>
-                    {isLoadingDetalhe ? (
+                    {isProfessorLoading ? (
                       <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
-                        Carregando...
+                        Carregando professor...
                       </p>
-                    ) : (
+                    ) : professores.length > 0 ? (
                       <div className="mt-0.5 space-y-0.5">
                         {professores.map((prof, idx) => (
                           <p key={idx} className="font-semibold text-gray-900 dark:text-white">
                             {prof}
                           </p>
                         ))}
+                      </div>
+                    ) : (
+                      <div className="mt-1 space-y-2">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {detalheError
+                            ? "Não foi possível carregar o professor."
+                            : "Professor ainda não carregado."}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void refetchDetalhe()}
+                          className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50"
+                          disabled={isProfessorLoading}
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 ${isProfessorLoading ? "animate-spin" : ""}`} />
+                          Carregar professor
+                        </button>
                       </div>
                     )}
                   </div>

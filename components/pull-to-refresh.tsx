@@ -22,7 +22,8 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (navigator.maxTouchPoints === 0 && !('ontouchstart' in window)) return;
+    const hasTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+    if (!hasTouch) return;
 
     const getScrollTop = () => {
       const scrollingElement = document.scrollingElement;
@@ -117,18 +118,20 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
   const translateY = Math.min(pullDistance, minPullDistance);
 
   return (
-    <div
-      className="pointer-events-none fixed top-2 left-1/2 z-50 -translate-x-1/2"
-      style={{
-        opacity: isVisible ? 1 : 0,
-        transform: `translate(-50%, ${translateY}px)`,
-        transition: isRefreshing ? 'opacity 0.2s ease' : 'opacity 0.2s ease, transform 0.2s ease',
-      }}
-    >
-      <div className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm backdrop-blur dark:bg-gray-900/80 dark:text-gray-200">
-        <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-        <span>{isRefreshing ? 'Atualizando...' : 'Puxe para atualizar'}</span>
+    <>
+      <div
+        className="pointer-events-none fixed top-2 left-1/2 z-50 -translate-x-1/2"
+        style={{
+          opacity: isVisible ? 1 : 0,
+          transform: `translate(-50%, ${translateY}px)`,
+          transition: isRefreshing ? 'opacity 0.2s ease' : 'opacity 0.2s ease, transform 0.2s ease',
+        }}
+      >
+        <div className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm backdrop-blur dark:bg-gray-900/80 dark:text-gray-200">
+          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <span>{isRefreshing ? 'Atualizando...' : 'Puxe para atualizar'}</span>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -44,8 +44,6 @@ export async function apiFetch(
 
   const sessionManager = getSessionManager();
 
-  await sessionManager.waitForBackgroundReconnect();
-
   let didRefresh = false;
   let attemptsAfterRefresh = 0;
   const MAX_ATTEMPTS_AFTER_REFRESH = 3;

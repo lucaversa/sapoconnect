@@ -32,7 +32,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const isInitialized = useRef(false);
   const previousStatusRef = useRef<SessionInfo['status']>('active');
   const hasHandledFirstStatusUpdateRef = useRef(false);
-  const reconnectToastIdRef = useRef<string | null>(null);
   const lastUserRaRef = useRef<string | null>(null);
 
   const clearPersistedCache = useCallback((raToClear?: string | null) => {
@@ -87,6 +86,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           if (currentState.status === 'error') {
             setSessionStatus('error');
             setReconnectFailed(false);
+            setIsLoading(false);
+            isInitialized.current = true;
             return;
           }
 
@@ -120,7 +121,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         setReconnectFailed(false);
       }
 
-      // Mostrar toast baseado nas mudanças de status
       if (!hasHandledFirstStatusUpdateRef.current) {
         hasHandledFirstStatusUpdateRef.current = true;
         return;
@@ -137,34 +137,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
           sessionManagerRef.current.clearDisconnectReason();
         }
         setReconnectFailed(true);
-      } else if (info.status === 'refreshing' && previousStatus !== 'refreshing') {
-        // Mostrar toast de reconexão
-        reconnectToastIdRef.current = 'reconnect';
-        toast.loading('Reconectando...', { id: 'reconnect' });
-      } else if (info.status === 'active' && previousStatus === 'refreshing') {
-        // Despedir toast de reconexão e mostrar sucesso
-        if (reconnectToastIdRef.current === 'reconnect') {
-          toast.success('Conexão restabelecida!', { id: 'reconnect' });
-          reconnectToastIdRef.current = null;
-        }
-      } else if (info.status === 'error') {
-        if (reconnectToastIdRef.current === 'reconnect') {
-          toast.dismiss('reconnect');
-          reconnectToastIdRef.current = null;
-        }
-        toast.error('Sistema da TOTVS possivelmente fora do ar.');
       }
     });
 
     return () => unsubscribe();
   }, [pathname, router]);
-
-  useEffect(() => {
-    if (sessionStatus !== 'refreshing' && reconnectToastIdRef.current === 'reconnect') {
-      toast.dismiss('reconnect');
-      reconnectToastIdRef.current = null;
-    }
-  }, [sessionStatus]);
 
   useEffect(() => {
     if (pathname !== '/login' || !reconnectFailed) return;
@@ -187,6 +164,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     const currentState = sessionManager.getCurrentState();
     if (currentState.status === 'error') {
+      toast.error('Sistema da TOTVS possivelmente fora do ar.', { id: 'reconnect' });
       return;
     }
 

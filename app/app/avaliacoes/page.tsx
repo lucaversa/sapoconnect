@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import {
   ChevronDown,
   FileText,
@@ -10,6 +10,8 @@ import {
   GraduationCap,
   CheckCircle,
   XCircle,
+  Clock,
+  Layers,
   RefreshCw
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -19,8 +21,7 @@ import { PageLoading } from '@/components/page-loading';
 import { PullToRefresh } from '@/components/pull-to-refresh';
 import { ApiError } from '@/components/api-error';
 import { EmptyState } from '@/components/empty-state';
-import { TotvsOfflineBanner } from '@/components/totvs-offline-banner';
-import { useAvaliacoes, useAvaliacoesNotas } from '@/hooks/use-avaliacoes';
+import { ResultadoAvaliacoes, useAvaliacoesCompleto } from '@/hooks/use-avaliacoes';
 import { isTotvsOfflineError } from '@/lib/api-response-error';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
 
@@ -52,7 +53,7 @@ function formatNumber(value: number, decimals = 1): string {
 }
 
 export default function AvaliacoesPage() {
-  const { data: disciplinasData, error, isLoading, isFetching, refetch, dataUpdatedAt } = useAvaliacoes();
+  const { data: disciplinasData, error, isLoading, isFetching, refetch, dataUpdatedAt } = useAvaliacoesCompleto();
 
   const handleRefresh = async () => {
     const toastId = toast.loading('Atualizando...', { id: 'refresh-avaliacoes' });
@@ -76,12 +77,6 @@ export default function AvaliacoesPage() {
   const lastUpdatedLabel = dataUpdatedAt
     ? formatDistanceToNow(new Date(dataUpdatedAt), { addSuffix: true, locale: ptBR })
     : null;
-
-  // Carregar notas da disciplina expandida
-  const { data: avaliacoesData, isLoading: notasLoading, error: notasError } = useAvaliacoesNotas(
-    expandedCodigo || ''
-  );
-  const isNotasOffline = isTotvsOfflineError(notasError);
 
   const toggleDisciplina = (codigo: string) => {
     setExpandedCodigo(prev => (prev === codigo ? null : codigo));
@@ -151,13 +146,106 @@ export default function AvaliacoesPage() {
     }
   }
 
-  function getStatusFromPorcentagem(porcentagem: number, mediaParaAprovacao: number) {
-    if (porcentagem >= mediaParaAprovacao) return 'aprovado';
+  function hasNotaLancada(nota?: string): boolean {
+    return parseNumber(nota) !== null;
+  }
+
+  function hasNotasPendentes(resultado: ResultadoAvaliacoes): boolean {
+    return resultado.categorias.some((categoria) =>
+      categoria.avaliacoes.some((avaliacao) => !hasNotaLancada(avaliacao.nota))
+    );
+  }
+
+  function getStatusFromResultado(resultado: ResultadoAvaliacoes) {
+    const somativa = resultado.somativaGeral ?? 0;
+    if (somativa >= resultado.mediaParaAprovacao) return 'aprovado';
+    if (hasNotasPendentes(resultado)) return 'pendente';
     return 'reprovado';
   }
 
-  const isOffline = isTotvsOfflineError(error);
+  function getAproveitamentoLancado(resultado: ResultadoAvaliacoes): number | null {
+    let pontosLancados = 0;
+    let valorLancado = 0;
 
+    resultado.categorias.forEach((categoria) => {
+      categoria.avaliacoes.forEach((avaliacao) => {
+        const nota = parseNumber(avaliacao.nota);
+        const valor = parseNumber(avaliacao.valor);
+
+        if (nota !== null && valor !== null && valor > 0) {
+          pontosLancados += nota;
+          valorLancado += valor;
+        }
+      });
+    });
+
+    if (valorLancado <= 0) return null;
+    return (pontosLancados / valorLancado) * 100;
+  }
+
+  const disciplinasComResultado = disciplinas.filter((disciplina) => disciplina.resultado);
+  const aproveitamentosLancados = disciplinasComResultado
+    .map((disciplina) => disciplina.resultado ? getAproveitamentoLancado(disciplina.resultado) : null)
+    .filter((aproveitamento): aproveitamento is number => aproveitamento !== null);
+  const mediaGeralLancada = aproveitamentosLancados.length > 0
+    ? aproveitamentosLancados.reduce((total, aproveitamento) => total + aproveitamento, 0) / aproveitamentosLancados.length
+    : 0;
+  const totalAvaliacoes = disciplinasComResultado.reduce(
+    (total, disciplina) => total + (disciplina.resultado?.categorias.reduce(
+      (categoriaTotal, categoria) => categoriaTotal + categoria.avaliacoes.length,
+      0
+    ) ?? 0),
+    0
+  );
+  const avaliacoesLancadas = disciplinasComResultado.reduce(
+    (total, disciplina) => total + (disciplina.resultado?.categorias.reduce(
+      (categoriaTotal, categoria) => categoriaTotal + categoria.avaliacoes.filter((avaliacao) => hasNotaLancada(avaliacao.nota)).length,
+      0
+    ) ?? 0),
+    0
+  );
+  const statusCounts = disciplinasComResultado.reduce(
+    (counts, disciplina) => {
+      if (!disciplina.resultado) return counts;
+      const status = getStatusFromResultado(disciplina.resultado);
+      counts[status] += 1;
+      return counts;
+    },
+    { aprovado: 0, pendente: 0, reprovado: 0 }
+  );
+  const progressoLancamentos = totalAvaliacoes > 0 ? (avaliacoesLancadas / totalAvaliacoes) * 100 : 0;
+  const metricas = [
+    {
+      label: 'Média geral',
+      value: `${formatNumber(mediaGeralLancada)}%`,
+      detail: 'aproveitamento das notas lançadas',
+      icon: TrendingUp,
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bar: 'bg-emerald-500',
+      bg: 'bg-emerald-500/10',
+      progress: mediaGeralLancada,
+    },
+    {
+      label: 'Notas lançadas',
+      value: `${avaliacoesLancadas}/${totalAvaliacoes}`,
+      detail: `${formatNumber(progressoLancamentos, 0)}% preenchido`,
+      icon: Layers,
+      color: 'text-blue-600 dark:text-blue-400',
+      bar: 'bg-blue-500',
+      bg: 'bg-blue-500/10',
+      progress: progressoLancamentos,
+    },
+    {
+      label: 'Na média',
+      value: `${statusCounts.aprovado}/${disciplinasComResultado.length}`,
+      detail: `${statusCounts.pendente} pendentes`,
+      icon: CheckCircle,
+      color: 'text-teal-600 dark:text-teal-400',
+      bar: 'bg-teal-500',
+      bg: 'bg-teal-500/10',
+      progress: disciplinasComResultado.length > 0 ? (statusCounts.aprovado / disciplinasComResultado.length) * 100 : 0,
+    },
+  ];
   if (isLoading) {
     return <PageLoading message="Carregando avaliações..." />;
   }
@@ -177,11 +265,6 @@ export default function AvaliacoesPage() {
       initial="hidden"
       animate="show"
     >
-      {isOffline && (
-        <motion.div variants={sectionVariants}>
-          <TotvsOfflineBanner />
-        </motion.div>
-      )}
       {/* Header */}
       <motion.div variants={sectionVariants} className="flex items-center justify-between">
         <div>
@@ -195,12 +278,6 @@ export default function AvaliacoesPage() {
             {lastUpdatedLabel && (
               <span>Atualizado {lastUpdatedLabel}</span>
             )}
-            {isFetching && disciplinas.length ? (
-              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                Atualizando dados...
-              </span>
-            ) : null}
           </div>
         </div>
         <button
@@ -213,12 +290,48 @@ export default function AvaliacoesPage() {
         </button>
       </motion.div>
 
+      <motion.div variants={sectionVariants} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {metricas.map((metrica) => {
+          const Icon = metrica.icon;
+
+          return (
+            <div
+              key={metrica.label}
+              className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-4"
+            >
+              <div className="flex items-start gap-3">
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${metrica.bg}`}>
+                  <Icon className={`h-4 w-4 ${metrica.color}`} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs text-gray-500 dark:text-gray-400">{metrica.label}</p>
+                  <p className="mt-0.5 truncate text-lg font-bold text-gray-900 dark:text-white">
+                    {metrica.value}
+                  </p>
+                  <p className="mt-0.5 truncate text-[11px] text-gray-500 dark:text-gray-400">
+                    {metrica.detail}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                <motion.div
+                  className={`h-full rounded-full ${metrica.bar}`}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(Math.max(metrica.progress, 0), 100)}%` }}
+                  transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </motion.div>
+
       {/* Lista de Disciplinas */}
       <motion.div variants={sectionVariants} className="space-y-3">
         {disciplinas.map((disciplina) => {
-          const resultado = expandedCodigo === disciplina.codigo ? avaliacoesData : undefined;
-          const status = resultado?.somativaGeralPorcentagem !== undefined
-            ? getStatusFromPorcentagem(resultado.somativaGeralPorcentagem, resultado.mediaParaAprovacao)
+          const resultado = disciplina.resultado;
+          const status = resultado
+            ? getStatusFromResultado(resultado)
             : null;
 
           const statusConfig = {
@@ -227,6 +340,12 @@ export default function AvaliacoesPage() {
               color: 'text-emerald-600 dark:text-emerald-400',
               bg: 'bg-emerald-500/10',
               border: 'border-emerald-500/20'
+            },
+            pendente: {
+              icon: Clock,
+              color: 'text-amber-600 dark:text-amber-400',
+              bg: 'bg-amber-500/10',
+              border: 'border-amber-500/20'
             },
             reprovado: {
               icon: XCircle,
@@ -265,31 +384,14 @@ export default function AvaliacoesPage() {
                     <h3 className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base truncate">
                       {disciplina.nome}
                     </h3>
-                    {resultado?.somativaGeral !== undefined && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Média: {resultado.somativaGeralPorcentagem}%
-                      </p>
-                    )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                  {resultado?.somativaGeralPorcentagem !== undefined && (
-                    <div className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border ${currentStatus ? `${currentStatus.bg} ${currentStatus.border}` : 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600'
-                      }`}>
-                      <span className={`text-sm font-semibold ${currentStatus?.color || 'text-gray-600 dark:text-gray-400'}`}>
-                        {resultado.somativaGeralPorcentagem}%
-                      </span>
-                    </div>
-                  )}
-                  {notasLoading && isExpanded ? (
-                    <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <ChevronDown
-                      className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''
-                        }`}
-                    />
-                  )}
+                  <ChevronDown
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''
+                      }`}
+                  />
                 </div>
               </button>
 
@@ -305,13 +407,13 @@ export default function AvaliacoesPage() {
                     className="overflow-hidden"
                   >
                     <div className="border-t border-gray-100 dark:border-gray-700">
-                  {notasError && (!resultado || resultado.categorias.length === 0) ? (
+                  {disciplina.error && (!resultado || resultado.categorias.length === 0) ? (
                     <div className="p-4 text-center">
                       <p className="text-sm text-red-600 dark:text-red-400">
-                        {notasError.message}
+                        {disciplina.error}
                       </p>
                       <button
-                        onClick={() => toggleDisciplina(disciplina.codigo)}
+                        onClick={handleRefresh}
                         className="mt-2 text-sm text-emerald-600 dark:text-emerald-400 hover:underline"
                       >
                         Tentar novamente
@@ -319,10 +421,7 @@ export default function AvaliacoesPage() {
                     </div>
                   ) : resultado && resultado.categorias.length > 0 ? (
                     <div className="p-4 space-y-4">
-                      {notasError && isNotasOffline && (
-                        <TotvsOfflineBanner message="Sistema da TOTVS possivelmente fora do ar. Exibindo dados em cache." />
-                      )}
-                      {/* Somativa Geral */}
+                      {/* Somatorio das notas lancadas */}
                       {resultado.somativaGeral !== undefined && (
                         <div className={`flex items-center justify-between p-4 rounded-xl border ${currentStatus ? `${currentStatus.bg} ${currentStatus.border}` : 'bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700'
                           }`}>
@@ -333,19 +432,16 @@ export default function AvaliacoesPage() {
                             </div>
                             <div>
                               <p className={`text-sm font-medium ${currentStatus?.color || 'text-gray-900 dark:text-white'}`}>
-                                Somativa Geral
+                                Somatório das notas lançadas
                               </p>
                               <p className="text-xs text-gray-500 dark:text-gray-400">
-                                Média para aprovação: {resultado.mediaParaAprovacao}%
+                                Média para aprovação: {resultado.mediaParaAprovacao} pts
                               </p>
                             </div>
                           </div>
                           <div className="text-right">
                             <p className={`text-2xl font-bold ${currentStatus?.color || 'text-gray-900 dark:text-white'}`}>
-                              {resultado.somativaGeralPorcentagem}%
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {resultado.somativaGeral}/100
+                              {formatNumber(resultado.somativaGeral)}
                             </p>
                           </div>
                         </div>
@@ -369,9 +465,6 @@ export default function AvaliacoesPage() {
                                   <div className="text-right">
                                     <span className={`text-sm font-bold ${catStyle.text}`}>
                                       {categoria.notaTotal?.toFixed(1).replace('.', ',') || '0'}/{categoria.valorTotal?.toFixed(1).replace('.', ',') || '0'}
-                                    </span>
-                                    <span className={`text-xs ml-1 opacity-70 ${catStyle.text}`}>
-                                      ({categoria.porcentagem?.toFixed(1).replace('.', ',') || '0'}%)
                                     </span>
                                   </div>
                                 )}
@@ -401,8 +494,9 @@ export default function AvaliacoesPage() {
                                       )}
                                       {(() => {
                                         let notaColor = 'text-gray-400 dark:text-gray-600';
-                                        if (avaliacao.nota && avaliacao.nota !== '' && avaliacao.valor) {
-                                          const notaNum = parseFloat(avaliacao.nota.replace(',', '.'));
+                                        const notaLancada = hasNotaLancada(avaliacao.nota);
+                                        if (notaLancada && avaliacao.valor) {
+                                          const notaNum = parseFloat((avaliacao.nota ?? '').replace(',', '.'));
                                           const valorNum = parseFloat(avaliacao.valor.replace(',', '.'));
                                           if (!isNaN(notaNum) && !isNaN(valorNum) && valorNum > 0) {
                                             const porcentagem = (notaNum / valorNum) * 100;
@@ -412,11 +506,11 @@ export default function AvaliacoesPage() {
                                           }
                                         }
                                         return (
-                                          <span className={`text-base font-bold min-w-[2rem] text-right ${avaliacao.nota && avaliacao.nota !== ''
+                                          <span className={`text-base font-bold min-w-[2rem] text-right ${notaLancada
                                             ? notaColor
                                             : 'text-gray-400 dark:text-gray-600'
                                           }`}>
-                                            {avaliacao.nota && avaliacao.nota !== '' ? avaliacao.nota : '-'}
+                                            {notaLancada ? avaliacao.nota : '-'}
                                           </span>
                                         );
                                       })()}
@@ -461,17 +555,12 @@ export default function AvaliacoesPage() {
                               <span className="text-amber-700 dark:text-amber-300">Sem pontos restantes</span>
                             ) : (
                               <span className="text-emerald-700/80 dark:text-emerald-300/80">
-                                Média: {mediaParaAprovacao} / Total: {TOTAL_PONTOS}
+                                Média para aprovação: {mediaParaAprovacao} pontos
                               </span>
                             )}
                           </div>
                         );
                       })()}
-                    </div>
-                  ) : notasLoading ? (
-                    <div className="p-8 text-center">
-                      <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Carregando avaliações...</p>
                     </div>
                   ) : (
                     <div className="p-4 text-center text-sm text-gray-500 dark:text-gray-400">

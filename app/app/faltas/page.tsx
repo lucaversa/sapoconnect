@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   Clock,
   Info,
@@ -9,7 +10,10 @@ import {
   BookOpen,
   TrendingDown,
   Shield,
-  RefreshCw
+  RefreshCw,
+  CalendarDays,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -18,7 +22,6 @@ import { PageLoading } from '@/components/page-loading';
 import { PullToRefresh } from '@/components/pull-to-refresh';
 import { ApiError } from '@/components/api-error';
 import { EmptyState } from '@/components/empty-state';
-import { TotvsOfflineBanner } from '@/components/totvs-offline-banner';
 import { useFaltas, FaltasItem } from '@/hooks/use-faltas';
 import { isTotvsOfflineError } from '@/lib/api-response-error';
 import { motion, type Variants } from 'framer-motion';
@@ -43,6 +46,13 @@ type FaltarRestanteInfo =
   | { status: 'no-events' }
   | { status: 'impossible' }
   | {
+    status: 'already-possible';
+    eventsRemaining: number;
+    daysRemaining: number;
+    percentRemaining: number;
+    totalPercent: number;
+  }
+  | {
     status: 'possible';
     date: Date;
     eventsRemaining: number;
@@ -50,6 +60,19 @@ type FaltarRestanteInfo =
     percentRemaining: number;
     totalPercent: number;
   };
+
+interface AulaDiaRestante {
+  key: string;
+  date: Date;
+  horarios: Date[];
+}
+
+interface AulasPorDiaSemana {
+  key: string;
+  label: string;
+  order: number;
+  dias: AulaDiaRestante[];
+}
 
 function parsePercent(value?: string): number | null {
   if (!value) return null;
@@ -68,7 +91,67 @@ function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
-function getFaltarRestanteInfo(item: FaltasItem): FaltarRestanteInfo {
+function getAulasDiasRestantes(item: FaltasItem): AulaDiaRestante[] {
+  const dias = new Map<string, AulaDiaRestante>();
+
+  (item.eventosFuturos || []).forEach((eventDate) => {
+    const date = new Date(eventDate);
+    if (Number.isNaN(date.getTime())) return;
+
+    const key = format(date, 'yyyy-MM-dd');
+    const existing = dias.get(key);
+    if (existing) {
+      existing.horarios.push(date);
+      return;
+    }
+
+    dias.set(key, {
+      key,
+      date,
+      horarios: [date],
+    });
+  });
+
+  return Array.from(dias.values())
+    .map((dia) => ({
+      ...dia,
+      horarios: dia.horarios.sort((a, b) => a.getTime() - b.getTime()),
+    }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+function getAulasPorDiaSemana(dias: AulaDiaRestante[]): AulasPorDiaSemana[] {
+  const grupos = new Map<string, AulasPorDiaSemana>();
+
+  dias.forEach((dia) => {
+    const day = dia.date.getDay();
+    const key = String(day);
+    const order = day === 0 ? 7 : day;
+    const label = capitalize(format(dia.date, 'EEEE', { locale: ptBR }));
+    const grupo = grupos.get(key);
+
+    if (grupo) {
+      grupo.dias.push(dia);
+      return;
+    }
+
+    grupos.set(key, {
+      key,
+      label,
+      order,
+      dias: [dia],
+    });
+  });
+
+  return Array.from(grupos.values())
+    .map((grupo) => ({
+      ...grupo,
+      dias: grupo.dias.sort((a, b) => a.date.getTime() - b.date.getTime()),
+    }))
+    .sort((a, b) => a.order - b.order);
+}
+
+function getFaltarRestanteInfo(item: FaltasItem, diasRemovidos: Set<string> = new Set()): FaltarRestanteInfo {
   const limite = parsePercent(item.limiteFaltas);
   const porEvento = parsePercent(item.umaFaltaPct);
   const percentualAtual = item.porcentagemValor;
@@ -81,32 +164,44 @@ function getFaltarRestanteInfo(item: FaltasItem): FaltarRestanteInfo {
     return { status: 'limit' };
   }
 
-  const eventosFuturos = (item.eventosFuturos || [])
-    .map((date) => new Date(date))
-    .filter((date) => !Number.isNaN(date.getTime()))
-    .sort((a, b) => a.getTime() - b.getTime());
+  const diasFuturos = getAulasDiasRestantes(item);
 
-  if (eventosFuturos.length === 0) {
+  if (diasFuturos.length === 0) {
     return { status: 'no-events' };
   }
 
-  const totalEventos = eventosFuturos.length;
+  const diasAtivosFuturos = diasFuturos.filter((dia) => !diasRemovidos.has(dia.key));
+  if (diasAtivosFuturos.length === 0) {
+    return { status: 'no-events' };
+  }
 
-  for (let i = 0; i < totalEventos; i += 1) {
-    const eventosRestantes = totalEventos - i;
-    const percentSeFaltar = percentualAtual + eventosRestantes * porEvento;
+  const totalAulasAtivas = diasAtivosFuturos.reduce((total, dia) => total + dia.horarios.length, 0);
+  const percentualTodasAulasAtivas = totalAulasAtivas * porEvento;
+  const totalSeFaltarTudo = percentualAtual + percentualTodasAulasAtivas;
+
+  if (totalSeFaltarTudo <= limite + 0.0001) {
+    return {
+      status: 'already-possible',
+      eventsRemaining: totalAulasAtivas,
+      daysRemaining: diasAtivosFuturos.length,
+      percentRemaining: percentualTodasAulasAtivas,
+      totalPercent: totalSeFaltarTudo,
+    };
+  }
+
+  for (let i = 0; i < diasFuturos.length; i += 1) {
+    const diasRestantes = diasFuturos.slice(i);
+    const diasAtivosRestantes = diasRestantes.filter((dia) => !diasRemovidos.has(dia.key));
+    const aulasRestantes = diasAtivosRestantes.reduce((total, dia) => total + dia.horarios.length, 0);
+    const percentSeFaltar = percentualAtual + aulasRestantes * porEvento;
 
     if (percentSeFaltar <= limite + 0.0001) {
-      const daysRemaining = new Set(
-        eventosFuturos.slice(i).map((eventDate) => format(eventDate, 'yyyy-MM-dd'))
-      ).size;
-
       return {
         status: 'possible',
-        date: eventosFuturos[i],
-        eventsRemaining: eventosRestantes,
-        daysRemaining,
-        percentRemaining: eventosRestantes * porEvento,
+        date: diasFuturos[i].date,
+        eventsRemaining: aulasRestantes,
+        daysRemaining: diasAtivosRestantes.length,
+        percentRemaining: aulasRestantes * porEvento,
         totalPercent: percentSeFaltar,
       };
     }
@@ -117,6 +212,8 @@ function getFaltarRestanteInfo(item: FaltasItem): FaltarRestanteInfo {
 
 export default function FaltasPage() {
   const { data, error, isLoading, isFetching, refetch, dataUpdatedAt } = useFaltas();
+  const [expandedAulas, setExpandedAulas] = useState<Set<string>>(new Set());
+  const [diasRemovidosPorDisciplina, setDiasRemovidosPorDisciplina] = useState<Record<string, string[]>>({});
 
   const handleRefresh = async () => {
     const toastId = toast.loading('Atualizando...', { id: 'refresh-faltas' });
@@ -139,6 +236,59 @@ export default function FaltasPage() {
   const lastUpdatedLabel = dataUpdatedAt
     ? formatDistanceToNow(new Date(dataUpdatedAt), { addSuffix: true, locale: ptBR })
     : null;
+
+  function toggleAulas(codigo: string) {
+    setExpandedAulas((prev) => {
+      const next = new Set(prev);
+      if (next.has(codigo)) {
+        next.delete(codigo);
+      } else {
+        next.add(codigo);
+      }
+      return next;
+    });
+  }
+
+  function toggleDiaRemovido(codigo: string, diaKey: string) {
+    setDiasRemovidosPorDisciplina((prev) => {
+      const atuais = new Set(prev[codigo] || []);
+      if (atuais.has(diaKey)) {
+        atuais.delete(diaKey);
+      } else {
+        atuais.add(diaKey);
+      }
+      return {
+        ...prev,
+        [codigo]: Array.from(atuais),
+      };
+    });
+  }
+
+  function setDiasDoGrupoRemovidos(codigo: string, diaKeys: string[], remover: boolean) {
+    setDiasRemovidosPorDisciplina((prev) => {
+      const atuais = new Set(prev[codigo] || []);
+      diaKeys.forEach((diaKey) => {
+        if (remover) {
+          atuais.add(diaKey);
+        } else {
+          atuais.delete(diaKey);
+        }
+      });
+
+      return {
+        ...prev,
+        [codigo]: Array.from(atuais),
+      };
+    });
+  }
+
+  function restaurarDias(codigo: string) {
+    setDiasRemovidosPorDisciplina((prev) => {
+      const next = { ...prev };
+      delete next[codigo];
+      return next;
+    });
+  }
 
   function getStatusConfig(status: FaltasItem['status']) {
     switch (status) {
@@ -172,8 +322,6 @@ export default function FaltasPage() {
     }
   }
 
-  const isOffline = isTotvsOfflineError(error);
-
   if (isLoading) {
     return <PageLoading message="Carregando faltas..." />;
   }
@@ -195,11 +343,6 @@ export default function FaltasPage() {
       initial="hidden"
       animate="show"
     >
-      {isOffline && (
-        <motion.div variants={sectionVariants}>
-          <TotvsOfflineBanner />
-        </motion.div>
-      )}
       {/* Header */}
       <motion.div variants={sectionVariants} className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
@@ -214,12 +357,6 @@ export default function FaltasPage() {
               {lastUpdatedLabel && (
                 <span>Atualizado {lastUpdatedLabel}</span>
               )}
-              {isFetching && faltas.length ? (
-                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  Atualizando dados...
-                </span>
-              ) : null}
             </div>
           </div>
           <button
@@ -307,7 +444,13 @@ export default function FaltasPage() {
           {faltas.map((item) => {
             const statusConfig = getStatusConfig(item.status);
             const StatusIcon = statusConfig.icon;
-            const faltarInfo = getFaltarRestanteInfo(item);
+            const diasRemovidos = new Set(diasRemovidosPorDisciplina[item.codigo] || []);
+            const aulasDiasRestantes = getAulasDiasRestantes(item);
+            const aulasPorDiaSemana = getAulasPorDiaSemana(aulasDiasRestantes);
+            const diasAtivos = aulasDiasRestantes.filter((dia) => !diasRemovidos.has(dia.key));
+            const horariosAtivos = diasAtivos.reduce((total, dia) => total + dia.horarios.length, 0);
+            const faltarInfo = getFaltarRestanteInfo(item, diasRemovidos);
+            const aulasExpanded = expandedAulas.has(item.codigo);
 
             return (
               <div
@@ -413,6 +556,17 @@ export default function FaltasPage() {
                             );
                           }
 
+                          if (faltarInfo.status === 'already-possible') {
+                            return (
+                              <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                                <span className="font-semibold text-indigo-800 dark:text-indigo-200">
+                                  Você já pode faltar nas aulas restantes.
+                                </span>{' '}
+                                Restam {faltarInfo.daysRemaining} dias de aula ({formatPercent(faltarInfo.percentRemaining)}) • Total final {formatPercent(faltarInfo.totalPercent)}
+                              </p>
+                            );
+                          }
+
                           const dateLabel = format(faltarInfo.date, 'dd/MM/yyyy');
                           return (
                             <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
@@ -426,6 +580,146 @@ export default function FaltasPage() {
                       </div>
                     </div>
                   </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleAulas(item.codigo)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200 dark:hover:bg-gray-900"
+                    >
+                      <CalendarDays className="h-4 w-4" />
+                      Aulas restantes
+                      <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                        {diasAtivos.length} dias / {horariosAtivos} aulas
+                      </span>
+                    </button>
+                    {diasRemovidos.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => restaurarDias(item.codigo)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Restaurar dias
+                      </button>
+                    )}
+                  </div>
+
+                  {aulasExpanded && (
+                    <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/50">
+                      {aulasDiasRestantes.length === 0 ? (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Nenhuma aula futura encontrada para esta disciplina.
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {aulasPorDiaSemana.map((grupo) => {
+                            const diaKeys = grupo.dias.map((dia) => dia.key);
+                            const diasRemovidosNoGrupo = grupo.dias.filter((dia) => diasRemovidos.has(dia.key)).length;
+                            const grupoTodoRemovido = diasRemovidosNoGrupo === grupo.dias.length;
+                            const totalHorarios = grupo.dias.reduce((total, dia) => total + dia.horarios.length, 0);
+                            const horariosAtivosNoGrupo = grupo.dias
+                              .filter((dia) => !diasRemovidos.has(dia.key))
+                              .reduce((total, dia) => total + dia.horarios.length, 0);
+
+                            return (
+                              <div
+                                key={grupo.key}
+                                className={`rounded-xl border p-3 ${
+                                  grupoTodoRemovido
+                                    ? 'border-red-100 bg-red-50/70 opacity-75 dark:border-red-900/40 dark:bg-red-950/20'
+                                    : 'border-white bg-white dark:border-gray-700 dark:bg-gray-800'
+                                }`}
+                              >
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="min-w-0">
+                                    <p className={`text-sm font-semibold ${grupoTodoRemovido ? 'text-red-700 dark:text-red-300' : 'text-gray-900 dark:text-white'}`}>
+                                      {grupo.label}
+                                    </p>
+                                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                      {grupo.dias.length} {grupo.dias.length === 1 ? 'dia' : 'dias'} de aula • {horariosAtivosNoGrupo}/{totalHorarios} aulas ativas
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDiasDoGrupoRemovidos(item.codigo, diaKeys, !grupoTodoRemovido)}
+                                    className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                                      grupoTodoRemovido
+                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50'
+                                        : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50'
+                                    }`}
+                                  >
+                                    {grupoTodoRemovido ? (
+                                      <>
+                                        <RotateCcw className="h-3.5 w-3.5" />
+                                        Repor {grupo.label}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        Remover {grupo.label}
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+
+                                <div className="mt-3 space-y-2">
+                                  {grupo.dias.map((dia) => {
+                                    const removido = diasRemovidos.has(dia.key);
+                                    const horariosLabel = dia.horarios
+                                      .map((horario) => format(horario, 'HH:mm'))
+                                      .join(', ');
+
+                                    return (
+                                      <div
+                                        key={dia.key}
+                                        className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${
+                                          removido
+                                            ? 'border-red-100 bg-red-50/70 opacity-75 dark:border-red-900/40 dark:bg-red-950/20'
+                                            : 'border-gray-100 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50'
+                                        }`}
+                                      >
+                                        <div className="min-w-0">
+                                          <p className={`text-sm font-semibold ${removido ? 'text-red-700 dark:text-red-300 line-through' : 'text-gray-900 dark:text-white'}`}>
+                                            {format(dia.date, 'dd/MM')}
+                                          </p>
+                                          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                            {dia.horarios.length} {dia.horarios.length === 1 ? 'aula' : 'aulas'}
+                                            {horariosLabel ? `: ${horariosLabel}` : ''}
+                                          </p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleDiaRemovido(item.codigo, dia.key)}
+                                          className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                                            removido
+                                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50'
+                                              : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50'
+                                          }`}
+                                        >
+                                          {removido ? (
+                                            <>
+                                              <RotateCcw className="h-3.5 w-3.5" />
+                                              Repor dia
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Trash2 className="h-3.5 w-3.5" />
+                                              Remover dia
+                                            </>
+                                          )}
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Barra de progresso */}
                   <div className="mt-4">

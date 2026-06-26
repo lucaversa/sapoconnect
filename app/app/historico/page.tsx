@@ -22,21 +22,12 @@ import { PageLoading } from '@/components/page-loading';
 import { PullToRefresh } from '@/components/pull-to-refresh';
 import { ApiError } from '@/components/api-error';
 import { EmptyState } from '@/components/empty-state';
-import { TotvsOfflineBanner } from '@/components/totvs-offline-banner';
 import { useHistorico, Disciplina, Periodo } from '@/hooks/use-historico';
 import { isTotvsOfflineError } from '@/lib/api-response-error';
 
 function isPeriodoLetivo(nome: string): boolean {
   const clean = nome.trim();
   return /^\d+[\º\°\.]?\s*(P|p)?(ERíodo|eríodo|eriodo|Semestre|SEMESTRE|semestre)/i.test(clean);
-}
-
-function isPeriodoConcluido(periodo: Periodo): boolean {
-  if (periodo.disciplinas.length === 0) return false;
-  const concluidas = periodo.disciplinas.filter(d =>
-    d.status === 'concluida' || d.status === 'equivalente'
-  ).length;
-  return concluidas === periodo.disciplinas.length;
 }
 
 function parseNota(nota?: string): number | null {
@@ -49,49 +40,8 @@ function parseNota(nota?: string): number | null {
 function calcularMediaPeriodo(periodo: Periodo): string | null {
   if (!isPeriodoLetivo(periodo.nome)) return null;
 
-  const notasParaMedia: number[] = [];
-  let i = 0;
-
-  while (i < periodo.disciplinas.length) {
-    const disciplina = periodo.disciplinas[i];
-
-    if (disciplina.status === 'equivalente') {
-      i++;
-      continue;
-    }
-
-    let j = i + 1;
-    const hasEquivalentes = j < periodo.disciplinas.length && periodo.disciplinas[j].status === 'equivalente';
-
-    if (hasEquivalentes) {
-      const notasEquivalentes: number[] = [];
-      while (j < periodo.disciplinas.length && periodo.disciplinas[j].status === 'equivalente') {
-        const notaEquivalente = parseNota(periodo.disciplinas[j].nota);
-        if (notaEquivalente !== null) {
-          notasEquivalentes.push(notaEquivalente);
-        }
-        j++;
-      }
-
-      if (notasEquivalentes.length > 0) {
-        const mediaEquivalente = notasEquivalentes.reduce((a, b) => a + b, 0) / notasEquivalentes.length;
-        notasParaMedia.push(mediaEquivalente);
-      }
-    } else {
-      const nota = parseNota(disciplina.nota);
-      if (nota !== null) {
-        notasParaMedia.push(nota);
-      }
-      j = i + 1;
-    }
-
-    i = j;
-  }
-
-  if (notasParaMedia.length === 0) return null;
-
-  const mediaFinal = notasParaMedia.reduce((a, b) => a + b, 0) / notasParaMedia.length;
-  return mediaFinal.toFixed(1);
+  const media = calcularMediaBloco(periodo);
+  return media === null ? null : media.toFixed(1);
 }
 
 function calcularMediaBloco(bloco: Periodo): number | null {
@@ -137,24 +87,6 @@ function calcularMediaBloco(bloco: Periodo): number | null {
   if (notasParaMedia.length === 0) return null;
 
   return notasParaMedia.reduce((a, b) => a + b, 0) / notasParaMedia.length;
-}
-
-function calcularMediaGlobal(periodos: Periodo[]): string | null {
-  const medias: number[] = [];
-
-  periodos.forEach(p => {
-    if (isPeriodoLetivo(p.nome) && isPeriodoConcluido(p)) {
-      const media = calcularMediaBloco(p);
-      if (media !== null) {
-        medias.push(media);
-      }
-    }
-  });
-
-  if (medias.length === 0) return null;
-
-  const mediaGlobal = medias.reduce((a, b) => a + b, 0) / medias.length;
-  return mediaGlobal.toFixed(1);
 }
 
 const pageVariants: Variants = {
@@ -243,8 +175,6 @@ export default function HistoricoPage() {
     }
   }
 
-  const isOffline = isTotvsOfflineError(error);
-
   if (isLoading) {
     return <PageLoading message="Carregando histórico..." />;
   }
@@ -264,17 +194,6 @@ export default function HistoricoPage() {
   const totalConcluidas = periodosLetivos.reduce((acc, p) =>
     acc + p.disciplinas.filter(d => d.status === 'concluida' || d.status === 'equivalente').length, 0);
 
-  const periodosConcluidos = periodosLetivos.filter(p => {
-    const total = p.disciplinas.length;
-    const concluidas = p.disciplinas.filter(d => d.status === 'concluida' || d.status === 'equivalente').length;
-    return total > 0 && concluidas === total;
-  });
-  const progressPercent = periodosLetivos.length > 0
-    ? Math.round((periodosConcluidos.length / periodosLetivos.length) * 100)
-    : 0;
-
-  const mediaGlobal = calcularMediaGlobal(periodos);
-
   return (
     <motion.div
       className="p-4 sm:p-6 space-y-6"
@@ -282,11 +201,6 @@ export default function HistoricoPage() {
       initial="hidden"
       animate="show"
     >
-      {isOffline && (
-        <motion.div variants={sectionVariants}>
-          <TotvsOfflineBanner />
-        </motion.div>
-      )}
       <motion.div variants={sectionVariants} className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div>
@@ -300,12 +214,6 @@ export default function HistoricoPage() {
               {lastUpdatedLabel && (
                 <span>Atualizado {lastUpdatedLabel}</span>
               )}
-              {isFetching && periodos.length ? (
-                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                  Atualizando dados...
-                </span>
-              ) : null}
             </div>
           </div>
           <button
@@ -318,7 +226,7 @@ export default function HistoricoPage() {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center">
@@ -355,17 +263,6 @@ export default function HistoricoPage() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{mediaGlobal || '-'}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Média Global</p>
-              </div>
-            </div>
-          </div>
         </div>
       </motion.div>
 

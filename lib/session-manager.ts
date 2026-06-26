@@ -58,12 +58,12 @@ class SessionManager {
   private setupVisibilityHandler(): void {
     if (typeof document === 'undefined') return;
 
-    this.visibilityHandler = async () => {
+    this.visibilityHandler = () => {
       if (document.visibilityState === 'visible' && this.state.user) {
         const timeSinceLastCheck = Date.now() - this.state.lastCheckedAt;
         if (timeSinceLastCheck > 60 * 1000) {
           if (this.backgroundReconnectPromise) {
-            await this.backgroundReconnectPromise;
+            void this.backgroundReconnectPromise;
             return;
           }
 
@@ -71,11 +71,7 @@ class SessionManager {
             try {
               const info = await this.checkSession(false);
               if (info.status === 'expired') {
-                const reconnected = await this.reconnect();
-                if (reconnected) {
-                  await new Promise(resolve => setTimeout(resolve, 1500));
-                }
-                return reconnected;
+                return this.reconnect();
               }
               return true;
             } finally {
@@ -85,7 +81,7 @@ class SessionManager {
             }
           })();
 
-          await this.backgroundReconnectPromise;
+          void this.backgroundReconnectPromise;
         }
       }
     };
@@ -294,8 +290,6 @@ class SessionManager {
         });
 
         if (response.ok) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-
           const sessionInfo = await this.checkSession();
 
           if (sessionInfo.status === 'active' && sessionInfo.user) {
