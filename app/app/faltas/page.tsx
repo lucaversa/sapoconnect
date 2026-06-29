@@ -74,6 +74,14 @@ interface AulasPorDiaSemana {
   dias: AulaDiaRestante[];
 }
 
+interface LinhaTempoRiscoItem {
+  dia: AulaDiaRestante;
+  removido: boolean;
+  totalPercent: number;
+  aulasAcumuladas: number;
+  acimaLimite: boolean;
+}
+
 function parsePercent(value?: string): number | null {
   if (!value) return null;
   const normalized = value.replace('%', '').replace(',', '.').trim();
@@ -208,6 +216,31 @@ function getFaltarRestanteInfo(item: FaltasItem, diasRemovidos: Set<string> = ne
   }
 
   return { status: 'impossible' };
+}
+
+function getLinhaTempoRisco(item: FaltasItem, diasRemovidos: Set<string>): LinhaTempoRiscoItem[] {
+  const limite = parsePercent(item.limiteFaltas);
+  const porEvento = parsePercent(item.umaFaltaPct);
+
+  if (limite === null || porEvento === null) return [];
+
+  let aulasAcumuladas = 0;
+  return getAulasDiasRestantes(item).map((dia) => {
+    const removido = diasRemovidos.has(dia.key);
+    if (!removido) {
+      aulasAcumuladas += dia.horarios.length;
+    }
+
+    const totalPercent = item.porcentagemValor + aulasAcumuladas * porEvento;
+
+    return {
+      dia,
+      removido,
+      totalPercent,
+      aulasAcumuladas,
+      acimaLimite: totalPercent > limite + 0.0001,
+    };
+  });
 }
 
 export default function FaltasPage() {
@@ -455,6 +488,8 @@ export default function FaltasPage() {
             const diasAtivos = aulasDiasRestantes.filter((dia) => !diasRemovidos.has(dia.key));
             const horariosAtivos = diasAtivos.reduce((total, dia) => total + dia.horarios.length, 0);
             const faltarInfo = getFaltarRestanteInfo(item, diasRemovidos);
+            const linhaTempoRisco = getLinhaTempoRisco(item, diasRemovidos);
+            const primeiroDiaCritico = linhaTempoRisco.find((dia) => dia.acimaLimite && !dia.removido);
             const aulasExpanded = expandedAulas.has(item.codigo);
 
             return (
@@ -585,6 +620,49 @@ export default function FaltasPage() {
                       </div>
                     </div>
                   </div>
+
+                  {linhaTempoRisco.length > 0 && (
+                    <div className="mt-3">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+                          Risco por dia
+                        </p>
+                        {primeiroDiaCritico ? (
+                          <span className="shrink-0 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-300">
+                            Risco em {format(primeiroDiaCritico.dia.date, 'dd/MM')}
+                          </span>
+                        ) : (
+                          <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                            Seguro
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+                        <div className="flex min-w-max gap-1.5">
+                        {linhaTempoRisco.map((marco) => {
+                          const colorClass = marco.removido
+                            ? 'border-gray-200 bg-gray-100 text-gray-400 opacity-70 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
+                            : marco.acimaLimite
+                              ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300'
+                              : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300';
+
+                          return (
+                            <div
+                              key={marco.dia.key}
+                              className={`w-[64px] shrink-0 rounded-lg border px-2 py-1.5 text-center ${colorClass}`}
+                            >
+                              <p className="text-[10px] font-bold">{format(marco.dia.date, 'dd/MM')}</p>
+                              <p className="mt-0.5 text-[9px] leading-tight">
+                                {marco.removido ? 'removido' : formatPercent(marco.totalPercent)}
+                              </p>
+                            </div>
+                          );
+                        })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <button

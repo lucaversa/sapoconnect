@@ -50,6 +50,44 @@ function formatNumber(value: number, decimals = 1): string {
   return formatted.replace(/,0+$/, '');
 }
 
+function clampPercent(value: number): number {
+  return Math.min(Math.max(value, 0), 100);
+}
+
+function normalizeText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function isCategoriaDeResumo(nome: string): boolean {
+  const normalized = normalizeText(nome);
+  return normalized === 'nota parcial'
+    || normalized === 'nota final'
+    || normalized === 'nota somativa'
+    || normalized.includes('somatorio')
+    || normalized.includes('total');
+}
+
+function isAvaliacaoDeResumo(categoriaNome: string, avaliacaoNome: string): boolean {
+  if (isCategoriaDeResumo(categoriaNome)) return true;
+
+  const normalized = normalizeText(avaliacaoNome);
+  return normalized === 'nota parcial'
+    || normalized === 'nota final'
+    || normalized === 'nota somativa'
+    || normalized.includes('somatorio')
+    || normalized.includes('total')
+    || normalized.includes('media final');
+}
+
+function isAvaliacaoEspecial(categoriaNome: string, avaliacaoNome: string): boolean {
+  const normalized = `${normalizeText(categoriaNome)} ${normalizeText(avaliacaoNome)}`;
+  return normalized.includes('especial');
+}
+
 export default function AvaliacoesPage() {
   const { data: disciplinasData, error, isLoading, isFetching, refetch, dataUpdatedAt } = useAvaliacoesCompleto();
 
@@ -73,8 +111,8 @@ export default function AvaliacoesPage() {
 
   const disciplinas = disciplinasData?.disciplinas || [];
   const disciplinasOrdenadas = [...disciplinas].sort((a, b) => {
-    const notaA = a.resultado?.somativaGeral;
-    const notaB = b.resultado?.somativaGeral;
+    const notaA = getResumoPontos(a.resultado)?.lancados;
+    const notaB = getResumoPontos(b.resultado)?.lancados;
     const temNotaA = typeof notaA === 'number';
     const temNotaB = typeof notaB === 'number';
 
@@ -165,13 +203,11 @@ export default function AvaliacoesPage() {
   }
 
   function hasNotasPendentes(resultado: ResultadoAvaliacoes): boolean {
-    return resultado.categorias.some((categoria) =>
-      categoria.avaliacoes.some((avaliacao) => !hasNotaLancada(avaliacao.nota))
-    );
+    return (getResumoPontos(resultado)?.pendenteTotal ?? 0) > 0;
   }
 
   function getStatusFromResultado(resultado: ResultadoAvaliacoes) {
-    const somativa = resultado.somativaGeral ?? 0;
+    const somativa = getResumoPontos(resultado)?.lancados ?? 0;
     if (somativa >= resultado.mediaParaAprovacao) return 'aprovado';
     if (hasNotasPendentes(resultado)) return 'pendente';
     return 'reprovado';
@@ -180,11 +216,18 @@ export default function AvaliacoesPage() {
   function getAproveitamentoLancado(resultado: ResultadoAvaliacoes): number | null {
     let pontosLancados = 0;
     let valorLancado = 0;
+    const notasEspeciais: number[] = [];
 
     resultado.categorias.forEach((categoria) => {
       categoria.avaliacoes.forEach((avaliacao) => {
+        if (isAvaliacaoDeResumo(categoria.nome, avaliacao.nome)) return;
         const nota = parseNumber(avaliacao.nota);
         const valor = parseNumber(avaliacao.valor);
+
+        if (nota !== null && isAvaliacaoEspecial(categoria.nome, avaliacao.nome)) {
+          notasEspeciais.push(nota);
+          return;
+        }
 
         if (nota !== null && valor !== null && valor > 0) {
           pontosLancados += nota;
@@ -193,8 +236,65 @@ export default function AvaliacoesPage() {
       });
     });
 
+    if (notasEspeciais.length > 0 && pontosLancados < 60) {
+      return Math.min(Math.max(...notasEspeciais), 60);
+    }
+
     if (valorLancado <= 0) return null;
     return (pontosLancados / valorLancado) * 100;
+  }
+
+  function getResumoPontos(resultado?: ResultadoAvaliacoes) {
+    if (!resultado) return null;
+
+    let lancadosRegulares = 0;
+    const notasEspeciais: number[] = [];
+    const pendenteCalculado = resultado.categorias.reduce((total, categoria) => {
+      return total + categoria.avaliacoes.reduce((subtotal, avaliacao) => {
+        const nota = parseNumber(avaliacao.nota);
+        const valor = parseNumber(avaliacao.valor);
+        const isEspecial = isAvaliacaoEspecial(categoria.nome, avaliacao.nome);
+
+        if (nota !== null) {
+          if (isEspecial) {
+            notasEspeciais.push(nota);
+          } else {
+            lancadosRegulares += nota;
+          }
+          return subtotal;
+        }
+
+        if (isEspecial) {
+          return subtotal;
+        }
+
+        if (valor === null || valor <= 0) {
+          return subtotal;
+        }
+
+        return subtotal + valor;
+      }, 0);
+    }, 0);
+    const notaEspecial = notasEspeciais.length > 0 ? Math.max(...notasEspeciais) : null;
+    const deveUsarEspecial = notaEspecial !== null && lancadosRegulares < resultado.mediaParaAprovacao;
+    const lancados = deveUsarEspecial
+      ? Math.min(notaEspecial, 60)
+      : lancadosRegulares;
+    const pendenteTotal = deveUsarEspecial ? 0 : pendenteCalculado;
+    const necessario = Math.min(Math.max(resultado.mediaParaAprovacao - lancados, 0), pendenteTotal);
+    const pendenteLivre = Math.max(pendenteTotal - necessario, 0);
+    const escala = TOTAL_PONTOS;
+
+    return {
+      lancados,
+      necessario,
+      pendenteLivre,
+      pendenteTotal,
+      escala,
+      lancadosPct: clampPercent((lancados / escala) * 100),
+      necessarioPct: clampPercent((necessario / escala) * 100),
+      pendenteLivrePct: clampPercent((pendenteLivre / escala) * 100),
+    };
   }
 
   const disciplinasComResultado = disciplinas.filter((disciplina) => disciplina.resultado);
@@ -206,14 +306,18 @@ export default function AvaliacoesPage() {
     : 0;
   const totalAvaliacoes = disciplinasComResultado.reduce(
     (total, disciplina) => total + (disciplina.resultado?.categorias.reduce(
-      (categoriaTotal, categoria) => categoriaTotal + categoria.avaliacoes.length,
+      (categoriaTotal, categoria) => {
+        return categoriaTotal + categoria.avaliacoes.length;
+      },
       0
     ) ?? 0),
     0
   );
   const avaliacoesLancadas = disciplinasComResultado.reduce(
     (total, disciplina) => total + (disciplina.resultado?.categorias.reduce(
-      (categoriaTotal, categoria) => categoriaTotal + categoria.avaliacoes.filter((avaliacao) => hasNotaLancada(avaliacao.nota)).length,
+      (categoriaTotal, categoria) => {
+        return categoriaTotal + categoria.avaliacoes.filter((avaliacao) => hasNotaLancada(avaliacao.nota)).length;
+      },
       0
     ) ?? 0),
     0
@@ -372,7 +476,8 @@ export default function AvaliacoesPage() {
           };
 
           const currentStatus = status ? statusConfig[status] : null;
-          const somatorioDisciplina = resultado?.somativaGeral;
+          const resumoPontos = getResumoPontos(resultado);
+          const somatorioDisciplina = resumoPontos?.lancados;
           const isExpanded = expandedCodigo === disciplina.codigo;
 
           return (
@@ -383,34 +488,75 @@ export default function AvaliacoesPage() {
               {/* Header da Disciplina */}
               <button
                 onClick={() => toggleDisciplina(disciplina.codigo)}
-                className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                className="w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg ${currentStatus
-                    ? `${currentStatus.bg} ${currentStatus.border} border`
-                    : 'bg-gradient-to-br from-purple-500 to-pink-600 shadow-purple-500/20'
-                    }`}>
-                    {currentStatus && somatorioDisciplina !== undefined ? (
-                      <span className={`text-sm font-bold leading-none sm:text-base ${currentStatus.color}`}>
-                        {formatNumber(somatorioDisciplina)}
-                      </span>
-                    ) : (
-                      <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                    )}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg ${currentStatus
+                      ? `${currentStatus.bg} ${currentStatus.border} border`
+                      : 'bg-gradient-to-br from-purple-500 to-pink-600 shadow-purple-500/20'
+                      }`}>
+                      {currentStatus && somatorioDisciplina !== undefined ? (
+                        <span className={`text-sm font-bold leading-none sm:text-base ${currentStatus.color}`}>
+                          {formatNumber(somatorioDisciplina)}
+                        </span>
+                      ) : (
+                        <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                      )}
+                    </div>
+                    <div className="text-left min-w-0">
+                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base truncate">
+                        {disciplina.nome}
+                      </h3>
+                    </div>
                   </div>
-                  <div className="text-left min-w-0">
-                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base truncate">
-                      {disciplina.nome}
-                    </h3>
+
+                  <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                    <ChevronDown
+                      className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''
+                        }`}
+                    />
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                  <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''
-                      }`}
-                  />
-                </div>
+                {resumoPontos && (
+                  <div className="mt-3 pl-0 sm:pl-[60px]">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                        Lançado {formatNumber(resumoPontos.lancados)}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-2 w-2 rounded-full bg-amber-500" />
+                        Necessário {formatNumber(resumoPontos.necessario)}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-2 w-2 rounded-full bg-gray-300 dark:bg-gray-600" />
+                        Pendente {formatNumber(resumoPontos.pendenteTotal)}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                      <motion.div
+                        className="h-full bg-emerald-500"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${resumoPontos.lancadosPct}%` }}
+                        transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+                      />
+                      <motion.div
+                        className="h-full bg-amber-500"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${resumoPontos.necessarioPct}%` }}
+                        transition={{ duration: 0.65, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
+                      />
+                      <motion.div
+                        className="h-full bg-gray-300 dark:bg-gray-600"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${resumoPontos.pendenteLivrePct}%` }}
+                        transition={{ duration: 0.65, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+                      />
+                    </div>
+                  </div>
+                )}
               </button>
 
               {/* Conteúdo Expandido */}
@@ -440,7 +586,7 @@ export default function AvaliacoesPage() {
                   ) : resultado && resultado.categorias.length > 0 ? (
                     <div className="p-4 space-y-4">
                       {/* Somatorio das notas lancadas */}
-                      {resultado.somativaGeral !== undefined && (
+                      {resumoPontos && (
                         <div className={`flex items-center justify-between p-4 rounded-xl border ${currentStatus ? `${currentStatus.bg} ${currentStatus.border}` : 'bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700'
                           }`}>
                           <div className="flex items-center gap-3">
@@ -459,7 +605,7 @@ export default function AvaliacoesPage() {
                           </div>
                           <div className="text-right">
                             <p className={`text-2xl font-bold ${currentStatus?.color || 'text-gray-900 dark:text-white'}`}>
-                              {formatNumber(resultado.somativaGeral)}
+                              {formatNumber(resumoPontos.lancados)}
                             </p>
                           </div>
                         </div>
@@ -542,24 +688,9 @@ export default function AvaliacoesPage() {
                       </div>
                       {(() => {
                         const mediaParaAprovacao = resultado.mediaParaAprovacao ?? 60;
-                        let pontosLancados = 0;
-                        let valorLancado = 0;
-
-                        resultado.categorias.forEach((categoria) => {
-                          categoria.avaliacoes.forEach((avaliacao) => {
-                            const nota = parseNumber(avaliacao.nota);
-                            const valor = parseNumber(avaliacao.valor);
-                            if (nota !== null) {
-                              pontosLancados += nota;
-                              if (valor !== null) {
-                                valorLancado += valor;
-                              }
-                            }
-                          });
-                        });
-
-                        const pontosNecessarios = Math.max(0, mediaParaAprovacao - pontosLancados);
-                        const pontosRestantes = Math.max(0, TOTAL_PONTOS - valorLancado);
+                        const resumo = getResumoPontos(resultado);
+                        const pontosNecessarios = resumo?.necessario ?? 0;
+                        const pontosRestantes = resumo?.pendenteTotal ?? 0;
                         const percentNecessario = pontosRestantes > 0
                           ? (pontosNecessarios / pontosRestantes) * 100
                           : 0;
