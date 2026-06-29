@@ -9,8 +9,6 @@ import {
   TrendingUp,
   GraduationCap,
   CheckCircle,
-  XCircle,
-  Clock,
   Layers,
   RefreshCw
 } from 'lucide-react';
@@ -74,6 +72,22 @@ export default function AvaliacoesPage() {
   const [expandedCodigo, setExpandedCodigo] = useState<string | null>(null);
 
   const disciplinas = disciplinasData?.disciplinas || [];
+  const disciplinasOrdenadas = [...disciplinas].sort((a, b) => {
+    const notaA = a.resultado?.somativaGeral;
+    const notaB = b.resultado?.somativaGeral;
+    const temNotaA = typeof notaA === 'number';
+    const temNotaB = typeof notaB === 'number';
+
+    if (temNotaA && temNotaB) {
+      if (notaB !== notaA) return notaB - notaA;
+      return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' });
+    }
+
+    if (temNotaA) return -1;
+    if (temNotaB) return 1;
+
+    return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' });
+  });
   const lastUpdatedLabel = dataUpdatedAt
     ? formatDistanceToNow(new Date(dataUpdatedAt), { addSuffix: true, locale: ptBR })
     : null;
@@ -276,7 +290,12 @@ export default function AvaliacoesPage() {
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
             {lastUpdatedLabel && (
-              <span>Atualizado {lastUpdatedLabel}</span>
+              <span className="inline-flex items-center gap-1">
+                Atualizado {lastUpdatedLabel}
+                {isFetching && (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
+                )}
+              </span>
             )}
           </div>
         </div>
@@ -328,7 +347,7 @@ export default function AvaliacoesPage() {
 
       {/* Lista de Disciplinas */}
       <motion.div variants={sectionVariants} className="space-y-3">
-        {disciplinas.map((disciplina) => {
+        {disciplinasOrdenadas.map((disciplina) => {
           const resultado = disciplina.resultado;
           const status = resultado
             ? getStatusFromResultado(resultado)
@@ -336,19 +355,16 @@ export default function AvaliacoesPage() {
 
           const statusConfig = {
             aprovado: {
-              icon: CheckCircle,
               color: 'text-emerald-600 dark:text-emerald-400',
               bg: 'bg-emerald-500/10',
               border: 'border-emerald-500/20'
             },
             pendente: {
-              icon: Clock,
               color: 'text-amber-600 dark:text-amber-400',
               bg: 'bg-amber-500/10',
               border: 'border-amber-500/20'
             },
             reprovado: {
-              icon: XCircle,
               color: 'text-red-600 dark:text-red-400',
               bg: 'bg-red-500/10',
               border: 'border-red-500/20'
@@ -356,7 +372,7 @@ export default function AvaliacoesPage() {
           };
 
           const currentStatus = status ? statusConfig[status] : null;
-          const StatusIcon = currentStatus?.icon || GraduationCap;
+          const somatorioDisciplina = resultado?.somativaGeral;
           const isExpanded = expandedCodigo === disciplina.codigo;
 
           return (
@@ -374,8 +390,10 @@ export default function AvaliacoesPage() {
                     ? `${currentStatus.bg} ${currentStatus.border} border`
                     : 'bg-gradient-to-br from-purple-500 to-pink-600 shadow-purple-500/20'
                     }`}>
-                    {currentStatus ? (
-                      <StatusIcon className={`w-5 h-5 sm:w-6 sm:h-6 ${currentStatus.color}`} />
+                    {currentStatus && somatorioDisciplina !== undefined ? (
+                      <span className={`text-sm font-bold leading-none sm:text-base ${currentStatus.color}`}>
+                        {formatNumber(somatorioDisciplina)}
+                      </span>
                     ) : (
                       <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     )}

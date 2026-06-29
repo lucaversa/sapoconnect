@@ -13,7 +13,7 @@ import {
 import { getCredentials, getQueryCache, saveQueryCache } from '@/lib/storage';
 import { Toaster } from 'sonner';
 
-const CACHE_RESTORE_TIMEOUT_MS = 1200;
+const CACHE_RESTORE_TIMEOUT_MS = 4000;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
   return new Promise((resolve) => {
@@ -40,9 +40,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       // ignore localStorage errors
     }
 
-    const credentials = await withTimeout(getCredentials(), CACHE_RESTORE_TIMEOUT_MS, null);
-    if (credentials?.codUsuario) {
-      keys.add(getPersistKeyForUser(credentials.codUsuario));
+    if (keys.size === 0) {
+      const credentials = await withTimeout(getCredentials(), CACHE_RESTORE_TIMEOUT_MS, null);
+      if (credentials?.codUsuario) {
+        keys.add(getPersistKeyForUser(credentials.codUsuario));
+      }
     }
 
     keys.add(QUERY_PERSIST_KEY_PREFIX);
@@ -50,25 +52,32 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   const getPersistWriteKeys = useCallback(async () => {
+    const keys = new Set<string>();
+
     try {
       const storedRa = localStorage.getItem(QUERY_PERSIST_USER_KEY);
       if (storedRa) {
-        return [getPersistKeyForUser(storedRa)];
+        keys.add(getPersistKeyForUser(storedRa));
       }
     } catch {
       // ignore localStorage errors
     }
 
-    const credentials = await withTimeout(getCredentials(), CACHE_RESTORE_TIMEOUT_MS, null);
-    if (credentials?.codUsuario) {
-      return [getPersistKeyForUser(credentials.codUsuario)];
+    if (keys.size === 0) {
+      const credentials = await withTimeout(getCredentials(), CACHE_RESTORE_TIMEOUT_MS, null);
+      if (credentials?.codUsuario) {
+        keys.add(getPersistKeyForUser(credentials.codUsuario));
+      }
     }
 
-    return [QUERY_PERSIST_KEY_PREFIX];
+    keys.add(QUERY_PERSIST_KEY_PREFIX);
+    return Array.from(keys);
   }, []);
 
   const persistCache = useCallback(async () => {
-    const dehydrated = dehydrate(queryClient);
+    const dehydrated = dehydrate(queryClient, {
+      shouldDehydrateQuery: (query) => query.state.status === 'success' || query.state.data !== undefined,
+    });
     const keys = await getPersistWriteKeys();
 
     keys.forEach((key) => {

@@ -14,6 +14,7 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
   const queryClient = useQueryClient();
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const startYRef = useRef(0);
   const startXRef = useRef(0);
   const isPullingRef = useRef(false);
@@ -23,6 +24,7 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const hasTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+    setIsTouchDevice(hasTouch);
     if (!hasTouch) return;
 
     const getScrollTop = () => {
@@ -115,6 +117,7 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
   }, [minPullDistance, queryClient]);
 
   const isVisible = pullDistance > 0 || isRefreshing;
+  const showMobileHint = isTouchDevice && !isVisible;
   const translateY = Math.min(pullDistance, minPullDistance);
 
   return (
@@ -132,6 +135,18 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
           <span>{isRefreshing ? 'Atualizando...' : 'Puxe para atualizar'}</span>
         </div>
       </div>
+
+      {showMobileHint && (
+        <div
+          className="pointer-events-none fixed inset-x-0 z-40 flex justify-center px-4 sm:hidden"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
+        >
+          <div className="flex max-w-full items-center gap-2 rounded-full border border-emerald-200 bg-white/95 px-3.5 py-2 text-xs font-semibold text-gray-700 shadow-lg shadow-emerald-950/10 backdrop-blur dark:border-emerald-900/50 dark:bg-gray-900/95 dark:text-gray-200">
+            <RefreshCw className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="truncate">Puxe para baixo para atualizar</span>
+          </div>
+        </div>
+      )}
     </>
   );
 }

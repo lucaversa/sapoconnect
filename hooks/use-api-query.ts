@@ -26,7 +26,7 @@ export function useApiQuery<T>(
     },
     ...options,
     // Mantém dados antigos disponíveis mesmo em erro
-    gcTime: 24 * 60 * 60 * 1000,
+    gcTime: 7 * 24 * 60 * 60 * 1000,
   });
 
   return result;

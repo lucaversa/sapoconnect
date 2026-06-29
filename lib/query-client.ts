@@ -6,7 +6,7 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 2 * 60 * 1000,      // 2 min - reduzido para tentar novamente mais rápido
-      gcTime: 24 * 60 * 60 * 1000,   // 24h - mantém dados para fallback offline
+      gcTime: 7 * 24 * 60 * 60 * 1000,
       retry: (failureCount, error) => {
         // Não retry em 401 (sessão expirada)
         if (error instanceof SessionExpiredError) return false;

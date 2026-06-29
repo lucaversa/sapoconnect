@@ -355,7 +355,12 @@ export default function FaltasPage() {
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
               {lastUpdatedLabel && (
-                <span>Atualizado {lastUpdatedLabel}</span>
+                <span className="inline-flex items-center gap-1">
+                  Atualizado {lastUpdatedLabel}
+                  {isFetching && (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
+                  )}
+                </span>
               )}
             </div>
           </div>
