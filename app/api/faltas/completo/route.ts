@@ -357,6 +357,7 @@ export async function GET() {
           chMap.set(`nome:${nomeNormalizado}`, disc.ch);
         }
       });
+      const chPorNome = Array.from(chMap.entries()).filter(([key]) => key.startsWith('nome:'));
 
       // Criar mapa de estatísticas de aulas por disciplina (do horário)
       // Armazena cada aula com sua data/hora completa para calcular realizadas corretamente
@@ -384,6 +385,7 @@ export async function GET() {
           });
         }
       });
+      const aulasPorNome = Array.from(aulasPorDisciplina.entries());
 
       // Enriquecer faltas com dados adicionais
       const faltasEnriquecidas: FaltasItemEnriquecido[] = faltas.map((falta) => {
@@ -392,13 +394,11 @@ export async function GET() {
         // 1. Buscar CH do histórico
         let ch = chMap.get(falta.codigo);
         if (!ch) {
-          for (const [key, value] of Array.from(chMap.entries())) {
-            if (key.startsWith('nome:')) {
-              const nomeHistorico = key.replace('nome:', '');
-              if (nomesSimilares(falta.disciplina, nomeHistorico)) {
-                ch = value;
-                break;
-              }
+          for (const [key, value] of chPorNome) {
+            const nomeHistorico = key.replace('nome:', '');
+            if (nomesSimilares(falta.disciplina, nomeHistorico)) {
+              ch = value;
+              break;
             }
           }
         }
@@ -416,7 +416,7 @@ export async function GET() {
         const nomeNormalizado = normalizarNome(falta.disciplina);
         let stats = aulasPorDisciplina.get(nomeNormalizado);
         if (!stats) {
-          stats = Array.from(aulasPorDisciplina.entries())
+          stats = aulasPorNome
             .find(([nome]) => nomesSimilares(falta.disciplina, nome))?.[1];
         }
 
@@ -437,9 +437,6 @@ export async function GET() {
 
         // 3. Calcular aulas realizadas (contar apenas aulas que já ocorreram)
         if (resultado.aulasTotal) {
-          const stats = aulasPorDisciplina.get(nomeNormalizado)
-            || Array.from(aulasPorDisciplina.entries()).find(([nome]) => nomesSimilares(falta.disciplina, nome))?.[1];
-
           if (stats && stats.aulas.length > 0) {
             // Contar apenas aulas cuja data/hora já passou
             const agora = new Date();

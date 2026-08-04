@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { performExternalLogin } from '@/lib/external-auth';
-import { createSession, setRA } from '@/lib/session';
+import { createSession } from '@/lib/session';
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,10 +24,7 @@ export async function POST(request: NextRequest) {
       senha,
     });
 
-    await createSession(externalCookies);
-
-    // Salva o RA (codUsuario) na sessão
-    await setRA(codUsuario);
+    await createSession(externalCookies, codUsuario);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

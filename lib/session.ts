@@ -17,11 +17,13 @@ interface SessionData {
 }
 
 export async function createSession(
-  externalCookies: ExternalCookies
+  externalCookies: ExternalCookies,
+  ra?: string
 ): Promise<void> {
   const sessionData: SessionData = {
     externalCookies,
     lastExternalLoginAt: Date.now(),
+    ...(ra ? { ra } : {}),
   };
 
   const serialized = serializeSessionData(sessionData);
@@ -55,9 +57,10 @@ export async function getSession(): Promise<SessionData | null> {
 }
 
 export async function updateSessionCookies(
-  externalCookies: ExternalCookies
+  externalCookies: ExternalCookies,
+  existingSession?: SessionData
 ): Promise<void> {
-  const session = await getSession();
+  const session = existingSession ?? await getSession();
 
   if (!session) {
     throw new Error('Sessão não encontrada');

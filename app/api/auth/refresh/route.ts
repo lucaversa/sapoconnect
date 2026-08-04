@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       const session = await getSession();
 
       if (session) {
-        await updateSessionCookies(externalCookies);
+        await updateSessionCookies(externalCookies, session);
       } else {
         await createSession(externalCookies);
       }

@@ -31,6 +31,11 @@ import { join } from 'path';
 // ============ MODO MOCK (teste) ============
 // Sete false para voltar ao normal (API externa)
 const USE_MOCK = false;
+
+const DEBUG = process.env.NODE_ENV !== 'production';
+const debugLog = (...args: unknown[]) => {
+  if (DEBUG) console.log(...args);
+};
 // ===========================================
 
 const HORARIOS_URL =
@@ -67,30 +72,30 @@ export async function GET() {
 
     // ============ MODO MOCK (teste) ============
     if (USE_MOCK) {
-      console.log('[HORARIO] MODO MOCK ATIVADO');
+      debugLog('[HORARIO] MODO MOCK ATIVADO');
       const mockPath = join(process.cwd(), 'horarios.html');
       html = await readFile(mockPath, 'utf-8');
     } else {
     // ============ MODO NORMAL (API externa) ============
-      console.log('[HORARIO] Iniciando fetch de horários...');
+      debugLog('[HORARIO] Iniciando fetch de horários...');
 
       const externalCookies = await getExternalCookies();
 
       if (!externalCookies) {
-        console.log('[HORARIO] ERRO: Sessão não encontrada');
+        debugLog('[HORARIO] ERRO: Sessão não encontrada');
         return NextResponse.json(
           { error: 'Sessão não encontrada. Faça login novamente.', code: 'SESSION_MISSING' },
           { status: 401 }
         );
       }
 
-      console.log('[HORARIO] Cookies externos obtidos:', Object.keys(externalCookies).length, 'cookies');
+      debugLog('[HORARIO] Cookies externos obtidos:', Object.keys(externalCookies).length, 'cookies');
 
       const cookieHeader = formatCookiesForRequest(externalCookies);
-      console.log('[HORARIO] Cookie header length:', cookieHeader.length);
+      debugLog('[HORARIO] Cookie header length:', cookieHeader.length);
 
       // 1) Primeira chamada para HORARIOS_URL
-      console.log('[HORARIO] STEP 1: Fazendo GET para HORARIOS_URL');
+      debugLog('[HORARIO] STEP 1: Fazendo GET para HORARIOS_URL');
 
       let response = await fetch(HORARIOS_URL, {
         method: 'GET',
@@ -109,11 +114,11 @@ export async function GET() {
         },
       });
 
-      console.log('[HORARIO] Response status:', response.status, 'url:', response.url);
+      debugLog('[HORARIO] Response status:', response.status, 'url:', response.url);
 
       if (!response.ok) {
         if (response.status === 401) {
-          console.log('[HORARIO] ERRO: Sessão expirada no sistema TOTVS');
+          debugLog('[HORARIO] ERRO: Sessão expirada no sistema TOTVS');
           return NextResponse.json(
             { error: 'Sessão expirada no sistema TOTVS', code: 'SESSION_EXPIRED' },
             { status: 401 }
@@ -123,11 +128,11 @@ export async function GET() {
       }
 
       html = await response.text();
-      console.log('[HORARIO] HTML recebido, length:', html.length);
-      console.log('[HORARIO] HTML preview (primeiros 500 chars):', html.substring(0, 500));
+      debugLog('[HORARIO] HTML recebido, length:', html.length);
+      debugLog('[HORARIO] HTML preview (primeiros 500 chars):', html.substring(0, 500));
 
       if (isExternalLoginResponse(response, html)) {
-        console.log('[HORARIO] ERRO: Login externo expirado');
+        debugLog('[HORARIO] ERRO: Login externo expirado');
         return NextResponse.json(
           { error: 'Sessão externa expirada. Tente novamente.', code: 'SESSION_EXPIRED' },
           { status: 401 }
@@ -135,23 +140,25 @@ export async function GET() {
       }
 
       // 2) VERIFICA SE É TELA DE SELEÇÃO DE PERÍODO
-      console.log('[HORARIO] STEP 2: Verificando se é tela de seleção de período...');
+      debugLog('[HORARIO] STEP 2: Verificando se é tela de seleção de período...');
       const isTelaSelecao = isTelaSelecaoPeriodo(html);
-      console.log('[HORARIO] isTelaSelecaoPeriodo:', isTelaSelecao);
+      debugLog('[HORARIO] isTelaSelecaoPeriodo:', isTelaSelecao);
 
-      // Debug: mostrar palavras-chave encontradas
-      const hasPeriodoLetivo = html.toLowerCase().includes('período letivo') || html.toLowerCase().includes('periodo letivo');
-      const hasSelecione = html.toLowerCase().includes('selecione um período letivo') || html.toLowerCase().includes('selecione um periodo letivo');
-      const hasGetContextoKeyword = html.includes('GetContextoAluno');
-      console.log('[HORARIO] Keywords check:', { hasPeriodoLetivo, hasSelecione, hasGetContextoKeyword });
+      if (DEBUG) {
+        const normalizedHtml = html.toLowerCase();
+        const hasPeriodoLetivo = normalizedHtml.includes('período letivo') || normalizedHtml.includes('periodo letivo');
+        const hasSelecione = normalizedHtml.includes('selecione um período letivo') || normalizedHtml.includes('selecione um periodo letivo');
+        const hasGetContextoKeyword = html.includes('GetContextoAluno');
+        debugLog('[HORARIO] Keywords check:', { hasPeriodoLetivo, hasSelecione, hasGetContextoKeyword });
+      }
 
       if (isTelaSelecao) {
-        console.log('[HORARIO] TELA DE SELEÇÃO DETECTADA! Parseando opções...');
+        debugLog('[HORARIO] TELA DE SELEÇÃO DETECTADA! Parseando opções...');
 
-        const selecao = parseSelecaoPeriodo(html);
+        const selecao = parseSelecaoPeriodo(html, true);
 
         if (selecao) {
-          console.log('[HORARIO] Seleção parseada:', {
+          debugLog('[HORARIO] Seleção parseada:', {
             periodosEncontrados: selecao.periodos.length,
             formAction: selecao.formAction,
             periodos: selecao.periodos.map(p => ({
@@ -166,7 +173,7 @@ export async function GET() {
             const periodoSelecionado = selecionarPeriodoMaisNovo(selecao);
 
             if (periodoSelecionado) {
-              console.log('[HORARIO] Período selecionado:', {
+              debugLog('[HORARIO] Período selecionado:', {
                 label: periodoSelecionado.label,
                 periodoNumero: periodoSelecionado.periodoNumero,
                 hdKeyTD_preview: periodoSelecionado.hdKeyTD.substring(0, 100),
@@ -177,7 +184,7 @@ export async function GET() {
                                   periodoSelecionado.hdKeyTD.startsWith('http');
 
               if (isDirectLink) {
-                console.log('[HORARIO] STEP 3: Período é link direto, fazendo GET para:', periodoSelecionado.hdKeyTD);
+                debugLog('[HORARIO] STEP 3: Período é link direto, fazendo GET para:', periodoSelecionado.hdKeyTD);
 
                 // Constrói URL completa se for caminho relativo
                 const contextoUrl = periodoSelecionado.hdKeyTD.startsWith('http')
@@ -197,16 +204,16 @@ export async function GET() {
                   },
                 });
 
-                console.log('[HORARIO] GET Response status:', contextoResponse.status);
-                console.log('[HORARIO] GET Response url:', contextoResponse.url);
+                debugLog('[HORARIO] GET Response status:', contextoResponse.status);
+                debugLog('[HORARIO] GET Response url:', contextoResponse.url);
 
                 if (!contextoResponse.ok) {
-                  console.log('[HORARIO] ERRO no GET:', contextoResponse.status);
+                  debugLog('[HORARIO] ERRO no GET:', contextoResponse.status);
                   throw new Error(`Erro ao selecionar período: HTTP ${contextoResponse.status}`);
                 }
 
                 // Após o GET, busca novamente o horário
-                console.log('[HORARIO] GET OK! Buscando horário novamente...');
+                debugLog('[HORARIO] GET OK! Buscando horário novamente...');
 
                 response = await fetch(HORARIOS_URL, {
                   method: 'GET',
@@ -221,17 +228,17 @@ export async function GET() {
                   },
                 });
 
-                console.log('[HORARIO] Segundo GET status:', response.status, 'url:', response.url);
+                debugLog('[HORARIO] Segundo GET status:', response.status, 'url:', response.url);
 
                 if (!response.ok) {
                   throw new Error(`Erro HTTP ${response.status}: ${response.statusText}`);
                 }
 
                 html = await response.text();
-                console.log('[HORARIO] HTML após seleção de período, length:', html.length);
+                debugLog('[HORARIO] HTML após seleção de período, length:', html.length);
 
                 if (isExternalLoginResponse(response, html)) {
-                  console.log('[HORARIO] ERRO: Login externo expirado após seleção de período');
+                  debugLog('[HORARIO] ERRO: Login externo expirado após seleção de período');
                   return NextResponse.json(
                     { error: 'Sessão externa expirada. Tente novamente.', code: 'SESSION_EXPIRED' },
                     { status: 401 }
@@ -240,17 +247,17 @@ export async function GET() {
 
                 // Verificar se ainda é tela de seleção (erro na seleção)
                 if (isTelaSelecaoPeriodo(html)) {
-                  console.log('[HORARIO] ERRO: Ainda é tela de seleção após GET! A seleção pode ter falhado.');
+                  debugLog('[HORARIO] ERRO: Ainda é tela de seleção após GET! A seleção pode ter falhado.');
                 } else {
-                  console.log('[HORARIO] SUCESSO: Período selecionado via link direto!');
+                  debugLog('[HORARIO] SUCESSO: Período selecionado via link direto!');
                 }
               } else {
                 // Formato tradicional: POST para SetContextoAluno
-                console.log('[HORARIO] STEP 3: Período é token, fazendo POST para SET_CONTEXTO_URL');
+                debugLog('[HORARIO] STEP 3: Período é token, fazendo POST para SET_CONTEXTO_URL');
 
                 const postBody = buildPeriodoSelectionBody(periodoSelecionado);
-                console.log('[HORARIO] POST body length:', postBody.length);
-                console.log('[HORARIO] POST body preview:', postBody.substring(0, 200) + '...');
+                debugLog('[HORARIO] POST body length:', postBody.length);
+                debugLog('[HORARIO] POST body preview:', postBody.substring(0, 200) + '...');
 
                 const contextoResponse = await fetch(SET_CONTEXTO_URL, {
                   method: 'POST',
@@ -267,20 +274,20 @@ export async function GET() {
                   body: postBody,
                 });
 
-                console.log('[HORARIO] POST Response status:', contextoResponse.status);
-                console.log('[HORARIO] POST Response url:', contextoResponse.url);
+                debugLog('[HORARIO] POST Response status:', contextoResponse.status);
+                debugLog('[HORARIO] POST Response url:', contextoResponse.url);
 
                 if (!contextoResponse.ok) {
-                  console.log('[HORARIO] ERRO no POST:', contextoResponse.status);
+                  debugLog('[HORARIO] ERRO no POST:', contextoResponse.status);
                   const postHtml = await contextoResponse.text();
-                  console.log('[HORARIO] POST Response HTML preview:', postHtml.substring(0, 500));
+                  debugLog('[HORARIO] POST Response HTML preview:', postHtml.substring(0, 500));
                   throw new Error(
                     `Erro ao selecionar período: HTTP ${contextoResponse.status}`
                   );
                 }
 
                 // Após o POST, busca novamente o horário
-                console.log('[HORARIO] POST OK! Buscando horário novamente...');
+                debugLog('[HORARIO] POST OK! Buscando horário novamente...');
 
                 response = await fetch(HORARIOS_URL, {
                   method: 'GET',
@@ -295,17 +302,17 @@ export async function GET() {
                   },
                 });
 
-                console.log('[HORARIO] Segundo GET status:', response.status, 'url:', response.url);
+                debugLog('[HORARIO] Segundo GET status:', response.status, 'url:', response.url);
 
                 if (!response.ok) {
                   throw new Error(`Erro HTTP ${response.status}: ${response.statusText}`);
                 }
 
                 html = await response.text();
-                console.log('[HORARIO] HTML após seleção de período, length:', html.length);
+                debugLog('[HORARIO] HTML após seleção de período, length:', html.length);
 
                 if (isExternalLoginResponse(response, html)) {
-                  console.log('[HORARIO] ERRO: Login externo expirado após seleção de período');
+                  debugLog('[HORARIO] ERRO: Login externo expirado após seleção de período');
                   return NextResponse.json(
                     { error: 'Sessão externa expirada. Tente novamente.', code: 'SESSION_EXPIRED' },
                     { status: 401 }
@@ -314,22 +321,22 @@ export async function GET() {
 
                 // Verificar se ainda é tela de seleção (erro na seleção)
                 if (isTelaSelecaoPeriodo(html)) {
-                  console.log('[HORARIO] ERRO: Ainda é tela de seleção após POST! A seleção pode ter falhado.');
+                  debugLog('[HORARIO] ERRO: Ainda é tela de seleção após POST! A seleção pode ter falhado.');
                 } else {
-                  console.log('[HORARIO] SUCESSO: Período selecionado via POST!');
+                  debugLog('[HORARIO] SUCESSO: Período selecionado via POST!');
                 }
               }
             } else {
-              console.log('[HORARIO] ERRO: Nenhum período selecionado (selecionarPeriodoMaisNovo retornou null)');
+              debugLog('[HORARIO] ERRO: Nenhum período selecionado (selecionarPeriodoMaisNovo retornou null)');
             }
           } else {
-            console.log('[HORARIO] AVISO: Tela de seleção detectada mas nenhum período encontrado');
+            debugLog('[HORARIO] AVISO: Tela de seleção detectada mas nenhum período encontrado');
           }
         } else {
-          console.log('[HORARIO] ERRO: parseSelecaoPeriodo retornou null');
+          debugLog('[HORARIO] ERRO: parseSelecaoPeriodo retornou null');
         }
       } else {
-        console.log('[HORARIO] Não é tela de seleção de período, continuando...');
+        debugLog('[HORARIO] Não é tela de seleção de período, continuando...');
       }
 
       // 3) Tratamento EXISTENTE de "Object moved" + "GetContextoAluno"
@@ -337,11 +344,11 @@ export async function GET() {
       const hasObjectMoved = html.includes('Object moved');
       const hasGetContexto = html.includes('GetContextoAluno');
 
-      console.log('[HORARIO] STEP 4: Verificando Object moved / GetContextoAluno...');
-      console.log('[HORARIO] hasObjectMoved:', hasObjectMoved, 'hasGetContexto:', hasGetContexto);
+      debugLog('[HORARIO] STEP 4: Verificando Object moved / GetContextoAluno...');
+      debugLog('[HORARIO] hasObjectMoved:', hasObjectMoved, 'hasGetContexto:', hasGetContexto);
 
       if (hasObjectMoved && hasGetContexto) {
-        console.log('[HORARIO] Detectado Object moved + GetContextoAluno, fazendo GET para CONTEXTO_URL');
+        debugLog('[HORARIO] Detectado Object moved + GetContextoAluno, fazendo GET para CONTEXTO_URL');
 
         await fetch(CONTEXTO_URL, {
           method: 'GET',
@@ -357,7 +364,7 @@ export async function GET() {
           },
         });
 
-        console.log('[HORARIO] CONTEXTO_URL chamada, buscando horário novamente...');
+        debugLog('[HORARIO] CONTEXTO_URL chamada, buscando horário novamente...');
 
         // Tenta novamente
         response = await fetch(HORARIOS_URL, {
@@ -374,11 +381,11 @@ export async function GET() {
           },
         });
 
-        console.log('[HORARIO] Response após CONTEXTO_URL:', response.status, 'url:', response.url);
+        debugLog('[HORARIO] Response após CONTEXTO_URL:', response.status, 'url:', response.url);
 
         if (!response.ok) {
           if (response.status === 401) {
-            console.log('[HORARIO] ERRO: Sessão expirada após CONTEXTO_URL');
+            debugLog('[HORARIO] ERRO: Sessão expirada após CONTEXTO_URL');
           return NextResponse.json(
             { error: 'Sessão expirada no sistema TOTVS', code: 'SESSION_EXPIRED' },
             { status: 401 }
@@ -388,10 +395,10 @@ export async function GET() {
         }
 
         html = await response.text();
-        console.log('[HORARIO] HTML após CONTEXTO_URL, length:', html.length);
+        debugLog('[HORARIO] HTML após CONTEXTO_URL, length:', html.length);
 
         if (isExternalLoginResponse(response, html)) {
-          console.log('[HORARIO] ERRO: Login externo expirado após CONTEXTO_URL');
+          debugLog('[HORARIO] ERRO: Login externo expirado após CONTEXTO_URL');
           return NextResponse.json(
             { error: 'Sessão externa expirada. Tente novamente.', code: 'SESSION_EXPIRED' },
             { status: 401 }
@@ -402,12 +409,12 @@ export async function GET() {
     // ===========================================
 
     // 4) Parseia o HTML e extrai as aulas
-    console.log('[HORARIO] STEP 5: Parseando HTML para extrair aulas...');
+    debugLog('[HORARIO] STEP 5: Parseando HTML para extrair aulas...');
     const aulas = parseHorariosHTML(html);
-    console.log('[HORARIO] Aulas extraídas:', aulas.length, 'aulas');
+    debugLog('[HORARIO] Aulas extraídas:', aulas.length, 'aulas');
 
     if (aulas.length === 0) {
-      console.log('[HORARIO] ERRO: Nenhuma aula encontrada. Sessão possivelmente expirada.');
+      debugLog('[HORARIO] ERRO: Nenhuma aula encontrada. Sessão possivelmente expirada.');
       return NextResponse.json(
         { error: 'Sessão expirada no sistema TOTVS', code: 'SESSION_EXPIRED' },
         { status: 401 }
@@ -417,8 +424,8 @@ export async function GET() {
     return NextResponse.json({ aulas });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    console.log('[HORARIO] CATCH ERROR:', errorMessage);
-    console.log('[HORARIO] Error stack:', error instanceof Error ? error.stack : 'no stack');
+    debugLog('[HORARIO] CATCH ERROR:', errorMessage);
+    debugLog('[HORARIO] Error stack:', error instanceof Error ? error.stack : 'no stack');
 
     const isTotvsOffline = /HTTP 5\d{2}/.test(errorMessage) || errorMessage.includes('fetch');
     if (isTotvsOffline) {

@@ -59,7 +59,7 @@ export async function ensureTotvsContext(cookieHeader: string): Promise<void> {
     return;
   }
 
-  const selecao = parseSelecaoPeriodo(html);
+  const selecao = parseSelecaoPeriodo(html, true);
   const periodoSelecionado = selecao ? selecionarPeriodoMaisNovo(selecao) : null;
 
   if (!selecao || !periodoSelecionado) {

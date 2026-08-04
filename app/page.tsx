@@ -1,32 +1,30 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { ensureSession } from '@/lib/auth-client';
+import { useSession } from '@/lib/session-provider';
 
 export default function Home() {
   const router = useRouter();
-  const [isTimedOut, setIsTimedOut] = useState(false);
+  const { user, isLoading, sessionStatus } = useSession();
+  const hasStartedRedirect = useRef(false);
 
   useEffect(() => {
+    if (isLoading || hasStartedRedirect.current) return;
+    hasStartedRedirect.current = true;
+
     // Timeout de segurança: se demorar mais de 5s, redireciona para login
     const timeout = setTimeout(() => {
-      setIsTimedOut(true);
       router.push('/login');
     }, 5000);
 
     async function checkAuthAndRedirect() {
-      try {
-        const response = await fetch('/api/auth/session');
-
-        if (response.ok) {
-          clearTimeout(timeout);
-          router.push('/app/calendario');
-          return;
-        }
-      } catch {
-        // Fall through to refresh attempt.
+      if (sessionStatus === 'active' && user) {
+        clearTimeout(timeout);
+        router.push('/app/calendario');
+        return;
       }
 
       try {
@@ -42,7 +40,7 @@ export default function Home() {
     checkAuthAndRedirect();
 
     return () => clearTimeout(timeout);
-  }, [router]);
+  }, [isLoading, router, sessionStatus, user]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">

@@ -1,28 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSession } from '@/lib/session-provider';
 
 export function useUserInfo() {
-  const [ra, setRa] = useState<string>('');
+  const { user, isLoading } = useSession();
   const [greeting, setGreeting] = useState<string>('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchUserInfo() {
-      try {
-        const response = await fetch('/api/user/info');
-        if (response.ok) {
-          const data = await response.json();
-          setRa(data.ra || '');
-        }
-      } catch {
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchUserInfo();
-  }, []);
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -35,5 +18,5 @@ export function useUserInfo() {
     }
   }, []);
 
-  return { ra, greeting, loading };
+  return { ra: user?.ra || '', greeting, loading: isLoading };
 }

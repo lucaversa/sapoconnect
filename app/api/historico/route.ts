@@ -53,11 +53,12 @@ function parseHistoricoHTML(html: string): { periodos: Periodo[] } {
 
   // Separar por dividers de período
   const dividerRegex = /<li data-role="list-divider">([^<]+)<\/li>/g;
+  const dividerIndexes: number[] = [];
   let currentPeriodo: Periodo | null = null;
-  let lastIndex = 0;
   let match;
 
   while ((match = dividerRegex.exec(listContent)) !== null) {
+    dividerIndexes.push(match.index);
     // Salvar período anterior se existir
     if (currentPeriodo) {
       periodos.push(currentPeriodo);
@@ -69,7 +70,6 @@ function parseHistoricoHTML(html: string): { periodos: Periodo[] } {
       totalCH: '',
       disciplinas: []
     };
-    lastIndex = match.index + match[0].length;
   }
 
   // Adicionar o último período
@@ -81,9 +81,7 @@ function parseHistoricoHTML(html: string): { periodos: Periodo[] } {
   const itemRegex = /<li data-icon="false">[\s\S]*?<\/li>/g;
   let itemMatch;
   let periodoIndex = 0;
-
-  const resetIndex = dividerRegex.exec(listContent);
-  dividerRegex.lastIndex = 0;
+  let dividerCursor = 0;
 
   while ((itemMatch = itemRegex.exec(listContent)) !== null) {
     const itemContent = itemMatch[0];
@@ -175,20 +173,16 @@ function parseHistoricoHTML(html: string): { periodos: Periodo[] } {
     if (faltas) disciplina.faltas = faltas;
     if (periodo) disciplina.periodo = periodo;
 
-    // Adicionar ao período correto
-    // Precisamos encontrar a qual período esta disciplina pertence
-    // Vamos procurar pelo divider mais recente antes deste item
+    // Adicionar ao período correto sem reescanear todos os divisores para cada item.
     const itemIndex = itemMatch.index;
-    let currentPeriodoIdx = 0;
-    let tempMatch;
-
-    dividerRegex.lastIndex = 0;
-    while ((tempMatch = dividerRegex.exec(listContent)) !== null) {
-      if (tempMatch.index > itemIndex) break;
-      currentPeriodoIdx++;
+    while (
+      dividerCursor < dividerIndexes.length &&
+      dividerIndexes[dividerCursor] <= itemIndex
+    ) {
+      dividerCursor++;
     }
 
-    const targetPeriodoIdx = Math.max(0, currentPeriodoIdx - 1);
+    const targetPeriodoIdx = Math.max(0, dividerCursor - 1);
     if (periodos[targetPeriodoIdx]) {
       periodos[targetPeriodoIdx].disciplinas.push(disciplina);
     }

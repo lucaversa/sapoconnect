@@ -29,40 +29,12 @@ export interface SelecaoPeriodo {
  * 3. Tem listview com opções de período
  */
 export function isTelaSelecaoPeriodo(html: string): boolean {
-  // Decodifica HTML entities básicas para verificação
-  const decodedHtml = html
-    .replace(/&#237;/g, 'í')
-    .replace(/&#237;/g, 'í')
-    .replace(/&#233;/g, 'é')
-    .replace(/&#227;/g, 'ã')
-    .replace(/&#245;/g, 'õ')
-    .replace(/&#234;/g, 'ê')
-    .replace(/&#244;/g, 'â')
-    .replace(/&#243;/g, 'ó')
-    .replace(/&#225;/g, 'á')
-    .replace(/&nbsp;/g, ' ');
-
-  // Verificações para tela de seleção de período
-  const hasPeriodoLetivo = decodedHtml.includes('Período Letivo');
-  const hasSelecione = decodedHtml.includes('Selecione um período letivo') ||
-                        decodedHtml.includes('Selecione um periodo letivo');
+  // Estes são os mesmos critérios que determinavam o retorno anteriormente.
+  // Evita criar várias cópias do HTML apenas para indicadores de log.
   const hasSetContextoForm = html.includes('SetContextoAluno') && html.includes('<form');
   const hasListview = html.includes('data-role="listview"');
 
-  console.log('[CONTEXTO_PARSER] isTelaSelecaoPeriodo:', {
-    hasPeriodoLetivo,
-    hasSelecione,
-    hasSetContextoForm,
-    hasListview,
-    htmlLength: html.length,
-  });
-
-  // É tela de seleção se tiver form SetContextoAluno E listview
-  const isSelectionScreen = hasSetContextoForm && hasListview;
-
-  console.log('[CONTEXTO_PARSER] Resultado:', isSelectionScreen);
-
-  return isSelectionScreen;
+  return hasSetContextoForm && hasListview;
 }
 
 /**
@@ -72,8 +44,11 @@ export function isTelaSelecaoPeriodo(html: string): boolean {
  * 1. Formato tradicional com form e SubmitForm
  * 2. Formato com links diretos (<a href>)
  */
-export function parseSelecaoPeriodo(html: string): SelecaoPeriodo | null {
-  if (!isTelaSelecaoPeriodo(html)) return null;
+export function parseSelecaoPeriodo(
+  html: string,
+  selectionScreenAlreadyValidated = false
+): SelecaoPeriodo | null {
+  if (!selectionScreenAlreadyValidated && !isTelaSelecaoPeriodo(html)) return null;
 
   const $ = cheerio.load(html);
   const periodos: PeriodoOpcao[] = [];
@@ -113,8 +88,6 @@ export function parseSelecaoPeriodo(html: string): SelecaoPeriodo | null {
 
   // Tenta formato 2: Links diretos (<a> com href)
   // Formato esperado: <a href="URL">ANO - CURSO<br>CURSO<br>Turma: XXX<br>Período: N</a>
-  console.log('[CONTEXTO_PARSER] Tentando formato de links diretos...');
-
   // Primeiro tenta encontrar links com o padrão esperado
   $('a').each((_, el) => {
     const $el = $(el);
@@ -160,15 +133,9 @@ export function parseSelecaoPeriodo(html: string): SelecaoPeriodo | null {
   });
 
   if (periodos.length > 0) {
-    console.log('[CONTEXTO_PARSER] Períodos encontrados (formato links):', periodos.map(p => ({
-      label: p.label.substring(0, 60),
-      periodoNumero: p.periodoNumero,
-      hdKeyTD_length: p.hdKeyTD.length,
-    })));
     return { periodos, formAction: '/EducaMobile/Educacional/EduContexto/SetContextoAluno' };
   }
 
-  console.log('[CONTEXTO_PARSER] Nenhum período encontrado em nenhum formato');
   return null;
 }
 
