@@ -241,12 +241,19 @@ export default function HistoricoPage() {
             {periodosLetivos.map((periodo) => {
               const isExpanded = expandedPeriods.has(periodo.nome);
               const panelId = `periodo-${periodo.nome.replace(/\s+/g, '-')}`;
-              const concluidasNoPeriodo = periodo.disciplinas.filter(d =>
-                d.status === 'concluida' || d.status === 'equivalente'
+              const disciplinasContabilizadasNoPeriodo = periodo.disciplinas.filter(d =>
+                d.status !== 'equivalente'
+              );
+              const concluidasNoPeriodo = disciplinasContabilizadasNoPeriodo.filter(d =>
+                d.status === 'concluida'
               ).length;
+              const totalDisciplinasNoPeriodo = disciplinasContabilizadasNoPeriodo.length;
               const mediaPeriodo = calcularMediaPeriodo(periodo);
-              const periodoProgress = Math.round((concluidasNoPeriodo / periodo.disciplinas.length) * 100);
-              const periodoConcluido = concluidasNoPeriodo === periodo.disciplinas.length;
+              const periodoProgress = totalDisciplinasNoPeriodo > 0
+                ? Math.round((concluidasNoPeriodo / totalDisciplinasNoPeriodo) * 100)
+                : 0;
+              const periodoConcluido = totalDisciplinasNoPeriodo > 0
+                && concluidasNoPeriodo === totalDisciplinasNoPeriodo;
 
               return (
                 <AcademicPanel
@@ -267,7 +274,7 @@ export default function HistoricoPage() {
                           {periodo.nome}
                         </h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {periodo.disciplinas.length} disciplinas • {concluidasNoPeriodo} concluídas
+                          {totalDisciplinasNoPeriodo} disciplinas • {concluidasNoPeriodo} concluídas
                         </p>
                       </div>
                     </div>
