@@ -92,6 +92,8 @@ describe("frontend information architecture", () => {
     expect(pullToRefresh).toContain("PULL_HINT_SEEN_KEY")
     expect(pullToRefresh).toContain("PULL_HINT_DURATION_MS = 4_000")
     expect(pullToRefresh).toContain("closest('[data-calendar-scroll]')")
+    expect(pullToRefresh).toContain("pullDistance > 0 && !isRefreshing")
+    expect(pullToRefresh).not.toContain("isRefreshing\n    ? 'Atualizando...'")
   })
 
   it("uses an aligned 2x2 tile grid for absence metrics on phones", () => {

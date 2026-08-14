@@ -146,15 +146,15 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
     };
   }, [minPullDistance, onRefresh, queryClient]);
 
-  const isPullVisible = pullDistance > 0 || isRefreshing;
+  // The page refresh callback owns the loading toast. Keep this indicator only
+  // for the drag gesture so users never see two simultaneous progress notices.
+  const isPullVisible = pullDistance > 0 && !isRefreshing;
   const isReady = pullDistance >= minPullDistance;
-  const message = isRefreshing
-    ? 'Atualizando...'
-    : isReady
-      ? 'Solte para atualizar'
-      : pullDistance > 0
-        ? 'Puxe mais um pouco'
-        : 'Puxe para baixo para atualizar';
+  const message = isReady
+    ? 'Solte para atualizar'
+    : pullDistance > 0
+      ? 'Puxe mais um pouco'
+      : 'Puxe para baixo para atualizar';
   const translateY = pullDistance > 0 ? Math.min(pullDistance * 0.3, 22) : 0;
 
   return (
@@ -173,8 +173,8 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
           <div className="liquid-float liquid-notice flex items-center gap-2.5 whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-semibold text-gray-700 dark:text-gray-100">
             <span className="liquid-notice-icon size-7 rounded-full text-primary">
               <RefreshCw
-                className={`size-3.5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`}
-                style={reducedMotion || isRefreshing ? undefined : { transform: `rotate(${Math.min(pullDistance * 2.4, 180)}deg)` }}
+                className="size-3.5 shrink-0"
+                style={reducedMotion ? undefined : { transform: `rotate(${Math.min(pullDistance * 2.4, 180)}deg)` }}
                 aria-hidden="true"
               />
             </span>
