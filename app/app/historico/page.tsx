@@ -193,9 +193,10 @@ export default function HistoricoPage() {
   const periodosLetivos = periodos.filter(p => isPeriodoLetivo(p.nome));
   const outrosBlocos = periodos.filter(p => !isPeriodoLetivo(p.nome));
 
-  const totalDisciplinas = periodos.reduce((acc, p) => acc + p.disciplinas.length, 0);
+  const totalDisciplinas = periodos.reduce((acc, p) =>
+    acc + p.disciplinas.filter(d => d.status !== 'equivalente').length, 0);
   const totalConcluidas = periodosLetivos.reduce((acc, p) =>
-    acc + p.disciplinas.filter(d => d.status === 'concluida' || d.status === 'equivalente').length, 0);
+    acc + p.disciplinas.filter(d => d.status === 'concluida').length, 0);
 
   return (
     <PageTransition className="app-page">
