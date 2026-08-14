@@ -33,10 +33,10 @@ describe("frontend information architecture", () => {
     const month = read("components/event-calendar/month-view.tsx")
     const day = read("components/event-calendar/day-view.tsx")
 
-    expect(week).toContain("touch-auto overflow-x-auto")
-    expect(month).toContain("touch-auto overflow-x-auto")
-    expect(week).not.toContain("touch-pan-x")
-    expect(month).not.toContain("touch-pan-x")
+    expect(week).toContain("touch-pan-y overflow-x-auto")
+    expect(month).toContain("touch-pan-y overflow-x-auto")
+    expect(week).toContain("useMobileHorizontalScroll")
+    expect(month).toContain("useMobileHorizontalScroll")
     expect(day).toContain("overflow-visible sm:max-h-[68dvh] sm:overflow-y-auto")
   })
 
