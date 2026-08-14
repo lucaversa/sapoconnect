@@ -104,24 +104,24 @@ export function EventCalendar({
       onTouchEnd={handleTouchEnd}
       onTouchCancel={() => { touchStart.current = null }}
     >
-      <header className="relative z-30 border-b border-white/70 bg-white/36 px-3 py-3 dark:border-white/[0.07] dark:bg-white/[0.02] sm:px-4">
+      <header className="relative z-30 border-b border-white/70 bg-white/36 px-3 py-2.5 dark:border-white/[0.07] dark:bg-white/[0.02] sm:px-4 sm:py-3">
         <div className="sm:hidden">
           <div className="flex min-w-0 items-center justify-between gap-3">
             <h2 className="min-w-0 truncate text-base font-semibold text-gray-900 first-letter:uppercase dark:text-white">{viewTitle}</h2>
             <div className="relative shrink-0">
-              <button type="button" onClick={() => setIsViewMenuOpen((open) => !open)} className="native-control flex h-11 items-center gap-1 px-3 text-sm font-bold" aria-expanded={isViewMenuOpen}>
+              <button type="button" onClick={() => setIsViewMenuOpen((open) => !open)} className="native-control flex h-10 min-h-0 items-center gap-1 px-3 text-sm font-bold" aria-expanded={isViewMenuOpen}>
                 {viewNames[view]} <ChevronDown className="h-4 w-4" />
               </button>
               {isViewMenuOpen && <div className="liquid-float absolute right-0 z-40 mt-2 w-36 rounded-2xl p-1.5">{views.map((option) => <button key={option} type="button" onClick={() => { setSelectedView(option); setIsViewMenuOpen(false) }} className={cn("liquid-menu-item flex h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold", view === option ? "border-white/70 bg-gray-950 text-white dark:border-white/10 dark:bg-white dark:text-gray-950" : "text-gray-700 dark:text-gray-200")}>{viewNames[option]}</button>)}</div>}
             </div>
           </div>
-          <div className="mt-2 flex items-center justify-between">
-            <button type="button" onClick={() => setCurrentDate(new Date())} className="flex h-11 items-center gap-2 rounded-xl px-3 text-sm font-bold text-primary-700 transition-colors motion-reduce:transition-none hover:bg-primary/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-primary-300">
+          <div className="mt-1 flex items-center justify-between">
+            <button type="button" onClick={() => setCurrentDate(new Date())} className="flex h-10 items-center gap-2 rounded-xl px-2.5 text-sm font-bold text-primary-700 transition-colors motion-reduce:transition-none hover:bg-primary/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:text-primary-300">
               <CalendarDays className="h-5 w-5" aria-hidden="true" /> Hoje
             </button>
             <div className="flex items-center gap-1">
-              <button type="button" onClick={() => move(-1)} className="native-control flex size-11 min-h-0 items-center justify-center p-0" aria-label="Período anterior"><ChevronLeft className="h-5 w-5" /></button>
-              <button type="button" onClick={() => move(1)} className="native-control flex size-11 min-h-0 items-center justify-center p-0" aria-label="Próximo período"><ChevronRight className="h-5 w-5" /></button>
+              <button type="button" onClick={() => move(-1)} className="native-control flex size-10 min-h-0 items-center justify-center p-0" aria-label="Período anterior"><ChevronLeft className="h-5 w-5" /></button>
+              <button type="button" onClick={() => move(1)} className="native-control flex size-10 min-h-0 items-center justify-center p-0" aria-label="Próximo período"><ChevronRight className="h-5 w-5" /></button>
             </div>
           </div>
         </div>

@@ -71,7 +71,11 @@ export function EventItem({
         "focus-visible:ring-ring/50 flex h-full w-full overflow-hidden border border-white/25 px-1.5 text-left font-bold transition-[filter,transform] duration-200 hover:z-10 hover:brightness-105 active:scale-[0.985] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 data-[past-event=true]:opacity-60 dark:border-white/[0.06] sm:px-2",
         getEventColorClasses(event.color),
         getBorderRadiusClasses(isFirstDay, isLastDay),
-        view === "month" ? "items-center text-[10px] sm:text-xs" : "flex-col py-1 text-xs",
+        view === "month"
+          ? "items-center text-[10px] sm:text-xs"
+          : view === "week"
+            ? "flex-col justify-center py-0.5 text-[10px] leading-3 sm:py-1 sm:text-xs sm:leading-4"
+            : "flex-col py-1 text-xs",
         className
       )}
       data-past-event={isPast(end) || undefined}
@@ -80,7 +84,7 @@ export function EventItem({
         <>
           <span className="truncate">{event.title}</span>
           {showTime && durationMinutes >= 30 && (
-            <span className="truncate text-[10px] font-normal opacity-70">{time}</span>
+            <span className="truncate text-[9px] font-normal leading-3 opacity-70 sm:text-[10px]">{time}</span>
           )}
         </>
       )}

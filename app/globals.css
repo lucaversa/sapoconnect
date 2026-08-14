@@ -544,6 +544,33 @@
     display: none;
   }
 
+  .calendar-scroll-viewport {
+    height: min(55dvh, 32rem);
+    overflow: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, hsl(var(--primary)) 38%, transparent) transparent;
+  }
+
+  .calendar-scroll-viewport::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .calendar-scroll-viewport::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in srgb, hsl(var(--primary)) 38%, transparent);
+  }
+
+  @media (min-width: 640px) {
+    .calendar-scroll-viewport {
+      height: auto;
+      max-height: 68dvh;
+    }
+  }
+
   .detail-reveal {
     transform-origin: top;
     animation: detail-reveal 320ms cubic-bezier(0.22, 1, 0.36, 1) both;

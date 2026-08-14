@@ -11,11 +11,16 @@ interface PullToRefreshProps {
   onRefresh?: () => Promise<void> | void;
 }
 
+const PULL_HINT_SEEN_KEY = 'sapoconnect_pull_hint_seen_v1';
+const PULL_HINT_DELAY_MS = 700;
+const PULL_HINT_DURATION_MS = 4_000;
+let pullHintShownInMemory = false;
+
 export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefreshProps) {
   const queryClient = useQueryClient();
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [showPullHint, setShowPullHint] = useState(false);
   const startYRef = useRef(0);
   const startXRef = useRef(0);
   const isPullingRef = useRef(false);
@@ -28,7 +33,25 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
     const hasTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
     if (!hasTouch) return;
 
-    const detectionTimer = window.setTimeout(() => setIsTouchDevice(true), 0);
+    let hintTimer: number | null = null;
+    let hideHintTimer: number | null = null;
+    const detectionTimer = window.setTimeout(() => {
+      if (pullHintShownInMemory) return;
+
+      try {
+        if (window.localStorage.getItem(PULL_HINT_SEEN_KEY)) return;
+        window.localStorage.setItem(PULL_HINT_SEEN_KEY, '1');
+      } catch {
+        // The in-memory guard still prevents repetition during this session.
+      }
+
+      pullHintShownInMemory = true;
+      hintTimer = window.setTimeout(() => setShowPullHint(true), PULL_HINT_DELAY_MS);
+      hideHintTimer = window.setTimeout(
+        () => setShowPullHint(false),
+        PULL_HINT_DELAY_MS + PULL_HINT_DURATION_MS,
+      );
+    }, 0);
 
     const getScrollTop = () => {
       const scrollingElement = document.scrollingElement;
@@ -40,6 +63,7 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
       if (refreshingRef.current) return;
       if (event.touches.length !== 1) return;
       if (getScrollTop() > 0) return;
+      if (event.target instanceof Element && event.target.closest('[data-calendar-scroll]')) return;
       startYRef.current = event.touches[0].clientY;
       startXRef.current = event.touches[0].clientX;
       isPullingRef.current = true;
@@ -117,6 +141,8 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
       window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('touchcancel', onTouchEnd);
       window.clearTimeout(detectionTimer);
+      if (hintTimer) window.clearTimeout(hintTimer);
+      if (hideHintTimer) window.clearTimeout(hideHintTimer);
     };
   }, [minPullDistance, onRefresh, queryClient]);
 
@@ -156,7 +182,7 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
           </div>
         </motion.div>
       ) : null}
-      {isTouchDevice && !isPullVisible ? (
+      {showPullHint && !isPullVisible ? (
         <motion.div
           key="pull-hint"
           initial={reducedMotion ? false : { opacity: 0, y: 8, scale: 0.97 }}
