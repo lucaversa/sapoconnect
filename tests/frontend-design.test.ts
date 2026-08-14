@@ -152,6 +152,13 @@ describe("frontend information architecture", () => {
     expect(read("app/login/page.tsx")).toContain("portal acadêmico otimizado")
   })
 
+  it("collects anonymous page views from the root layout", () => {
+    const layout = read("app/layout.tsx")
+
+    expect(layout).toContain('import { Analytics } from "@vercel/analytics/next"')
+    expect(layout).toContain("<Analytics />")
+  })
+
   it("does not leave a module in an endless loader when offline cache is missing", () => {
     const pages = [
       "app/app/calendario/page.tsx",
