@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { CalendarDays, ClipboardList, ExternalLink, GraduationCap, History, Info, Star } from "lucide-react"
+import { motion, useReducedMotion } from "motion/react"
 
 import { BrandLockup, BrandMark } from "@/components/brand/BrandMark"
 import { AboutDialog } from "@/components/modals/AboutDialog"
@@ -49,8 +50,9 @@ function DesktopNav() {
 
 function MobileNavLinks() {
   const pathname = usePathname()
+  const reducedMotion = useReducedMotion()
   return (
-    <nav aria-label="Navegação principal" className="grid grid-cols-4">
+    <nav aria-label="Navegação principal" className="grid grid-cols-4 gap-0.5">
       {items.map(({ href, label, icon: Icon }) => {
         const active = pathname === href
         return (
@@ -59,11 +61,18 @@ function MobileNavLinks() {
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative flex min-h-[3.75rem] flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-bold transition-[transform,color,background-color] duration-200 active:scale-95",
+              "relative flex min-h-[3.75rem] flex-col items-center justify-center gap-1 rounded-[1.2rem] text-[10px] font-bold transition-[transform,color] duration-200 active:scale-95",
               active ? "text-primary-700 dark:text-primary-300" : "text-gray-500 dark:text-gray-400",
             )}
           >
-            {active ? <span className="absolute inset-x-2 inset-y-1 rounded-2xl bg-primary/[0.09]" aria-hidden="true" /> : null}
+            {active ? (
+              <motion.span
+                layoutId="mobile-nav-active"
+                className="liquid-nav-lens"
+                transition={reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 34 }}
+                aria-hidden="true"
+              />
+            ) : null}
             <Icon className={cn("relative size-5", active && "drop-shadow-[0_5px_8px_rgba(0,172,147,0.24)]")} aria-hidden="true" />
             <span className="relative">{label}</span>
           </Link>
@@ -76,7 +85,7 @@ function MobileNavLinks() {
 export function MobileNav() {
   return (
     <div className="mobile-safe-bottom fixed inset-x-3 bottom-2 z-40 lg:hidden">
-      <div className="liquid-panel mx-auto max-w-md rounded-[1.4rem] p-1 shadow-[0_20px_55px_-24px_rgba(15,23,42,0.7)] dark:shadow-[0_24px_60px_-26px_rgba(0,0,0,0.95)]">
+      <div className="liquid-float liquid-dock mx-auto max-w-md">
         <MobileNavLinks />
       </div>
     </div>

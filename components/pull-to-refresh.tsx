@@ -144,12 +144,14 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
           role="status"
           aria-live="polite"
         >
-          <div className="liquid-panel flex items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-2 text-[11px] font-semibold text-gray-700 shadow-[0_14px_32px_-18px_rgba(15,23,42,0.6)] dark:text-gray-200">
-            <RefreshCw
-              className={`size-3.5 shrink-0 text-primary ${isRefreshing ? 'animate-spin' : ''}`}
-              style={reducedMotion || isRefreshing ? undefined : { transform: `rotate(${Math.min(pullDistance * 2.4, 180)}deg)` }}
-              aria-hidden="true"
-            />
+          <div className="liquid-float liquid-notice flex items-center gap-2.5 whitespace-nowrap rounded-full px-3 py-2 text-[11px] font-semibold text-gray-700 dark:text-gray-100">
+            <span className="liquid-notice-icon size-7 rounded-full text-primary">
+              <RefreshCw
+                className={`size-3.5 shrink-0 ${isRefreshing ? 'animate-spin' : ''}`}
+                style={reducedMotion || isRefreshing ? undefined : { transform: `rotate(${Math.min(pullDistance * 2.4, 180)}deg)` }}
+                aria-hidden="true"
+              />
+            </span>
             <span>{message}</span>
           </div>
         </motion.div>
@@ -164,8 +166,10 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
           className="pointer-events-none fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-4 sm:hidden"
           role="status"
         >
-          <div className="liquid-panel flex max-w-full items-center gap-2 rounded-full px-3.5 py-2 text-[11px] font-semibold text-gray-700 shadow-[0_14px_32px_-18px_rgba(15,23,42,0.6)] dark:text-gray-200">
-            <RefreshCw className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
+          <div className="liquid-float liquid-notice flex max-w-full items-center gap-2.5 rounded-full px-3 py-2 text-[11px] font-semibold text-gray-700 dark:text-gray-100">
+            <span className="liquid-notice-icon size-7 rounded-full text-primary">
+              <RefreshCw className="size-3.5 shrink-0" aria-hidden="true" />
+            </span>
             <span className="truncate">Puxe para baixo para atualizar</span>
           </div>
         </motion.div>

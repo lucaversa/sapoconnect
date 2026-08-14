@@ -62,7 +62,7 @@ export function AppHeaderView({ theme, toggleTheme, logout, greeting, ra }: AppH
 
   return (
     <>
-      <header className="fixed inset-x-0 top-0 z-30 border-b border-white/70 bg-white/62 pt-[env(safe-area-inset-top)] backdrop-blur-2xl dark:border-white/[0.07] dark:bg-gray-950/68 lg:left-72">
+      <header className="fixed inset-x-0 top-0 z-40 border-b border-white/70 bg-white/62 pt-[env(safe-area-inset-top)] backdrop-blur-2xl dark:border-white/[0.07] dark:bg-gray-950/68 lg:left-72">
         <div className="relative flex h-16 items-center gap-2.5 px-4 sm:gap-3 sm:px-6 lg:px-8">
           <BrandMark className="size-9 lg:hidden" />
           <div className="min-w-0 flex-1">
@@ -100,26 +100,26 @@ export function AppHeaderView({ theme, toggleTheme, logout, greeting, ra }: AppH
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={reducedMotion ? undefined : { opacity: 0, y: -5, scale: 0.98 }}
                 transition={{ duration: reducedMotion ? 0 : 0.2, ease: [0.22, 1, 0.36, 1] }}
-                className="liquid-panel absolute right-4 top-[calc(100%+0.5rem)] z-50 w-[min(18rem,calc(100vw-2rem))] rounded-3xl p-2 shadow-[0_24px_64px_-28px_rgba(15,23,42,0.72)] lg:hidden"
+                className="liquid-float absolute right-4 top-[calc(100%+0.5rem)] z-50 w-[min(18rem,calc(100vw-2rem))] rounded-[1.65rem] p-2 lg:hidden"
               >
-                <div className="mb-1 flex items-center gap-3 rounded-2xl bg-gray-950/[0.035] px-3 py-2.5 dark:bg-white/[0.035]">
+                <div className="mb-1 flex items-center gap-3 rounded-[1.15rem] border border-white/55 bg-white/30 px-3 py-2.5 dark:border-white/[0.07] dark:bg-white/[0.035]">
                   <BrandMark className="size-8" />
                   <div className="min-w-0">
                     <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-gray-400">Conta acadêmica</p>
                     <p className="truncate text-xs font-extrabold text-gray-900 dark:text-white">{ra ? `RA ${ra}` : "Sessão ativa"}</p>
                   </div>
                 </div>
-                <a href="https://fundacaoeducacional132827.rm.cloudtotvs.com.br/" target="_blank" rel="noopener noreferrer" role="menuitem" onClick={() => closeMobileMenu(false)} className="flex min-h-12 items-center gap-3 rounded-2xl px-3 text-sm font-bold text-gray-700 transition-colors hover:bg-primary/[0.07] hover:text-primary-700 dark:text-gray-200 dark:hover:text-primary-300">
+                <a href="https://fundacaoeducacional132827.rm.cloudtotvs.com.br/" target="_blank" rel="noopener noreferrer" role="menuitem" onClick={() => closeMobileMenu(false)} className="liquid-menu-item flex min-h-12 items-center gap-3 rounded-2xl px-3 text-sm font-bold text-gray-700 hover:text-primary-700 dark:text-gray-200 dark:hover:text-primary-300">
                   <span className="icon-orb size-9"><GraduationCap className="size-4" /></span>
                   Portal oficial
                   <ExternalLink className="ml-auto size-4 text-gray-400" />
                 </a>
-                <button type="button" role="menuitem" onClick={() => { closeMobileMenu(false); setIsAboutOpen(true) }} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-sm font-bold text-gray-700 transition-colors hover:bg-primary/[0.07] hover:text-primary-700 dark:text-gray-200 dark:hover:text-primary-300">
+                <button type="button" role="menuitem" onClick={() => { closeMobileMenu(false); setIsAboutOpen(true) }} className="liquid-menu-item flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-sm font-bold text-gray-700 hover:text-primary-700 dark:text-gray-200 dark:hover:text-primary-300">
                   <span className="icon-orb size-9"><Info className="size-4" /></span>
                   Sobre e instalar
                 </button>
                 <div className="my-1 h-px bg-gray-200/70 dark:bg-white/[0.07]" />
-                <button type="button" role="menuitem" onClick={handleLogout} disabled={isLoggingOut} className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-sm font-bold text-red-600 transition-colors hover:bg-red-500/[0.07] disabled:opacity-60 dark:text-red-300">
+                <button type="button" role="menuitem" onClick={handleLogout} disabled={isLoggingOut} className="liquid-menu-item flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-sm font-bold text-red-600 disabled:opacity-60 dark:text-red-300">
                   <span className="flex size-9 items-center justify-center rounded-2xl bg-red-500/10"><LogOut className="size-4" /></span>
                   {isLoggingOut ? "Saindo..." : "Sair da conta"}
                 </button>
