@@ -2,6 +2,7 @@
 
 import { Activity, ChartNoAxesCombined, Eye, UsersRound } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 
 import {
   COMMUNITY_PULSE_STALE_TIME_MS,
@@ -10,6 +11,7 @@ import {
 import { queryKeys } from '@/lib/query-keys';
 
 const numberFormatter = new Intl.NumberFormat('pt-BR');
+const COMMUNITY_PULSE_REVEAL_AT = Date.parse('2026-08-21T18:00:00-03:00');
 
 async function fetchCommunityPulse(): Promise<CommunityPulseData> {
   try {
@@ -46,10 +48,23 @@ function Metric({ icon: Icon, label, value }: { icon: typeof UsersRound; label: 
 }
 
 export function CommunityPulse({ enabled }: { enabled: boolean }) {
+  const [isVisible, setIsVisible] = useState(() => Date.now() >= COMMUNITY_PULSE_REVEAL_AT);
+
+  useEffect(() => {
+    if (isVisible) return;
+
+    const timer = window.setTimeout(
+      () => setIsVisible(true),
+      Math.max(0, COMMUNITY_PULSE_REVEAL_AT - Date.now())
+    );
+
+    return () => window.clearTimeout(timer);
+  }, [isVisible]);
+
   const { data, isPending } = useQuery({
     queryKey: queryKeys.communityPulse,
     queryFn: fetchCommunityPulse,
-    enabled,
+    enabled: enabled && isVisible,
     staleTime: COMMUNITY_PULSE_STALE_TIME_MS,
     gcTime: 24 * 60 * 60 * 1_000,
     retry: false,
@@ -57,6 +72,8 @@ export function CommunityPulse({ enabled }: { enabled: boolean }) {
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
   });
+
+  if (!isVisible) return null;
 
   return (
     <section className="border-t border-gray-200/70 py-5 dark:border-white/[0.065]">
