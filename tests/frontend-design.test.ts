@@ -225,4 +225,16 @@ describe("frontend information architecture", () => {
       expect(page).toContain("Sem dados salvos")
     }
   })
+
+  it("excludes equivalent subjects only from history summary counts", () => {
+    const history = read("app/app/historico/page.tsx")
+    const summaryStart = history.indexOf("const totalDisciplinas")
+    const summaryEnd = history.indexOf("return (", summaryStart)
+    const summary = history.slice(summaryStart, summaryEnd)
+
+    expect(summary).toContain("d.status !== 'equivalente'")
+    expect(summary).toContain("d.status === 'concluida'")
+    expect(summary).not.toContain("d.status === 'concluida' || d.status === 'equivalente'")
+    expect(history).toContain("label: 'Equivalente'")
+  })
 })
