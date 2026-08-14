@@ -26,7 +26,7 @@ export function MonthView({ currentDate, events, onEventSelect }: MonthViewProps
   const weekdays = useMemo(() => days.slice(0, 7), [days])
 
   return (
-    <div data-calendar-scroll className="touch-pan-x overflow-x-auto overscroll-x-contain">
+    <div data-calendar-scroll className="touch-auto overflow-x-auto overscroll-x-contain">
       <div className="min-w-[720px]">
         <div className="grid grid-cols-7 border-b border-gray-200/70 dark:border-white/[0.07]">
           {weekdays.map((day) => (

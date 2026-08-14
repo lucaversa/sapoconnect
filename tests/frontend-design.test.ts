@@ -28,6 +28,18 @@ describe("frontend information architecture", () => {
     expect(read("components/event-calendar/day-view.tsx")).toContain("data-time-axis")
   })
 
+  it("lets mobile pages scroll vertically from every calendar view", () => {
+    const week = read("components/event-calendar/week-view.tsx")
+    const month = read("components/event-calendar/month-view.tsx")
+    const day = read("components/event-calendar/day-view.tsx")
+
+    expect(week).toContain("touch-auto overflow-x-auto")
+    expect(month).toContain("touch-auto overflow-x-auto")
+    expect(week).not.toContain("touch-pan-x")
+    expect(month).not.toContain("touch-pan-x")
+    expect(day).toContain("overflow-visible sm:max-h-[68dvh] sm:overflow-y-auto")
+  })
+
   it("keeps academic modules separated and removes the old nested score card", () => {
     const evaluations = read("app/app/avaliacoes/page.tsx")
     expect(evaluations).toContain('className="academic-stack"')
