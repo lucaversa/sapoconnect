@@ -188,6 +188,8 @@ describe("frontend information architecture", () => {
 
     expect(layout).toContain("<CommunityLaunchDialog />")
     expect(announcement).toContain("sapoconnect:announcement:community-pulse-2026-08")
+    expect(announcement).toContain("2026-08-28T18:00:00-03:00")
+    expect(announcement).toContain("remainingTime <= 0")
     expect(announcement).toContain("O SapoConnect está sendo muito visitado")
     expect(announcement).toContain("As funções continuam as mesmas")
     expect(announcement).toContain("Nova área: Pulso da comunidade")
