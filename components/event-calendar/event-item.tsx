@@ -46,7 +46,7 @@ export function EventItem({
         type="button"
         onClick={onClick}
         className={cn(
-          "group flex min-h-16 w-full items-stretch overflow-hidden rounded-xl text-left transition-[background-color,transform] duration-200 hover:translate-x-0.5 active:scale-[0.995] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+          "group flex min-h-16 w-full max-w-full items-stretch overflow-hidden rounded-xl text-left transition-[background-color,transform] duration-200 hover:translate-x-0.5 active:scale-[0.995] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
           getEventColorClasses(event.color),
           className
         )}
@@ -54,8 +54,8 @@ export function EventItem({
       >
         <span className="w-1 shrink-0 bg-current opacity-55" aria-hidden="true" />
         <span className="min-w-0 flex-1 px-3 py-3 sm:px-4">
-          <span className="block truncate text-sm font-semibold">{event.title}</span>
-          <span className="mt-1 block truncate text-xs font-medium opacity-75">
+          <span className="block break-words text-sm font-semibold leading-5 [overflow-wrap:anywhere]">{event.title}</span>
+          <span className="mt-1 block break-words text-xs font-medium leading-4 opacity-75 [overflow-wrap:anywhere]">
             {time}{event.location ? ` · ${event.location}` : ""}
           </span>
         </span>

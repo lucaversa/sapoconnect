@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils"
 import { EndHour, StartHour, WeekCellsHeight } from "./constants"
 import { EventItem } from "./event-item"
 import { useCurrentTimeIndicator } from "./hooks/use-current-time-indicator"
-import { useMobileHorizontalScroll } from "./hooks/use-mobile-horizontal-scroll"
 import { getCalendarEventPosition, getCalendarHours } from "./time-grid"
 import type { CalendarEvent } from "./types"
 import { getAgendaEventsForDay } from "./utils"
@@ -28,15 +27,9 @@ export function WeekView({ currentDate, events, onEventSelect }: WeekViewProps) 
   }, [currentDate])
   const hours = useMemo(() => getCalendarHours(StartHour, EndHour), [])
   const { currentTimePosition, currentTimeVisible } = useCurrentTimeIndicator(currentDate, "week")
-  const horizontalScroll = useMobileHorizontalScroll()
 
   return (
-    <div
-      data-calendar-scroll
-      className="no-scrollbar touch-pan-y overflow-x-auto overscroll-x-contain"
-      aria-label="Grade semanal; deslize horizontalmente para ver todos os dias"
-      {...horizontalScroll}
-    >
+    <div data-calendar-scroll className="no-scrollbar touch-auto overflow-x-auto overscroll-x-contain" aria-label="Grade semanal; deslize horizontalmente para ver todos os dias">
       <div className="min-w-[880px]">
         <div className="sticky top-0 z-20 grid grid-cols-[3.75rem_repeat(7,minmax(0,1fr))] border-b border-gray-200/70 bg-white/88 backdrop-blur-xl dark:border-white/[0.07] dark:bg-gray-900/88">
           <div data-time-axis className="sticky left-0 z-30 flex items-center justify-center border-r border-gray-200/70 bg-white text-[10px] font-semibold text-gray-400 dark:border-white/[0.07] dark:bg-gray-900">Horário</div>

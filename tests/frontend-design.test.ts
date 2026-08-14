@@ -33,11 +33,21 @@ describe("frontend information architecture", () => {
     const month = read("components/event-calendar/month-view.tsx")
     const day = read("components/event-calendar/day-view.tsx")
 
-    expect(week).toContain("touch-pan-y overflow-x-auto")
-    expect(month).toContain("touch-pan-y overflow-x-auto")
-    expect(week).toContain("useMobileHorizontalScroll")
-    expect(month).toContain("useMobileHorizontalScroll")
+    expect(week).toContain("touch-auto overflow-x-auto")
+    expect(month).toContain("touch-auto overflow-x-auto")
+    expect(week).not.toContain("useMobileHorizontalScroll")
+    expect(month).not.toContain("useMobileHorizontalScroll")
     expect(day).toContain("overflow-visible sm:max-h-[68dvh] sm:overflow-y-auto")
+  })
+
+  it("keeps agenda cards inside the mobile viewport", () => {
+    const agenda = read("components/event-calendar/agenda-view.tsx")
+    const eventItem = read("components/event-calendar/event-item.tsx")
+
+    expect(agenda).toContain("grid-cols-[minmax(0,1fr)]")
+    expect(agenda).toContain("min-w-0 max-w-full")
+    expect(eventItem).toContain("w-full max-w-full")
+    expect(eventItem).toContain("[overflow-wrap:anywhere]")
   })
 
   it("keeps academic modules separated and removes the old nested score card", () => {
