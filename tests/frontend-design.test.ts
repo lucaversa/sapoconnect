@@ -236,5 +236,8 @@ describe("frontend information architecture", () => {
     expect(summary).toContain("d.status === 'concluida'")
     expect(summary).not.toContain("d.status === 'concluida' || d.status === 'equivalente'")
     expect(history).toContain("label: 'Equivalente'")
+    expect(history).toContain("const disciplinasContabilizadasNoPeriodo")
+    expect(history).toContain("{totalDisciplinasNoPeriodo} disciplinas")
+    expect(history).toContain("concluidasNoPeriodo === totalDisciplinasNoPeriodo")
   })
 })
