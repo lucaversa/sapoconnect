@@ -1,158 +1,71 @@
-import { LoginForm } from '@/components/login-form';
+import { ArrowUpRight, CalendarDays, ShieldCheck, Wifi } from "lucide-react"
 
-function AnimatedWaves() {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* Gradient background */}
-      <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 rounded-full blur-3xl" />
-      <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/5 rounded-full blur-3xl" />
-
-      {/* Animated waves */}
-      <svg
-        className="absolute bottom-0 left-0 w-full h-[60%] opacity-30 dark:opacity-20"
-        viewBox="0 0 1440 400"
-        preserveAspectRatio="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        {/* Wave 1 - Deepest, slowest */}
-        <path
-          className="fill-emerald-600/40 dark:fill-emerald-500/30"
-          d="M0,300 C360,350 720,250 1080,300 C1260,325 1380,300 1440,280 L1440,400 L0,400 Z"
-        >
-          <animate
-            attributeName="d"
-            dur="8s"
-            repeatCount="indefinite"
-            values="
-              M0,300 C360,350 720,250 1080,300 C1260,325 1380,300 1440,280 L1440,400 L0,400 Z;
-              M0,280 C360,250 720,350 1080,280 C1260,265 1380,290 1440,310 L1440,400 L0,400 Z;
-              M0,300 C360,350 720,250 1080,300 C1260,325 1380,300 1440,280 L1440,400 L0,400 Z
-            "
-          />
-        </path>
-
-        {/* Wave 2 - Middle layer */}
-        <path
-          className="fill-emerald-500/30 dark:fill-emerald-400/20"
-          d="M0,320 C240,280 480,360 720,320 C960,280 1200,360 1440,320 L1440,400 L0,400 Z"
-        >
-          <animate
-            attributeName="d"
-            dur="6s"
-            repeatCount="indefinite"
-            values="
-              M0,320 C240,280 480,360 720,320 C960,280 1200,360 1440,320 L1440,400 L0,400 Z;
-              M0,340 C240,380 480,300 720,340 C960,380 1200,300 1440,340 L1440,400 L0,400 Z;
-              M0,320 C240,280 480,360 720,320 C960,280 1200,360 1440,320 L1440,400 L0,400 Z
-            "
-          />
-        </path>
-
-        {/* Wave 3 - Top layer, fastest */}
-        <path
-          className="fill-emerald-400/20 dark:fill-emerald-300/15"
-          d="M0,350 C180,320 360,380 540,350 C720,320 900,380 1080,350 C1260,320 1380,360 1440,350 L1440,400 L0,400 Z"
-        >
-          <animate
-            attributeName="d"
-            dur="4s"
-            repeatCount="indefinite"
-            values="
-              M0,350 C180,320 360,380 540,350 C720,320 900,380 1080,350 C1260,320 1380,360 1440,350 L1440,400 L0,400 Z;
-              M0,360 C180,390 360,330 540,360 C720,390 900,330 1080,360 C1260,390 1380,340 1440,360 L1440,400 L0,400 Z;
-              M0,350 C180,320 360,380 540,350 C720,320 900,380 1080,350 C1260,320 1380,360 1440,350 L1440,400 L0,400 Z
-            "
-          />
-        </path>
-      </svg>
-
-      {/* Top subtle wave */}
-      <svg
-        className="absolute top-0 left-0 w-full h-[30%] opacity-20 dark:opacity-10 rotate-180"
-        viewBox="0 0 1440 200"
-        preserveAspectRatio="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path
-          className="fill-emerald-500/30 dark:fill-emerald-400/20"
-          d="M0,100 C360,150 720,50 1080,100 C1260,125 1380,100 1440,80 L1440,200 L0,200 Z"
-        >
-          <animate
-            attributeName="d"
-            dur="10s"
-            repeatCount="indefinite"
-            values="
-              M0,100 C360,150 720,50 1080,100 C1260,125 1380,100 1440,80 L1440,200 L0,200 Z;
-              M0,80 C360,50 720,150 1080,80 C1260,65 1380,90 1440,110 L1440,200 L0,200 Z;
-              M0,100 C360,150 720,50 1080,100 C1260,125 1380,100 1440,80 L1440,200 L0,200 Z
-            "
-          />
-        </path>
-      </svg>
-    </div>
-  );
-}
+import { BrandMark } from "@/components/brand/BrandMark"
+import { LoginForm } from "@/components/login-form"
+import { PageTransition, Reveal } from "@/components/ui/app-motion"
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 p-4 overflow-hidden relative">
-      {/* Background decorativo com ondas animadas */}
-      <AnimatedWaves />
+    <main className="app-shell relative min-h-[100dvh] overflow-hidden px-4 py-5 sm:p-8">
+      <div aria-hidden="true" className="pointer-events-none absolute -left-28 -top-32 size-80 rounded-full bg-primary/15 blur-3xl" />
+      <div aria-hidden="true" className="pointer-events-none absolute -bottom-36 -right-24 size-96 rounded-full bg-sky-400/[0.09] blur-3xl" />
 
-      <div className="w-full max-w-[320px] sm:max-w-md relative z-10">
-        {/* Logo Section */}
-        <div className="text-center mb-4 sm:mb-8">
-          <div className="inline-flex mb-3 sm:mb-4">
-            <img src="/sapo.png" alt="SapoConnect" className="w-40 h-40 sm:w-48 sm:h-48 object-contain" />
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <span className="text-emerald-500 dark:text-emerald-400">Sapo</span>
-            <span className="text-gray-900 dark:text-white">Connect</span>
+      <PageTransition className="relative z-10 mx-auto grid min-h-[calc(100dvh-2.5rem)] w-full max-w-6xl items-center gap-7 lg:grid-cols-[minmax(0,1.08fr)_minmax(22rem,0.72fr)] lg:gap-14">
+        <section className="hidden lg:block">
+          <h1 className="max-w-xl text-5xl font-extrabold leading-[0.98] tracking-[-0.065em] text-gray-950 dark:text-white">
+            O portal acadêmico, mais rápido no seu celular.
           </h1>
-          <p className="text-base text-gray-500 dark:text-gray-400 mt-2 animate-in fade-in slide-in-from-bottom-3 duration-500 delay-100">
-            de{' '}
-            <span
-              className="italic font-semibold text-emerald-500/80 dark:text-emerald-400/80"
-              style={{ fontFamily: "var(--font-playfair-display), Georgia, serif" }}
-            >
-              aluno
-            </span>
-            {' '}para{' '}
-            <span className="relative inline-block">
-              <span
-                className="italic font-semibold text-emerald-500/80 dark:text-emerald-400/80"
-                style={{ fontFamily: "var(--font-playfair-display), Georgia, serif" }}
-              >
-                aluno
-              </span>
-              {/* Crayon-style underline */}
-              <svg
-                className="absolute -bottom-1 left-0 w-full h-2 text-emerald-400/70 dark:text-emerald-500/60"
-                viewBox="0 0 100 8"
-                preserveAspectRatio="none"
-              >
-                <path
-                  d="M2,5 Q25,3 50,5 T98,4"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  fill="none"
-                />
-              </svg>
-            </span>
+          <p className="mt-5 max-w-lg text-base leading-7 text-gray-600 dark:text-gray-300">
+            Um portal acadêmico otimizado para consultar horários, faltas, avaliações e histórico com menos espera.
           </p>
-        </div>
 
-        {/* Login Form */}
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-150">
+          <div className="relative mt-9 max-w-xl [perspective:1200px]">
+            <div className="liquid-panel relative overflow-hidden rounded-[2rem] p-5 shadow-[0_36px_90px_-48px_rgba(0,0,0,0.72)] [transform:rotateY(-5deg)_rotateX(2deg)]">
+              <div aria-hidden="true" className="absolute -right-16 -top-20 size-56 rounded-full bg-primary/15 blur-3xl" />
+              <div className="relative flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="icon-orb size-11"><CalendarDays className="size-5" /></span>
+                  <div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Próximo bloco</p><p className="mt-0.5 font-extrabold text-gray-950 dark:text-white">Sua semana em foco</p></div>
+                </div>
+                <ArrowUpRight className="size-5 text-primary" />
+              </div>
+              <div className="relative mt-5 grid grid-cols-5 divide-x divide-white/70 overflow-hidden rounded-2xl border border-white/70 bg-white/35 dark:divide-white/[0.07] dark:border-white/[0.07] dark:bg-white/[0.025]">
+                {["SEG", "TER", "QUA", "QUI", "SEX"].map((day, index) => (
+                  <div key={day} className="px-2 py-3 text-center">
+                    <p className="text-[9px] font-bold tracking-[0.08em] text-gray-400">{day}</p>
+                    <span className={index === 2 ? "mx-auto mt-2 flex size-7 items-center justify-center rounded-xl bg-primary text-[11px] font-extrabold text-white" : "mx-auto mt-2 flex size-7 items-center justify-center text-[11px] font-bold text-gray-600 dark:text-gray-300"}>{18 + index}</span>
+                    <span className={index === 2 ? "mx-auto mt-2 block h-7 w-1.5 rounded-full bg-primary" : "mx-auto mt-2 block h-4 w-1.5 rounded-full bg-gray-200 dark:bg-white/10"} />
+                  </div>
+                ))}
+              </div>
+              <div className="relative mt-4 flex gap-2 text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/[0.08] px-3 py-1.5 text-primary-700 dark:text-primary-300"><Wifi className="size-3" /> cache inteligente</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-950/[0.04] px-3 py-1.5 dark:bg-white/[0.04]"><ShieldCheck className="size-3" /> sessão protegida</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <Reveal delay={0.08} className="mx-auto my-auto w-full max-w-md py-4">
+          <header className="mb-6 text-center lg:text-left">
+            <div className="inline-flex items-center gap-3 lg:flex">
+              <BrandMark className="size-[4.5rem] shadow-[0_22px_46px_-24px_rgba(0,172,147,0.82)]" priority />
+              <div className="text-left">
+                <p className="text-2xl font-extrabold tracking-[-0.055em] text-gray-950 dark:text-white">Sapo<span className="text-primary">Connect</span></p>
+                <p className="mt-0.5 text-[11px] font-bold tracking-[0.09em] text-gray-500 dark:text-gray-400">de aluno para aluno</p>
+              </div>
+            </div>
+            <h2 className="mt-6 text-2xl font-extrabold tracking-[-0.045em] text-gray-950 dark:text-white">Acesse seu portal otimizado</h2>
+            <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">Entre com o mesmo RA e senha do EduConnect.</p>
+          </header>
+
           <LoginForm />
-        </div>
 
-        {/* Footer */}
-        <p className="text-[10px] sm:text-xs text-center text-gray-400 dark:text-gray-500 mt-5 sm:mt-6 animate-in fade-in duration-700 delay-300 px-2 sm:px-0">
-          Suas credenciais são criptografadas e armazenadas de forma segura apenas no seu dispositivo.
-        </p>
-      </div>
-    </div>
-  );
+          <p className="mx-auto mt-4 max-w-sm text-center text-[11px] leading-5 text-gray-500 dark:text-gray-400">
+            Reconexão protegida em cookie HttpOnly criptografado, sem banco de senhas.
+          </p>
+        </Reveal>
+      </PageTransition>
+    </main>
+  )
 }

@@ -4,7 +4,7 @@
  */
 
 import { Aula } from '@/types/calendario';
-import { CalendarEvent, EventColor } from '@/components/event-calendar';
+import type { CalendarEvent, EventColor } from '@/components/event-calendar/types';
 import { addDays, startOfDay } from 'date-fns';
 
 /**
@@ -53,7 +53,6 @@ export function aulaToCalendarEvent(aula: Aula, eventId: string): CalendarEvent 
       daysToAdd += 7;
     } else if (daysToAdd === 0) {
       const agora = new Date();
-      const [horaIni] = aula.inicio.split(':').map(Number);
       const [horaFim, minFim] = aula.fim.split(':').map(Number);
       const horaAtual = agora.getHours() * 60 + agora.getMinutes();
       const horaFimAula = horaFim * 60 + minFim;

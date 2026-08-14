@@ -3,31 +3,65 @@
  * Autentica usuário externamente e cria sessão interna
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { performExternalLogin } from '@/lib/external-auth';
+import { NextRequest } from 'next/server';
+import { ExternalAuthError, performExternalLogin } from '@/lib/external-auth';
 import { createSession } from '@/lib/session';
+import { privateJson } from '@/lib/server/http';
+import { AuthInputError, readAuthCredentials } from '@/lib/server/auth-input';
+import { guardAuthRequest, RequestGuardError } from '@/lib/server/request-guard';
+import {
+  ServerConfigurationError,
+  SERVER_CONFIGURATION_ERROR_CODE,
+  SERVER_CONFIGURATION_PUBLIC_MESSAGE,
+} from '@/lib/server/configuration-error';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { codUsuario, senha } = body;
-
-    if (!codUsuario || !senha) {
-      return NextResponse.json(
-        { error: 'CodUsuario e Senha são obrigatórios', code: 'BAD_REQUEST' },
-        { status: 400 }
-      );
-    }
+    const credentials = await readAuthCredentials(request);
+    if (!credentials) throw new AuthInputError('Credenciais ausentes.', 400, 'BAD_REQUEST');
+    const { codUsuario, senha } = credentials;
+    guardAuthRequest(request, 'login', codUsuario);
 
     const externalCookies = await performExternalLogin({
       codUsuario,
       senha,
     });
 
-    await createSession(externalCookies, codUsuario);
+    const session = await createSession(externalCookies, codUsuario, { codUsuario, senha });
 
-    return NextResponse.json({ ok: true });
+    return privateJson({ ok: true, reconnectStorage: 'httpOnly', cacheScope: session.cacheScope, migrationConfirmed: true });
   } catch (error) {
+    if (error instanceof RequestGuardError) {
+      return privateJson(
+        { error: error.message, code: error.code },
+        {
+          status: error.status,
+          headers: error.retryAfter ? { 'Retry-After': String(error.retryAfter) } : undefined,
+        }
+      );
+    }
+    if (error instanceof AuthInputError) {
+      return privateJson(
+        { error: error.message, code: error.code },
+        { status: error.status }
+      );
+    }
+    if (error instanceof ExternalAuthError) {
+      return privateJson(
+        { error: error.message, code: error.code },
+        { status: error.status }
+      );
+    }
+    if (error instanceof ServerConfigurationError) {
+      console.error('[auth/login] Server configuration is incomplete:', error.message);
+      return privateJson(
+        {
+          error: SERVER_CONFIGURATION_PUBLIC_MESSAGE,
+          code: SERVER_CONFIGURATION_ERROR_CODE,
+        },
+        { status: 503 }
+      );
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'Erro desconhecido';
 
@@ -36,23 +70,13 @@ export async function POST(request: NextRequest) {
       errorMessage.toLowerCase().includes('fetch');
 
     if (isTotvsOffline) {
-      return NextResponse.json(
+      return privateJson(
         { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
         { status: 503 }
       );
     }
 
-    if (
-      errorMessage.includes('External login failed') ||
-      errorMessage.includes('Failed to extract')
-    ) {
-      return NextResponse.json(
-        { error: 'Credenciais inválidas ou erro no login externo', code: 'INVALID_CREDENTIALS' },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json(
+    return privateJson(
       { error: 'Erro interno do servidor', code: 'INTERNAL_ERROR' },
       { status: 500 }
     );

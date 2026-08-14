@@ -3,8 +3,7 @@
  * Lista disciplinas e pre-carrega as avaliacoes de cada uma.
  */
 
-import { NextResponse } from 'next/server';
-import { getExternalCookies } from '@/lib/session';
+import { getSession } from '@/lib/session';
 import { formatCookiesForRequest } from '@/lib/external-auth';
 import {
   DisciplinaOpcao,
@@ -13,6 +12,9 @@ import {
   parseDisciplinasHTML,
 } from '@/lib/avaliacoes-parser';
 import { ensureTotvsContext, TotvsContextError } from '@/lib/totvs-context';
+import { privateJson } from '@/lib/server/http';
+import { fetchTotvs, isTransientUpstreamError } from '@/lib/server/upstream';
+import { getOrLoad } from '@/lib/server/cache';
 
 const BASE_URL = 'https://fundacaoeducacional132827.rm.cloudtotvs.com.br';
 const AVALIACOES_URL = `${BASE_URL}/EducaMobile/Educacional/EduAluno/EduNotasAvaliacao?tp=A`;
@@ -24,6 +26,8 @@ interface DisciplinaCompleta extends DisciplinaOpcao {
   error?: string;
   code?: string;
 }
+
+type Cached<T> = { value: T; cache: 'hit' | 'miss' | 'stale' };
 
 class AvaliacoesFetchError extends Error {
   constructor(message: string, public status: number, public code: string) {
@@ -39,10 +43,14 @@ function isLoginResponse(response: Response): boolean {
     url.includes('loginexterno');
 }
 
-async function fetchDisciplinasHTML(cookieHeader: string): Promise<string> {
+async function fetchDisciplinasHTML(cookieHeader: string, cacheScope?: string): Promise<Cached<string>> {
+  if (cacheScope) return getOrLoad(cacheScope, 'source:avaliacoes-disciplinas', () => fetchDisciplinasHTMLUncached(cookieHeader), { ttlMs: 45_000, staleMs: 120_000, canServeStale: isTransientUpstreamError });
+  return { value: await fetchDisciplinasHTMLUncached(cookieHeader), cache: 'miss' };
+}
+async function fetchDisciplinasHTMLUncached(cookieHeader: string): Promise<string> {
   let response: Response;
   try {
-    response = await fetch(AVALIACOES_URL, {
+    response = await fetchTotvs(AVALIACOES_URL, {
       method: 'GET',
       redirect: 'follow',
       headers: {
@@ -53,7 +61,7 @@ async function fetchDisciplinasHTML(cookieHeader: string): Promise<string> {
           'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
         Referer: `${BASE_URL}/EducaMobile/Home/Index`,
       },
-    });
+    }, { idempotentRead: true });
   } catch {
     throw new AvaliacoesFetchError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
   }
@@ -77,10 +85,14 @@ async function fetchDisciplinasHTML(cookieHeader: string): Promise<string> {
   return html;
 }
 
-async function fetchNotas(codigo: string, cookieHeader: string): Promise<ResultadoAvaliacoes> {
+async function fetchNotas(codigo: string, cookieHeader: string, cacheScope?: string): Promise<Cached<ResultadoAvaliacoes>> {
+  if (cacheScope) return getOrLoad(cacheScope, `source:avaliacoes-notas:${codigo}`, () => fetchNotasUncached(codigo, cookieHeader), { ttlMs: 45_000, staleMs: 120_000, canServeStale: isTransientUpstreamError });
+  return { value: await fetchNotasUncached(codigo, cookieHeader), cache: 'miss' };
+}
+async function fetchNotasUncached(codigo: string, cookieHeader: string): Promise<ResultadoAvaliacoes> {
   let response: Response;
   try {
-    response = await fetch(GET_NOTAS_URL, {
+    response = await fetchTotvs(GET_NOTAS_URL, {
       method: 'POST',
       headers: {
         Cookie: cookieHeader,
@@ -98,7 +110,7 @@ async function fetchNotas(codigo: string, cookieHeader: string): Promise<Resulta
         Connection: 'keep-alive',
       },
       body: `ddlTurmaDisc=${encodeURIComponent(codigo)}`,
-    });
+    }, { idempotentRead: true });
   } catch {
     throw new AvaliacoesFetchError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
   }
@@ -134,12 +146,18 @@ async function mapWithConcurrency<T, R>(
 ): Promise<R[]> {
   const results = new Array<R>(items.length);
   let nextIndex = 0;
+  let aborted = false;
 
   async function worker() {
-    while (nextIndex < items.length) {
+    while (!aborted && nextIndex < items.length) {
       const currentIndex = nextIndex;
       nextIndex += 1;
-      results[currentIndex] = await mapper(items[currentIndex]);
+      try {
+        results[currentIndex] = await mapper(items[currentIndex]);
+      } catch (error) {
+        aborted = true;
+        throw error;
+      }
     }
   }
 
@@ -154,10 +172,11 @@ async function mapWithConcurrency<T, R>(
 
 export async function GET() {
   try {
-    const externalCookies = await getExternalCookies();
+    const session = await getSession();
+    const externalCookies = session?.externalCookies;
 
     if (!externalCookies) {
-      return NextResponse.json(
+      return privateJson(
         { error: 'Sessao nao encontrada. Faca login novamente.', code: 'SESSION_MISSING' },
         { status: 401 }
       );
@@ -166,25 +185,26 @@ export async function GET() {
     const cookieHeader = formatCookiesForRequest(externalCookies);
 
     try {
-      await ensureTotvsContext(cookieHeader);
+      await ensureTotvsContext(cookieHeader, session.cacheScope);
     } catch (error) {
       if (error instanceof TotvsContextError) {
-        return NextResponse.json(
+        return privateJson(
           { error: error.message, code: error.code },
           { status: error.status }
         );
       }
-      return NextResponse.json(
+      return privateJson(
         { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
         { status: 503 }
       );
     }
 
-    const disciplinasHtml = await fetchDisciplinasHTML(cookieHeader);
-    const { disciplinas } = parseDisciplinasHTML(disciplinasHtml);
+    const disciplinasSource = await fetchDisciplinasHTML(cookieHeader, session.cacheScope);
+    const { disciplinas } = parseDisciplinasHTML(disciplinasSource.value);
+    let servedStale = disciplinasSource.cache === 'stale';
 
     if (!disciplinas.length) {
-      return NextResponse.json(
+      return privateJson(
         { error: 'Falha ao validar sessao. Tente novamente.', code: 'SESSION_EXPIRED' },
         { status: 401 }
       );
@@ -195,10 +215,12 @@ export async function GET() {
       CONCURRENCY_LIMIT,
       async (disciplina): Promise<DisciplinaCompleta> => {
         try {
-          const resultado = await fetchNotas(disciplina.codigo, cookieHeader);
-          return { ...disciplina, resultado };
+          const loaded = await fetchNotas(disciplina.codigo, cookieHeader, session.cacheScope);
+          if (loaded.cache === 'stale') servedStale = true;
+          return { ...disciplina, resultado: loaded.value };
         } catch (error) {
           if (error instanceof AvaliacoesFetchError) {
+            if (error.status === 401) throw error;
             return {
               ...disciplina,
               error: error.message,
@@ -214,18 +236,20 @@ export async function GET() {
       }
     );
 
-    return NextResponse.json({ disciplinas: disciplinasCompletas });
+    return privateJson(
+      { disciplinas: disciplinasCompletas },
+      servedStale ? { headers: { 'X-SapoConnect-Cache': 'stale' } } : undefined
+    );
   } catch (error) {
     if (error instanceof AvaliacoesFetchError) {
-      return NextResponse.json(
+      return privateJson(
         { error: error.message, code: error.code },
         { status: error.status }
       );
     }
 
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    return NextResponse.json(
-      { error: 'Erro ao buscar avaliacoes completas', code: 'INTERNAL_ERROR', details: errorMessage },
+    return privateJson(
+      { error: 'Erro ao buscar avaliacoes completas', code: 'INTERNAL_ERROR' },
       { status: 500 }
     );
   }

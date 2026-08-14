@@ -1,35 +1,29 @@
 'use client';
 
-import { AppSidebar } from '@/components/layout/AppSidebar';
+import { AppSidebar, MobileNav } from '@/components/layout/AppSidebar';
 import { AppHeader } from '@/components/layout/AppHeader';
-import { Backdrop } from '@/components/layout/Backdrop';
-import { ThemeChoiceModal } from '@/components/modals/ThemeChoiceModal';
-import { IOSHomescreenAutoModal } from '@/components/modals/IOSHomescreenModal';
-import { useSidebar } from '@/context/SidebarContext';
+import { SessionProvider } from '@/lib/session-provider';
 import { Providers } from './providers';
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
-  const { isExpanded, isHovered } = useSidebar();
-  const marginLeft = isExpanded || isHovered ? 'lg:ml-64' : 'lg:ml-20';
-
   return (
     <>
-      <Backdrop />
-      <ThemeChoiceModal />
-      <IOSHomescreenAutoModal />
       <AppSidebar />
       <AppHeader />
-      <main className={`pt-20 transition-all duration-300 ease-in-out ${marginLeft}`}>
-        <div className="p-4 lg:p-6">{children}</div>
+      <main className="app-shell min-h-[100dvh] pb-[calc(5.25rem+env(safe-area-inset-bottom))] pt-[calc(4rem+env(safe-area-inset-top))] lg:ml-72 lg:pb-0">
+        {children}
       </main>
+      <MobileNav />
     </>
   );
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Providers>
-      <AppLayoutContent>{children}</AppLayoutContent>
-    </Providers>
+    <SessionProvider>
+      <Providers>
+        <AppLayoutContent>{children}</AppLayoutContent>
+      </Providers>
+    </SessionProvider>
   );
 }

@@ -1,0 +1,5 @@
+{
+  "only": ["ts", "tsx", "js", "json", "css", "md"],
+  "exclude": [".git", ".next", "node_modules", "icons", "public/tutorial", "*.tsbuildinfo"],
+  "depth": 5
+}

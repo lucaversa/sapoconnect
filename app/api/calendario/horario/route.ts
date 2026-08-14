@@ -11,11 +11,8 @@
  *    - Refaz o GET para HORARIOS_URL
  * 3. Se retornar redirect para GetContextoAluno (fluxo antigo), acessa e tenta novamente
  * 4. Parseia o HTML retornado e extrai as aulas
- *
- * MODO MOCK: Sete USE_MOCK = true para usar horarios.html local (teste)
  */
 
-import { NextResponse } from 'next/server';
 import { getExternalCookies } from '@/lib/session';
 import { formatCookiesForRequest } from '@/lib/external-auth';
 import { parseHorariosHTML } from '@/lib/html-horarios-parser';
@@ -25,18 +22,11 @@ import {
   buildPeriodoSelectionBody,
   isTelaSelecaoPeriodo,
 } from '@/lib/contexto-parser';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
+import { privateJson } from '@/lib/server/http';
+import { fetchTotvs } from '@/lib/server/upstream';
 
-// ============ MODO MOCK (teste) ============
-// Sete false para voltar ao normal (API externa)
-const USE_MOCK = false;
-
-const DEBUG = process.env.NODE_ENV !== 'production';
-const debugLog = (...args: unknown[]) => {
-  if (DEBUG) console.log(...args);
-};
-// ===========================================
+// Upstream HTML, URLs and context tokens must never enter application logs.
+const debugLog = (..._args: unknown[]) => {};
 
 const HORARIOS_URL =
   'https://fundacaoeducacional132827.rm.cloudtotvs.com.br/EducaMobile/Educacional/EduAluno/EduQuadroHorarioAluno?tp=A';
@@ -68,22 +58,14 @@ function isExternalLoginResponse(response: Response, _html: string): boolean {
 
 export async function GET() {
   try {
-    let html: string;
-
-    // ============ MODO MOCK (teste) ============
-    if (USE_MOCK) {
-      debugLog('[HORARIO] MODO MOCK ATIVADO');
-      const mockPath = join(process.cwd(), 'horarios.html');
-      html = await readFile(mockPath, 'utf-8');
-    } else {
-    // ============ MODO NORMAL (API externa) ============
+      let html: string;
       debugLog('[HORARIO] Iniciando fetch de horários...');
 
       const externalCookies = await getExternalCookies();
 
       if (!externalCookies) {
         debugLog('[HORARIO] ERRO: Sessão não encontrada');
-        return NextResponse.json(
+        return privateJson(
           { error: 'Sessão não encontrada. Faça login novamente.', code: 'SESSION_MISSING' },
           { status: 401 }
         );
@@ -97,7 +79,7 @@ export async function GET() {
       // 1) Primeira chamada para HORARIOS_URL
       debugLog('[HORARIO] STEP 1: Fazendo GET para HORARIOS_URL');
 
-      let response = await fetch(HORARIOS_URL, {
+      let response = await fetchTotvs(HORARIOS_URL, {
         method: 'GET',
         redirect: 'follow',
         headers: {
@@ -112,14 +94,14 @@ export async function GET() {
           'Sec-Fetch-Mode': 'navigate',
           'Sec-Fetch-Dest': 'document',
         },
-      });
+      }, { idempotentRead: true });
 
       debugLog('[HORARIO] Response status:', response.status, 'url:', response.url);
 
       if (!response.ok) {
         if (response.status === 401) {
           debugLog('[HORARIO] ERRO: Sessão expirada no sistema TOTVS');
-          return NextResponse.json(
+          return privateJson(
             { error: 'Sessão expirada no sistema TOTVS', code: 'SESSION_EXPIRED' },
             { status: 401 }
           );
@@ -133,7 +115,7 @@ export async function GET() {
 
       if (isExternalLoginResponse(response, html)) {
         debugLog('[HORARIO] ERRO: Login externo expirado');
-        return NextResponse.json(
+        return privateJson(
           { error: 'Sessão externa expirada. Tente novamente.', code: 'SESSION_EXPIRED' },
           { status: 401 }
         );
@@ -143,14 +125,6 @@ export async function GET() {
       debugLog('[HORARIO] STEP 2: Verificando se é tela de seleção de período...');
       const isTelaSelecao = isTelaSelecaoPeriodo(html);
       debugLog('[HORARIO] isTelaSelecaoPeriodo:', isTelaSelecao);
-
-      if (DEBUG) {
-        const normalizedHtml = html.toLowerCase();
-        const hasPeriodoLetivo = normalizedHtml.includes('período letivo') || normalizedHtml.includes('periodo letivo');
-        const hasSelecione = normalizedHtml.includes('selecione um período letivo') || normalizedHtml.includes('selecione um periodo letivo');
-        const hasGetContextoKeyword = html.includes('GetContextoAluno');
-        debugLog('[HORARIO] Keywords check:', { hasPeriodoLetivo, hasSelecione, hasGetContextoKeyword });
-      }
 
       if (isTelaSelecao) {
         debugLog('[HORARIO] TELA DE SELEÇÃO DETECTADA! Parseando opções...');
@@ -191,7 +165,7 @@ export async function GET() {
                   ? periodoSelecionado.hdKeyTD
                   : `https://fundacaoeducacional132827.rm.cloudtotvs.com.br${periodoSelecionado.hdKeyTD}`;
 
-                const contextoResponse = await fetch(contextoUrl, {
+                const contextoResponse = await fetchTotvs(contextoUrl, {
                   method: 'GET',
                   redirect: 'follow',
                   headers: {
@@ -202,7 +176,7 @@ export async function GET() {
                       'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
                     Referer: 'https://fundacaoeducacional132827.rm.cloudtotvs.com.br/EducaMobile/Educacional/EduContexto/GetContextoAluno',
                   },
-                });
+                }, { idempotentRead: true });
 
                 debugLog('[HORARIO] GET Response status:', contextoResponse.status);
                 debugLog('[HORARIO] GET Response url:', contextoResponse.url);
@@ -215,7 +189,7 @@ export async function GET() {
                 // Após o GET, busca novamente o horário
                 debugLog('[HORARIO] GET OK! Buscando horário novamente...');
 
-                response = await fetch(HORARIOS_URL, {
+                response = await fetchTotvs(HORARIOS_URL, {
                   method: 'GET',
                   redirect: 'follow',
                   headers: {
@@ -226,7 +200,7 @@ export async function GET() {
                       'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
                     Referer: 'https://fundacaoeducacional132827.rm.cloudtotvs.com.br/EducaMobile/Home/Index',
                   },
-                });
+                }, { idempotentRead: true });
 
                 debugLog('[HORARIO] Segundo GET status:', response.status, 'url:', response.url);
 
@@ -239,7 +213,7 @@ export async function GET() {
 
                 if (isExternalLoginResponse(response, html)) {
                   debugLog('[HORARIO] ERRO: Login externo expirado após seleção de período');
-                  return NextResponse.json(
+                  return privateJson(
                     { error: 'Sessão externa expirada. Tente novamente.', code: 'SESSION_EXPIRED' },
                     { status: 401 }
                   );
@@ -259,7 +233,7 @@ export async function GET() {
                 debugLog('[HORARIO] POST body length:', postBody.length);
                 debugLog('[HORARIO] POST body preview:', postBody.substring(0, 200) + '...');
 
-                const contextoResponse = await fetch(SET_CONTEXTO_URL, {
+                const contextoResponse = await fetchTotvs(SET_CONTEXTO_URL, {
                   method: 'POST',
                   redirect: 'follow',
                   headers: {
@@ -272,7 +246,7 @@ export async function GET() {
                     Origin: 'https://fundacaoeducacional132827.rm.cloudtotvs.com.br',
                   },
                   body: postBody,
-                });
+                }, { idempotentRead: false });
 
                 debugLog('[HORARIO] POST Response status:', contextoResponse.status);
                 debugLog('[HORARIO] POST Response url:', contextoResponse.url);
@@ -289,7 +263,7 @@ export async function GET() {
                 // Após o POST, busca novamente o horário
                 debugLog('[HORARIO] POST OK! Buscando horário novamente...');
 
-                response = await fetch(HORARIOS_URL, {
+                response = await fetchTotvs(HORARIOS_URL, {
                   method: 'GET',
                   redirect: 'follow',
                   headers: {
@@ -300,7 +274,7 @@ export async function GET() {
                       'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
                     Referer: 'https://fundacaoeducacional132827.rm.cloudtotvs.com.br/EducaMobile/Home/Index',
                   },
-                });
+                }, { idempotentRead: true });
 
                 debugLog('[HORARIO] Segundo GET status:', response.status, 'url:', response.url);
 
@@ -313,7 +287,7 @@ export async function GET() {
 
                 if (isExternalLoginResponse(response, html)) {
                   debugLog('[HORARIO] ERRO: Login externo expirado após seleção de período');
-                  return NextResponse.json(
+                  return privateJson(
                     { error: 'Sessão externa expirada. Tente novamente.', code: 'SESSION_EXPIRED' },
                     { status: 401 }
                   );
@@ -350,7 +324,7 @@ export async function GET() {
       if (hasObjectMoved && hasGetContexto) {
         debugLog('[HORARIO] Detectado Object moved + GetContextoAluno, fazendo GET para CONTEXTO_URL');
 
-        await fetch(CONTEXTO_URL, {
+        await fetchTotvs(CONTEXTO_URL, {
           method: 'GET',
           redirect: 'follow',
           headers: {
@@ -362,12 +336,12 @@ export async function GET() {
             Referer:
               'https://fundacaoeducacional132827.rm.cloudtotvs.com.br/EducaMobile/Home/Index',
           },
-        });
+        }, { idempotentRead: true });
 
         debugLog('[HORARIO] CONTEXTO_URL chamada, buscando horário novamente...');
 
         // Tenta novamente
-        response = await fetch(HORARIOS_URL, {
+        response = await fetchTotvs(HORARIOS_URL, {
           method: 'GET',
           redirect: 'follow',
           headers: {
@@ -379,14 +353,14 @@ export async function GET() {
             Referer:
               'https://fundacaoeducacional132827.rm.cloudtotvs.com.br/EducaMobile/Home/Index',
           },
-        });
+        }, { idempotentRead: true });
 
         debugLog('[HORARIO] Response após CONTEXTO_URL:', response.status, 'url:', response.url);
 
         if (!response.ok) {
           if (response.status === 401) {
             debugLog('[HORARIO] ERRO: Sessão expirada após CONTEXTO_URL');
-          return NextResponse.json(
+          return privateJson(
             { error: 'Sessão expirada no sistema TOTVS', code: 'SESSION_EXPIRED' },
             { status: 401 }
           );
@@ -399,15 +373,12 @@ export async function GET() {
 
         if (isExternalLoginResponse(response, html)) {
           debugLog('[HORARIO] ERRO: Login externo expirado após CONTEXTO_URL');
-          return NextResponse.json(
+          return privateJson(
             { error: 'Sessão externa expirada. Tente novamente.', code: 'SESSION_EXPIRED' },
             { status: 401 }
           );
         }
       }
-    }
-    // ===========================================
-
     // 4) Parseia o HTML e extrai as aulas
     debugLog('[HORARIO] STEP 5: Parseando HTML para extrair aulas...');
     const aulas = parseHorariosHTML(html);
@@ -415,13 +386,13 @@ export async function GET() {
 
     if (aulas.length === 0) {
       debugLog('[HORARIO] ERRO: Nenhuma aula encontrada. Sessão possivelmente expirada.');
-      return NextResponse.json(
+      return privateJson(
         { error: 'Sessão expirada no sistema TOTVS', code: 'SESSION_EXPIRED' },
         { status: 401 }
       );
     }
 
-    return NextResponse.json({ aulas });
+    return privateJson({ aulas });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     debugLog('[HORARIO] CATCH ERROR:', errorMessage);
@@ -429,13 +400,13 @@ export async function GET() {
 
     const isTotvsOffline = /HTTP 5\d{2}/.test(errorMessage) || errorMessage.includes('fetch');
     if (isTotvsOffline) {
-      return NextResponse.json(
-        { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE', details: errorMessage },
+      return privateJson(
+        { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
         { status: 503 }
       );
     }
-    return NextResponse.json(
-      { error: 'Erro ao buscar horário', code: 'INTERNAL_ERROR', details: errorMessage },
+    return privateJson(
+      { error: 'Erro ao buscar horário', code: 'INTERNAL_ERROR' },
       { status: 500 }
     );
   }

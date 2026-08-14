@@ -1,139 +1,102 @@
-/**
- * POST /api/avaliacoes/notas
- * Busca as avaliacoes de uma disciplina especifica.
- *
- * Body: { codigo: string }
- */
-
-import { NextResponse } from 'next/server';
-import { getExternalCookies } from '@/lib/session';
+/** Backward-compatible per-discipline assessment endpoint. */
+import { getSession } from '@/lib/session';
 import { formatCookiesForRequest } from '@/lib/external-auth';
-import { parseAvaliacoesHTML } from '@/lib/avaliacoes-parser';
+import { parseAvaliacoesHTML, type ResultadoAvaliacoes } from '@/lib/avaliacoes-parser';
 import { ensureTotvsContext, TotvsContextError } from '@/lib/totvs-context';
+import { getOrLoad } from '@/lib/server/cache';
+import { privateJson } from '@/lib/server/http';
+import { guardSameOriginRequest, RequestGuardError } from '@/lib/server/request-guard';
+import { fetchTotvs, isTransientUpstreamError } from '@/lib/server/upstream';
 
 const BASE_URL = 'https://fundacaoeducacional132827.rm.cloudtotvs.com.br';
 const GET_NOTAS_URL = `${BASE_URL}/EducaMobile/Educacional/EduAluno/GetNotasAvaliacao`;
 
-function isLoginResponse(response: Response): boolean {
-  const url = response.url.toLowerCase();
-  return url.includes('loginexternoapp') ||
-    url.includes('account/login') ||
-    url.includes('loginexterno');
+class NotasError extends Error {
+  constructor(message: string, public status: number, public code: string) {
+    super(message);
+  }
 }
 
-async function fetchNotasHTML(codigo: string, cookieHeader: string): Promise<Response> {
-  return fetch(GET_NOTAS_URL, {
-    method: 'POST',
-    headers: {
-      Cookie: cookieHeader,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'pt-BR,pt;q=0.9',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Sec-Fetch-Site': 'same-origin',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Dest': 'document',
-      'User-Agent':
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
-      Referer: GET_NOTAS_URL,
-      Origin: BASE_URL,
-      Connection: 'keep-alive',
-    },
-    body: `ddlTurmaDisc=${encodeURIComponent(codigo)}`,
-  });
+function isLoginResponse(response: Response): boolean {
+  const url = response.url.toLowerCase();
+  return url.includes('loginexternoapp') || url.includes('account/login') || url.includes('loginexterno');
+}
+
+async function readCodigo(request: Request): Promise<string> {
+  const raw = await request.text();
+  if (Buffer.byteLength(raw, 'utf8') > 512) throw new NotasError('Requisição muito grande.', 413, 'PAYLOAD_TOO_LARGE');
+  try {
+    const codigo = (JSON.parse(raw) as { codigo?: unknown }).codigo;
+    if (typeof codigo !== 'string' || !codigo.trim() || codigo.length > 256) {
+      throw new Error();
+    }
+    return codigo.trim();
+  } catch {
+    throw new NotasError('Código da disciplina é obrigatório.', 400, 'BAD_REQUEST');
+  }
+}
+
+async function loadNotas(codigo: string, cookieHeader: string): Promise<ResultadoAvaliacoes> {
+  let response: Response;
+  try {
+    response = await fetchTotvs(GET_NOTAS_URL, {
+      method: 'POST',
+      headers: {
+        Cookie: cookieHeader,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        Referer: GET_NOTAS_URL,
+        Origin: BASE_URL,
+      },
+      body: `ddlTurmaDisc=${encodeURIComponent(codigo)}`,
+    }, { idempotentRead: true });
+  } catch {
+    throw new NotasError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
+  }
+
+  if (response.status === 401 || response.status === 403 || isLoginResponse(response)) {
+    throw new NotasError('Sessão expirada no sistema TOTVS.', 401, 'SESSION_EXPIRED');
+  }
+  if (!response.ok) {
+    throw new NotasError(
+      response.status >= 500 ? 'Sistema da TOTVS possivelmente fora do ar.' : 'Erro ao buscar avaliações.',
+      response.status >= 500 ? 503 : 502,
+      response.status >= 500 ? 'TOTVS_OFFLINE' : 'UPSTREAM_ERROR'
+    );
+  }
+
+  const result = parseAvaliacoesHTML(await response.text());
+  if (!result.categorias?.length) {
+    throw new NotasError('Falha ao validar sessão. Tente novamente.', 401, 'SESSION_EXPIRED');
+  }
+  return result;
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { codigo } = body;
-
-    if (!codigo) {
-      return NextResponse.json(
-        { error: 'Codigo da disciplina e obrigatorio', code: 'BAD_REQUEST' },
-        { status: 400 }
-      );
+    guardSameOriginRequest(request);
+    const codigo = await readCodigo(request);
+    const session = await getSession();
+    if (!session?.externalCookies) {
+      return privateJson({ error: 'Sessão não encontrada.', code: 'SESSION_MISSING' }, { status: 401 });
     }
 
-    const externalCookies = await getExternalCookies();
-
-    if (!externalCookies) {
-      return NextResponse.json(
-        { error: 'Sessao nao encontrada. Faca login novamente.', code: 'SESSION_MISSING' },
-        { status: 401 }
-      );
-    }
-
-    const cookieHeader = formatCookiesForRequest(externalCookies);
-
-    try {
-      await ensureTotvsContext(cookieHeader);
-    } catch (error) {
-      if (error instanceof TotvsContextError) {
-        return NextResponse.json(
-          { error: error.message, code: error.code },
-          { status: error.status }
-        );
-      }
-      return NextResponse.json(
-        { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
-        { status: 503 }
-      );
-    }
-
-    let response: Response;
-    try {
-      response = await fetchNotasHTML(codigo, cookieHeader);
-    } catch {
-      return NextResponse.json(
-        { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
-        { status: 503 }
-      );
-    }
-
-    if (!response.ok) {
-      if (response.status === 401) {
-        return NextResponse.json(
-          { error: 'Sessao expirada no sistema TOTVS', code: 'SESSION_EXPIRED' },
-          { status: 401 }
-        );
-      }
-      if (response.status >= 500) {
-        return NextResponse.json(
-          { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
-          { status: 503 }
-        );
-      }
-      return NextResponse.json(
-        { error: 'Erro ao buscar avaliacoes', code: 'UPSTREAM_ERROR' },
-        { status: 502 }
-      );
-    }
-
-    const html = await response.text();
-
-    if (isLoginResponse(response)) {
-      return NextResponse.json(
-        { error: 'Sessao expirada. Faca login novamente.', code: 'SESSION_EXPIRED' },
-        { status: 401 }
-      );
-    }
-
-    const resultado = parseAvaliacoesHTML(html);
-
-    if (!resultado.categorias || resultado.categorias.length === 0) {
-      return NextResponse.json(
-        { error: 'Falha ao validar sessao. Tente novamente.', code: 'SESSION_EXPIRED' },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json(resultado);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    return NextResponse.json(
-      { error: 'Erro ao buscar avaliacoes', code: 'INTERNAL_ERROR', details: errorMessage },
-      { status: 500 }
+    const cookieHeader = formatCookiesForRequest(session.externalCookies);
+    await ensureTotvsContext(cookieHeader, session.cacheScope);
+    const loaded = await getOrLoad(
+      session.cacheScope,
+      `source:avaliacoes-notas:${codigo}`,
+      () => loadNotas(codigo, cookieHeader),
+      { ttlMs: 45_000, staleMs: 120_000, canServeStale: isTransientUpstreamError }
     );
+    return privateJson(loaded.value, loaded.cache === 'stale' ? { headers: { 'X-SapoConnect-Cache': 'stale' } } : undefined);
+  } catch (error) {
+    if (error instanceof RequestGuardError || error instanceof NotasError) {
+      return privateJson({ error: error.message, code: error.code }, { status: error.status });
+    }
+    if (error instanceof TotvsContextError) {
+      return privateJson({ error: error.message, code: error.code }, { status: error.status });
+    }
+    return privateJson({ error: 'Erro ao buscar avaliações.', code: 'INTERNAL_ERROR' }, { status: 500 });
   }
 }

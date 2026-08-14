@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { toast } from 'sonner';
 
 interface PullToRefreshProps {
@@ -20,12 +21,14 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
   const isPullingRef = useRef(false);
   const readyRef = useRef(false);
   const refreshingRef = useRef(false);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const hasTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
-    setIsTouchDevice(hasTouch);
     if (!hasTouch) return;
+
+    const detectionTimer = window.setTimeout(() => setIsTouchDevice(true), 0);
 
     const getScrollTop = () => {
       const scrollingElement = document.scrollingElement;
@@ -113,40 +116,60 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('touchend', onTouchEnd);
       window.removeEventListener('touchcancel', onTouchEnd);
+      window.clearTimeout(detectionTimer);
     };
-  }, [minPullDistance, queryClient]);
+  }, [minPullDistance, onRefresh, queryClient]);
 
-  const isVisible = pullDistance > 0 || isRefreshing;
-  const showMobileHint = isTouchDevice && !isVisible;
-  const translateY = Math.min(pullDistance, minPullDistance);
+  const isPullVisible = pullDistance > 0 || isRefreshing;
+  const isReady = pullDistance >= minPullDistance;
+  const message = isRefreshing
+    ? 'Atualizando...'
+    : isReady
+      ? 'Solte para atualizar'
+      : pullDistance > 0
+        ? 'Puxe mais um pouco'
+        : 'Puxe para baixo para atualizar';
+  const translateY = pullDistance > 0 ? Math.min(pullDistance * 0.3, 22) : 0;
 
   return (
-    <>
-      <div
-        className="pointer-events-none fixed top-2 left-1/2 z-50 -translate-x-1/2"
-        style={{
-          opacity: isVisible ? 1 : 0,
-          transform: `translate(-50%, ${translateY}px)`,
-          transition: isRefreshing ? 'opacity 0.2s ease' : 'opacity 0.2s ease, transform 0.2s ease',
-        }}
-      >
-        <div className="flex items-center gap-2 rounded-full bg-white/90 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm backdrop-blur dark:bg-gray-900/80 dark:text-gray-200">
-          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          <span>{isRefreshing ? 'Atualizando...' : 'Puxe para atualizar'}</span>
-        </div>
-      </div>
-
-      {showMobileHint && (
-        <div
-          className="pointer-events-none fixed inset-x-0 z-40 flex justify-center px-4 sm:hidden"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}
+    <AnimatePresence>
+      {isPullVisible ? (
+        <motion.div
+          key="pull-progress"
+          initial={reducedMotion ? false : { opacity: 0, y: -8, scale: 0.96 }}
+          animate={{ opacity: 1, y: translateY, scale: 1 }}
+          exit={reducedMotion ? undefined : { opacity: 0, y: -6, scale: 0.97 }}
+          transition={{ duration: reducedMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
+          className="pointer-events-none fixed left-1/2 top-[calc(4.75rem+env(safe-area-inset-top))] z-40 -translate-x-1/2 lg:hidden"
+          role="status"
+          aria-live="polite"
         >
-          <div className="flex max-w-full items-center gap-2 rounded-full border border-emerald-200 bg-white/95 px-3.5 py-2 text-xs font-semibold text-gray-700 shadow-lg shadow-emerald-950/10 backdrop-blur dark:border-emerald-900/50 dark:bg-gray-900/95 dark:text-gray-200">
-            <RefreshCw className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+          <div className="liquid-panel flex items-center gap-2 whitespace-nowrap rounded-full px-3.5 py-2 text-[11px] font-semibold text-gray-700 shadow-[0_14px_32px_-18px_rgba(15,23,42,0.6)] dark:text-gray-200">
+            <RefreshCw
+              className={`size-3.5 shrink-0 text-primary ${isRefreshing ? 'animate-spin' : ''}`}
+              style={reducedMotion || isRefreshing ? undefined : { transform: `rotate(${Math.min(pullDistance * 2.4, 180)}deg)` }}
+              aria-hidden="true"
+            />
+            <span>{message}</span>
+          </div>
+        </motion.div>
+      ) : null}
+      {isTouchDevice && !isPullVisible ? (
+        <motion.div
+          key="pull-hint"
+          initial={reducedMotion ? false : { opacity: 0, y: 8, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={reducedMotion ? undefined : { opacity: 0, y: 6, scale: 0.98 }}
+          transition={{ duration: reducedMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
+          className="pointer-events-none fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-4 sm:hidden"
+          role="status"
+        >
+          <div className="liquid-panel flex max-w-full items-center gap-2 rounded-full px-3.5 py-2 text-[11px] font-semibold text-gray-700 shadow-[0_14px_32px_-18px_rgba(15,23,42,0.6)] dark:text-gray-200">
+            <RefreshCw className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
             <span className="truncate">Puxe para baixo para atualizar</span>
           </div>
-        </div>
-      )}
-    </>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }

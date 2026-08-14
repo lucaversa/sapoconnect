@@ -1,11 +1,11 @@
-import { NextResponse } from 'next/server';
 import { getRA } from '@/lib/session';
+import { privateJson } from '@/lib/server/http';
 
 export async function GET() {
   try {
     const ra = await getRA();
-    return NextResponse.json({ ra });
-  } catch (error) {
-    return NextResponse.json({ ra: null }, { status: 200 });
+    return privateJson({ ra });
+  } catch {
+    return privateJson({ ra: null }, { status: 200 });
   }
 }

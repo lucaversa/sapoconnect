@@ -8,14 +8,10 @@ export function useUserInfo() {
   const [greeting, setGreeting] = useState<string>('');
 
   useEffect(() => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) {
-      setGreeting('Bom dia');
-    } else if (hour >= 12 && hour < 18) {
-      setGreeting('Boa tarde');
-    } else {
-      setGreeting('Boa noite');
-    }
+    queueMicrotask(() => {
+      const hour = new Date().getHours();
+      setGreeting(hour < 5 || hour >= 18 ? 'Boa noite' : hour < 12 ? 'Bom dia' : 'Boa tarde');
+    });
   }, []);
 
   return { ra: user?.ra || '', greeting, loading: isLoading };

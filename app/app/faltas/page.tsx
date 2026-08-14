@@ -8,7 +8,6 @@ import {
   XCircle,
   AlertTriangle,
   BookOpen,
-  TrendingDown,
   Shield,
   RefreshCw,
   CalendarDays,
@@ -21,24 +20,15 @@ import { toast } from 'sonner';
 import { PageLoading } from '@/components/page-loading';
 import { PullToRefresh } from '@/components/pull-to-refresh';
 import { ApiError } from '@/components/api-error';
+import { TotvsOfflineBanner } from '@/components/totvs-offline-banner';
 import { EmptyState } from '@/components/empty-state';
 import { useFaltas, FaltasItem } from '@/hooks/use-faltas';
 import { isTotvsOfflineError } from '@/lib/api-response-error';
-import { motion, type Variants } from 'framer-motion';
-
-const pageVariants: Variants = {
-  hidden: { opacity: 0, y: 6 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1], when: 'beforeChildren', staggerChildren: 0.04 },
-  },
-};
-
-const sectionVariants: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } },
-};
+import { PageTransition, Stagger, StaggerItem } from '@/components/ui/app-motion';
+import { Button } from '@/components/ui/button';
+import { MetricCard } from '@/components/ui/metric-card';
+import { PageHeading } from '@/components/ui/page-heading';
+import { AcademicPanel } from '@/components/ui/academic-panel';
 
 type FaltarRestanteInfo =
   | { status: 'insufficient' }
@@ -244,7 +234,7 @@ function getLinhaTempoRisco(item: FaltasItem, diasRemovidos: Set<string>): Linha
 }
 
 export default function FaltasPage() {
-  const { data, error, isLoading, isFetching, refetch, dataUpdatedAt } = useFaltas();
+  const { data, error, isLoading, isFetching, fetchStatus, refetch, dataUpdatedAt } = useFaltas();
   const [expandedAulas, setExpandedAulas] = useState<Set<string>>(new Set());
   const [diasRemovidosPorDisciplina, setDiasRemovidosPorDisciplina] = useState<Record<string, string[]>>({});
 
@@ -355,6 +345,17 @@ export default function FaltasPage() {
     }
   }
 
+  if (isLoading && fetchStatus === 'paused') {
+    return (
+      <EmptyState
+        title="Sem dados salvos"
+        description="Conecte-se uma vez e abra este módulo para disponibilizá-lo offline."
+        icon="clipboard"
+        retry={() => void refetch()}
+      />
+    );
+  }
+
   if (isLoading) {
     return <PageLoading message="Carregando faltas..." />;
   }
@@ -370,97 +371,27 @@ export default function FaltasPage() {
   const disciplinasCriticas = faltas.filter(f => f.status === 'acima').length;
 
   return (
-    <motion.div
-      className="p-4 sm:p-6 space-y-6"
-      variants={pageVariants}
-      initial="hidden"
-      animate="show"
-    >
-      {/* Header */}
-      <motion.div variants={sectionVariants} className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-              Controle de Faltas
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Acompanhe sua frequência em cada disciplina
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-              {lastUpdatedLabel && (
-                <span className="inline-flex items-center gap-1">
-                  Atualizado {lastUpdatedLabel}
-                  {isFetching && (
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
-                  )}
-                </span>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={handleRefresh}
-            disabled={isFetching}
-            className="hidden sm:flex items-center justify-center w-10 h-10 text-gray-500 border border-gray-200 rounded-lg dark:border-gray-800 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-            aria-label="Atualizar"
-          >
-            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
+    <PageTransition className="app-page">
+      {(error && data) || data?.__cacheStale || fetchStatus === 'paused' ? (
+        <TotvsOfflineBanner updatedAt={data?.__cacheStale ? undefined : dataUpdatedAt} onRetry={() => void refetch()} />
+      ) : null}
+      <PageHeading
+        icon={Shield}
+        title="Controle de faltas"
+        meta={lastUpdatedLabel ? <span className="inline-flex items-center gap-1.5">Atualizado {lastUpdatedLabel}{isFetching ? <RefreshCw className="size-3.5 animate-spin text-primary" /> : null}</span> : undefined}
+        actions={<Button variant="outline" size="icon" onClick={handleRefresh} disabled={isFetching} aria-label="Atualizar" className="hidden sm:inline-flex"><RefreshCw className={`size-4 ${isFetching ? 'animate-spin' : ''}`} /></Button>}
+        desktopActionsOnly
+      />
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center">
-                <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalDisciplinas}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Disciplinas</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center">
-                <Shield className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{disciplinasSeguras}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Seguras</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-amber-500/20 to-orange-500/20 rounded-xl flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{disciplinasAtencao}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Atenção</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-red-500/20 to-rose-500/20 rounded-xl flex items-center justify-center">
-                <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{disciplinasCriticas}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Críticas</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </motion.div>
+      <Stagger className="grid grid-cols-1 gap-2.5 min-[440px]:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+        <StaggerItem><MetricCard compact icon={BookOpen} label="Disciplinas" value={totalDisciplinas} /></StaggerItem>
+        <StaggerItem><MetricCard compact icon={Shield} label="Seguras" value={disciplinasSeguras} /></StaggerItem>
+        <StaggerItem><MetricCard compact icon={AlertTriangle} label="Atenção" value={disciplinasAtencao} /></StaggerItem>
+        <StaggerItem><MetricCard compact icon={XCircle} label="Críticas" value={disciplinasCriticas} /></StaggerItem>
+      </Stagger>
 
       {/* Legenda */}
-      <motion.div variants={sectionVariants} className="flex flex-wrap gap-2 sm:gap-4 p-3 sm:p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+      <div className="flex flex-wrap gap-x-5 gap-y-2 px-1">
         {[
           { icon: CheckCircle, color: 'text-emerald-500', label: 'Seguro' },
           { icon: AlertTriangle, color: 'text-amber-500', label: 'Próximo do limite' },
@@ -471,14 +402,14 @@ export default function FaltasPage() {
             <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{label}</span>
           </div>
         ))}
-      </motion.div>
+      </div>
 
       {/* Lista de Faltas */}
-      <motion.div variants={sectionVariants}>
+      <div>
         {faltas.length === 0 ? (
           <EmptyState title="Nenhuma falta registrada" description="Não há informações de faltas disponíveis." icon="clipboard" />
         ) : (
-          <div className="space-y-3">
+          <section aria-label="Faltas por disciplina" className="academic-stack">
           {faltas.map((item) => {
             const statusConfig = getStatusConfig(item.status);
             const StatusIcon = statusConfig.icon;
@@ -493,104 +424,66 @@ export default function FaltasPage() {
             const aulasExpanded = expandedAulas.has(item.codigo);
 
             return (
-              <div
+              <AcademicPanel
                 key={item.codigo}
-                className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm"
+                expanded={aulasExpanded}
               >
-                <div className="p-4">
+                <div className="p-4 sm:p-5">
                   {/* Header da disciplina */}
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 sm:w-12 sm:h-12 ${statusConfig.bg} rounded-xl flex items-center justify-center flex-shrink-0 border ${statusConfig.border}`}>
-                      <StatusIcon className={`w-5 h-5 sm:w-6 sm:h-6 ${statusConfig.color}`} />
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusConfig.color}`}>
+                        <StatusIcon className="size-4" /> {statusConfig.label}
+                      </span>
+                      <h3 className="mt-2 text-sm font-bold leading-snug text-gray-950 dark:text-white sm:text-base">
+                        {item.disciplina}
+                      </h3>
                     </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                        <div className="min-w-0">
-                          <h3 className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base leading-tight">
-                            {item.disciplina}
-                          </h3>
-                        </div>
-
-                        <span className={`w-fit self-start sm:self-auto px-2 py-0.5 sm:px-2.5 sm:py-1 text-[11px] sm:text-xs font-medium rounded-lg ${statusConfig.bg} ${statusConfig.color} border ${statusConfig.border} whitespace-nowrap`}>
-                          {statusConfig.label}
-                        </span>
-                      </div>
+                    <div className="shrink-0 text-right">
+                      <p className={`text-3xl font-extrabold leading-none tabular-nums ${statusConfig.color}`}>{item.porcentagem}</p>
+                      <p className="mt-1 text-[11px] font-medium text-gray-500 dark:text-gray-400">limite {item.limiteFaltas}</p>
                     </div>
                   </div>
 
-                  {/* Stats Grid */}
-                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {/* Faltas */}
-                    <div className={`rounded-xl p-3 ${statusConfig.bg} border ${statusConfig.border}`}>
-                      <div className="flex items-center gap-2">
-                        <TrendingDown className={`w-4 h-4 ${statusConfig.color}`} />
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Faltas</p>
-                      </div>
-                      <p className={`text-xl font-bold mt-1 ${statusConfig.color}`}>
-                        {item.porcentagem}
-                      </p>
+                  {item.umaFaltaPct && item.ch ? (
+                    <div className="mt-4 flex items-center gap-2 border-y border-gray-200/75 py-3 text-xs text-gray-500 dark:border-white/[0.065] dark:text-gray-400">
+                      <Info className="size-4 shrink-0 text-primary" />
+                      <span>1 falta (50 minutos) equivale a <strong className="font-semibold text-gray-900 dark:text-white">{item.umaFaltaPct} da carga horária</strong></span>
                     </div>
-
-                    {/* Limite */}
-                    <div className="rounded-xl p-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700">
-                      <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Limite</p>
-                      </div>
-                      <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
-                        {item.limiteFaltas}
-                      </p>
-                    </div>
-
-                    {/* Info sobre 1 falta */}
-                    {item.umaFaltaPct && item.ch && (
-                      <div className="col-span-2 rounded-xl p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50">
-                        <div className="flex items-start gap-2">
-                          <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">1 falta (50 minutos) equivale a</p>
-                            <p className="text-sm font-semibold text-blue-700 dark:text-blue-300 mt-0.5">
-                              {item.umaFaltaPct} da carga horária
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  ) : null}
                   {/* Posso faltar a partir de? */}
-                  <div className="mt-3 w-full max-w-[420px] rounded-lg border border-indigo-100 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-950/30 px-3 py-2">
+                  <div className="mt-4 w-full border-l-2 border-primary/55 px-3 py-1">
                     <div className="flex items-start gap-2">
-                      <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 mt-0.5" />
+                      <Clock className="mt-0.5 h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                       <div className="min-w-0">
-                        <p className="text-[11px] text-indigo-700 dark:text-indigo-300 font-semibold">
+                        <p className="text-[11px] font-semibold text-gray-900 dark:text-white">
                           Posso faltar a partir de?
                         </p>
                         {(() => {
                           if (faltarInfo.status === 'insufficient') {
                             return (
-                              <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                              <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
                                 Dados insuficientes.
                               </p>
                             );
                           }
                           if (faltarInfo.status === 'limit') {
                             return (
-                              <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                              <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
                                 Já está no limite.
                               </p>
                             );
                           }
                           if (faltarInfo.status === 'no-events') {
                             return (
-                              <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                              <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
                                 Sem aulas futuras.
                               </p>
                             );
                           }
                           if (faltarInfo.status === 'impossible') {
                             return (
-                              <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
+                              <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
                                 Não é possível.
                               </p>
                             );
@@ -598,8 +491,8 @@ export default function FaltasPage() {
 
                           if (faltarInfo.status === 'already-possible') {
                             return (
-                              <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
-                                <span className="font-semibold text-indigo-800 dark:text-indigo-200">
+                              <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
+                                <span className="font-semibold text-gray-900 dark:text-white">
                                   Você já pode faltar nas aulas restantes.
                                 </span>{' '}
                                 Restam {faltarInfo.daysRemaining} dias de aula ({formatPercent(faltarInfo.percentRemaining)}) • Total final {formatPercent(faltarInfo.totalPercent)}
@@ -609,8 +502,8 @@ export default function FaltasPage() {
 
                           const dateLabel = format(faltarInfo.date, 'dd/MM/yyyy');
                           return (
-                            <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-1">
-                              <span className="font-semibold text-indigo-800 dark:text-indigo-200">
+                            <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">
+                              <span className="font-semibold text-gray-900 dark:text-white">
                                 Data: {dateLabel}
                               </span>{' '}
                               • Restarão {faltarInfo.daysRemaining} dias de aula ({formatPercent(faltarInfo.percentRemaining)}) • Total {formatPercent(faltarInfo.totalPercent)}
@@ -642,15 +535,15 @@ export default function FaltasPage() {
                         <div className="flex min-w-max gap-1.5">
                         {linhaTempoRisco.map((marco) => {
                           const colorClass = marco.removido
-                            ? 'border-gray-200 bg-gray-100 text-gray-400 opacity-70 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
+                            ? 'border-gray-300 text-gray-400 opacity-70 dark:border-gray-700 dark:text-gray-500'
                             : marco.acimaLimite
-                              ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300'
-                              : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300';
+                              ? 'border-red-500 text-red-700 dark:border-red-500/80 dark:text-red-300'
+                              : 'border-emerald-500 text-emerald-700 dark:border-emerald-500/80 dark:text-emerald-300';
 
                           return (
                             <div
                               key={marco.dia.key}
-                              className={`w-[64px] shrink-0 rounded-lg border px-2 py-1.5 text-center ${colorClass}`}
+                              className={`w-[64px] shrink-0 border-t-2 px-1 py-2 text-center ${colorClass}`}
                             >
                               <p className="text-[10px] font-bold">{format(marco.dia.date, 'dd/MM')}</p>
                               <p className="mt-0.5 text-[9px] leading-tight">
@@ -668,7 +561,9 @@ export default function FaltasPage() {
                     <button
                       type="button"
                       onClick={() => toggleAulas(item.codigo)}
-                      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200 dark:hover:bg-gray-900"
+                      className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition-colors motion-reduce:transition-none hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-200 dark:hover:bg-gray-900"
+                      aria-expanded={aulasExpanded}
+                      aria-controls={`aulas-${item.codigo}`}
                     >
                       <CalendarDays className="h-4 w-4" />
                       Aulas restantes
@@ -680,7 +575,7 @@ export default function FaltasPage() {
                       <button
                         type="button"
                         onClick={() => restaurarDias(item.codigo)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50"
+                        className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-700 transition-colors motion-reduce:transition-none hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50"
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
                         Restaurar dias
@@ -689,13 +584,13 @@ export default function FaltasPage() {
                   </div>
 
                   {aulasExpanded && (
-                    <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/50">
+                    <div id={`aulas-${item.codigo}`} className="detail-reveal mt-3 border-t border-gray-200/75 pt-3 dark:border-white/[0.065]">
                       {aulasDiasRestantes.length === 0 ? (
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           Nenhuma aula futura encontrada para esta disciplina.
                         </p>
                       ) : (
-                        <div className="space-y-3">
+                        <div className="divide-y divide-gray-200/75 dark:divide-white/[0.065]">
                           {aulasPorDiaSemana.map((grupo) => {
                             const diaKeys = grupo.dias.map((dia) => dia.key);
                             const diasRemovidosNoGrupo = grupo.dias.filter((dia) => diasRemovidos.has(dia.key)).length;
@@ -708,11 +603,7 @@ export default function FaltasPage() {
                             return (
                               <div
                                 key={grupo.key}
-                                className={`rounded-xl border p-3 ${
-                                  grupoTodoRemovido
-                                    ? 'border-red-100 bg-red-50/70 opacity-75 dark:border-red-900/40 dark:bg-red-950/20'
-                                    : 'border-white bg-white dark:border-gray-700 dark:bg-gray-800'
-                                }`}
+                                className={`py-3 ${grupoTodoRemovido ? 'opacity-60' : ''}`}
                               >
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                   <div className="min-w-0">
@@ -726,7 +617,7 @@ export default function FaltasPage() {
                                   <button
                                     type="button"
                                     onClick={() => setDiasDoGrupoRemovidos(item.codigo, diaKeys, !grupoTodoRemovido)}
-                                    className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                                    className={`inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition-colors motion-reduce:transition-none sm:w-fit ${
                                       grupoTodoRemovido
                                         ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50'
                                         : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50'
@@ -746,7 +637,7 @@ export default function FaltasPage() {
                                   </button>
                                 </div>
 
-                                <div className="mt-3 space-y-2">
+                                <div className="mt-3 divide-y divide-gray-200/65 border-t border-gray-200/65 dark:divide-white/[0.055] dark:border-white/[0.055]">
                                   {grupo.dias.map((dia) => {
                                     const removido = diasRemovidos.has(dia.key);
                                     const horariosLabel = dia.horarios
@@ -756,11 +647,7 @@ export default function FaltasPage() {
                                     return (
                                       <div
                                         key={dia.key}
-                                        className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${
-                                          removido
-                                            ? 'border-red-100 bg-red-50/70 opacity-75 dark:border-red-900/40 dark:bg-red-950/20'
-                                            : 'border-gray-100 bg-gray-50 dark:border-gray-700 dark:bg-gray-900/50'
-                                        }`}
+                                        className={`flex items-center justify-between gap-3 py-2.5 ${removido ? 'opacity-60' : ''}`}
                                       >
                                         <div className="min-w-0">
                                           <p className={`text-sm font-semibold ${removido ? 'text-red-700 dark:text-red-300 line-through' : 'text-gray-900 dark:text-white'}`}>
@@ -774,7 +661,7 @@ export default function FaltasPage() {
                                         <button
                                           type="button"
                                           onClick={() => toggleDiaRemovido(item.codigo, dia.key)}
-                                          className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                                          className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition-colors motion-reduce:transition-none ${
                                             removido
                                               ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50'
                                               : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50'
@@ -818,12 +705,8 @@ export default function FaltasPage() {
                           </div>
                           <div className="h-2.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                             <div
-                              className={`h-full rounded-full ${statusConfig.barColor} animate-[grow_0.8s_ease-out_forwards]`}
-                              style={{
-                                '--progress-width': `${progressWidth}%`,
-                                width: '0%',
-                                animation: 'grow 0.8s ease-out forwards'
-                              } as React.CSSProperties}
+                              className={`h-full rounded-full ${statusConfig.barColor} transition-[width] duration-300 motion-reduce:transition-none`}
+                              style={{ width: `${progressWidth}%` }}
                             />
                           </div>
                           <div className="flex justify-between mt-1">
@@ -835,13 +718,13 @@ export default function FaltasPage() {
                     })()}
                   </div>
                 </div>
-              </div>
+              </AcademicPanel>
             );
           })}
-          </div>
+          </section>
         )}
       <PullToRefresh onRefresh={handleRefresh} />
-    </motion.div>
-    </motion.div>
+      </div>
+    </PageTransition>
   );
 }

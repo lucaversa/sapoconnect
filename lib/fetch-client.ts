@@ -1,12 +1,11 @@
-import { getSessionManager } from './session-manager';
 import { ApiResponseError } from './api-response-error';
+import { getSessionManager } from './session-manager';
 
 export class SessionExpiredError extends Error {
   name = 'SessionExpiredError';
-  message = 'Sessão expirada. Por favor, faça login novamente.';
 
   constructor() {
-    super('Sessão expirada. Por favor, faça login novamente.');
+    super('Sessao expirada. Por favor, faca login novamente.');
   }
 }
 
@@ -19,178 +18,109 @@ interface FetchOptions extends RequestInit {
   maxRetries?: number;
 }
 
-function getRetryDelay(attempt: number, isAfterRefresh: boolean, timeSinceRefresh?: number): number {
-  if (isAfterRefresh) {
-    if (timeSinceRefresh && timeSinceRefresh < 1000) {
-      return 300;
-    }
-    return Math.min(300 + (attempt * 250), 1000);
-  }
-
-  return Math.min(200 * Math.pow(1.5, attempt), 2000);
+function isIdempotentMethod(method?: string): boolean {
+  const normalized = (method || 'GET').toUpperCase();
+  return normalized === 'GET' || normalized === 'HEAD' || normalized === 'OPTIONS';
 }
 
-let lastGlobalRefreshTime = 0;
+function isRetryableTransportError(error: unknown): boolean {
+  return (
+    error instanceof TypeError ||
+    (error instanceof Error && error.name !== 'AbortError' && error.name !== 'TimeoutError')
+  );
+}
 
-export async function apiFetch(
+function retryDelay(attempt: number): number {
+  return Math.min(250 * 2 ** attempt, 1_000) + Math.floor(Math.random() * 180);
+}
+
+async function fetchWithTransportBudget(
   url: string,
-  options: FetchOptions = {}
+  options: RequestInit,
+  maxRetries: number
 ): Promise<Response> {
-  const {
-    skipAuth = false,
-    maxRetries = 3,
-    ...fetchOptions
-  } = options;
-
-  const sessionManager = getSessionManager();
-
-  let didRefresh = false;
-  let attemptsAfterRefresh = 0;
-  const MAX_ATTEMPTS_AFTER_REFRESH = 3;
-  let lastError: Error | null = null;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     try {
-      const response = await fetch(url, {
-        ...fetchOptions,
-        headers: {
-          'Content-Type': 'application/json',
-          ...fetchOptions.headers,
-        },
-      });
-
-      if (response.status === 401 && !skipAuth) {
-        if (!didRefresh) {
-          if (sessionManager.isRefreshing()) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            continue;
-          }
-
-          const refreshed = await sessionManager.refreshSession();
-
-          if (refreshed) {
-            didRefresh = true;
-            attemptsAfterRefresh = 0;
-            lastGlobalRefreshTime = Date.now();
-
-            const timeSinceLastGlobalRefresh = Date.now() - lastGlobalRefreshTime;
-            const adaptiveDelay = Math.max(
-              300,
-              Math.min(1500, timeSinceLastGlobalRefresh)
-            );
-
-            await new Promise(resolve => setTimeout(resolve, adaptiveDelay));
-            continue;
-          }
-
-          didRefresh = true;
-
-          const currentState = sessionManager.getCurrentState();
-          if (currentState.status === 'error') {
-            throw new ApiResponseError(
-              'Sistema da TOTVS possivelmente fora do ar.',
-              503,
-              'TOTVS_OFFLINE'
-            );
-          }
-        }
-
-        if (didRefresh) {
-          attemptsAfterRefresh++;
-
-          if (attemptsAfterRefresh <= MAX_ATTEMPTS_AFTER_REFRESH) {
-            const timeSinceRefresh = Date.now() - lastGlobalRefreshTime;
-            const delay = getRetryDelay(attemptsAfterRefresh, true, timeSinceRefresh);
-
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          }
-        }
-
-        throw new SessionExpiredError();
-      }
-
-      if (response.ok && !skipAuth) {
-        sessionManager.markSessionActive();
-      }
-
-      return response;
-
+      return await fetch(url, options);
     } catch (error) {
-      lastError = error instanceof Error ? error : new Error('Unknown error');
-
-      if (lastError instanceof SessionExpiredError) {
-        throw lastError;
-      }
-      if (lastError instanceof ApiResponseError && lastError.code === 'TOTVS_OFFLINE') {
-        throw lastError;
-      }
-
-      if (lastError.name === 'AbortError') {
-        throw lastError;
-      }
-
-      if (attempt === maxRetries) {
-        throw lastError;
-      }
-
-      const delay = getRetryDelay(attempt, false);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      lastError = error;
+      if (!isRetryableTransportError(error) || attempt >= maxRetries) throw error;
+      await new Promise((resolve) => window.setTimeout(resolve, retryDelay(attempt)));
     }
   }
+  throw lastError;
+}
 
-  throw lastError || new Error('Erro ao carregar dados');
+export async function apiFetch(url: string, options: FetchOptions = {}): Promise<Response> {
+  const { skipAuth = false, maxRetries, ...fetchOptions } = options;
+  const methodIsIdempotent = isIdempotentMethod(fetchOptions.method);
+  const transportRetries = maxRetries ?? (methodIsIdempotent ? 1 : 0);
+  const sessionManager = getSessionManager();
+
+  if (!skipAuth) await sessionManager.preemptiveRefreshIfNeeded();
+
+  const requestOptions: RequestInit = {
+    ...fetchOptions,
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      ...fetchOptions.headers,
+    },
+  };
+
+  let response = await fetchWithTransportBudget(url, requestOptions, transportRetries);
+  if (response.status === 401 && !skipAuth) {
+    sessionManager.markSessionExpired();
+    const refreshed = await sessionManager.refreshSession();
+    if (!refreshed) {
+      const state = sessionManager.getCurrentState();
+      if (state.status === 'error') {
+        const code = sessionManager.getLastReconnectCode() || 'UPSTREAM_ERROR';
+        throw new ApiResponseError(
+          sessionManager.getLastReconnectError() || 'Não foi possível restabelecer a sessão.',
+          503,
+          code
+        );
+      }
+      throw new SessionExpiredError();
+    }
+
+    // One replay only. Auth refresh and route retries must never multiply each other.
+    response = await fetchWithTransportBudget(url, requestOptions, 0);
+    if (response.status === 401) throw new SessionExpiredError();
+  }
+
+  if (response.ok && !skipAuth) sessionManager.markSessionActive();
+  return response;
 }
 
 export async function apiFetchWithTimeout(
   url: string,
   options: FetchOptions = {},
-  timeout = 30000
+  timeout = 30_000
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  const callerSignal = options.signal;
+  const timeoutSignal = AbortSignal.timeout(timeout);
+  const signal = callerSignal
+    ? AbortSignal.any([callerSignal, timeoutSignal])
+    : timeoutSignal;
 
   try {
-    const response = await apiFetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    return response;
-  } catch {
-    clearTimeout(timeoutId);
-    throw new Error('Tempo de espera esgotado');
+    return await apiFetch(url, { ...options, signal });
+  } catch (error) {
+    if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
+      throw new Error('Tempo de espera esgotado');
+    }
+    throw error;
   }
 }
 
 export async function preWarmSession(): Promise<boolean> {
-  try {
-    const sessionManager = getSessionManager();
-
-    const shouldRefresh = sessionManager.shouldRefreshPreemptively();
-    if (shouldRefresh) {
-      return await sessionManager.preemptiveRefreshIfNeeded();
-    }
-
-    const info = await sessionManager.checkSession(true);
-    return info.status === 'active';
-  } catch {
-    return false;
-  }
+  return getSessionManager().preemptiveRefreshIfNeeded();
 }
 
 export function isSessionActive(): boolean {
-  const sessionManager = getSessionManager();
-  const state = sessionManager.getCurrentState();
+  const state = getSessionManager().getCurrentState();
   return state.status === 'active' && state.user !== null;
-}
-
-export async function forceSessionCheck(): Promise<boolean> {
-  try {
-    const sessionManager = getSessionManager();
-    const info = await sessionManager.checkSession(false);
-    return info.status === 'active';
-  } catch {
-    return false;
-  }
 }

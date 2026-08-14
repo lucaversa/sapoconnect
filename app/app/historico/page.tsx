@@ -16,14 +16,19 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AnimatePresence, motion, type Variants } from 'framer-motion';
 import { toast } from 'sonner';
 import { PageLoading } from '@/components/page-loading';
 import { PullToRefresh } from '@/components/pull-to-refresh';
 import { ApiError } from '@/components/api-error';
+import { TotvsOfflineBanner } from '@/components/totvs-offline-banner';
 import { EmptyState } from '@/components/empty-state';
 import { useHistorico, Disciplina, Periodo } from '@/hooks/use-historico';
 import { isTotvsOfflineError } from '@/lib/api-response-error';
+import { PageTransition, Stagger, StaggerItem } from '@/components/ui/app-motion';
+import { Button } from '@/components/ui/button';
+import { MetricCard } from '@/components/ui/metric-card';
+import { PageHeading } from '@/components/ui/page-heading';
+import { AcademicPanel } from '@/components/ui/academic-panel';
 
 function isPeriodoLetivo(nome: string): boolean {
   const clean = nome.trim();
@@ -89,21 +94,8 @@ function calcularMediaBloco(bloco: Periodo): number | null {
   return notasParaMedia.reduce((a, b) => a + b, 0) / notasParaMedia.length;
 }
 
-const pageVariants: Variants = {
-  hidden: { opacity: 0, y: 6 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1], when: 'beforeChildren', staggerChildren: 0.04 },
-  },
-};
-const sectionVariants: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } },
-};
-
 export default function HistoricoPage() {
-  const { data, error, isLoading, isFetching, refetch, dataUpdatedAt } = useHistorico();
+  const { data, error, isLoading, isFetching, fetchStatus, refetch, dataUpdatedAt } = useHistorico();
 
   const handleRefresh = async () => {
     const toastId = toast.loading('Atualizando...', { id: 'refresh-historico' });
@@ -167,12 +159,23 @@ export default function HistoricoPage() {
       case 'equivalente':
         return {
           icon: AlertCircle,
-          color: 'text-blue-600 dark:text-blue-400',
-          bg: 'bg-blue-500/10',
-          border: 'border-blue-500/20',
+          color: 'text-gray-600 dark:text-gray-300',
+          bg: 'bg-gray-100 dark:bg-gray-800',
+          border: 'border-gray-200 dark:border-gray-700',
           label: 'Equivalente'
         };
     }
+  }
+
+  if (isLoading && fetchStatus === 'paused') {
+    return (
+      <EmptyState
+        title="Sem dados salvos"
+        description="Conecte-se uma vez e abra este módulo para disponibilizá-lo offline."
+        icon="book"
+        retry={() => void refetch()}
+      />
+    );
   }
 
   if (isLoading) {
@@ -195,105 +198,48 @@ export default function HistoricoPage() {
     acc + p.disciplinas.filter(d => d.status === 'concluida' || d.status === 'equivalente').length, 0);
 
   return (
-    <motion.div
-      className="p-4 sm:p-6 space-y-6"
-      variants={pageVariants}
-      initial="hidden"
-      animate="show"
-    >
-      <motion.div variants={sectionVariants} className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-              Histórico Acadêmico
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Acompanhe seu progresso ao longo do curso
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-              {lastUpdatedLabel && (
-                <span className="inline-flex items-center gap-1">
-                  Atualizado {lastUpdatedLabel}
-                  {isFetching && (
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
-                  )}
-                </span>
-              )}
-            </div>
-          </div>
-          <button
-            onClick={handleRefresh}
-            disabled={isFetching}
-            className="hidden sm:flex items-center justify-center w-10 h-10 text-gray-500 border border-gray-200 rounded-lg dark:border-gray-800 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-            aria-label="Atualizar"
-          >
-            <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
+    <PageTransition className="app-page">
+      {(error && data) || data?.__cacheStale || fetchStatus === 'paused' ? (
+        <TotvsOfflineBanner updatedAt={data?.__cacheStale ? undefined : dataUpdatedAt} onRetry={() => void refetch()} />
+      ) : null}
+      <PageHeading
+        icon={GraduationCap}
+        title="Histórico acadêmico"
+        meta={lastUpdatedLabel ? <span className="inline-flex items-center gap-1.5">Atualizado {lastUpdatedLabel}{isFetching ? <RefreshCw className="size-3.5 animate-spin text-primary" /> : null}</span> : undefined}
+        actions={<Button variant="outline" size="icon" onClick={handleRefresh} disabled={isFetching} aria-label="Atualizar" className="hidden sm:inline-flex"><RefreshCw className={`size-4 ${isFetching ? 'animate-spin' : ''}`} /></Button>}
+        desktopActionsOnly
+      />
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center">
-                <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalDisciplinas}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Disciplinas</p>
-              </div>
-            </div>
-          </div>
+      <Stagger className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
+        <StaggerItem><MetricCard compact icon={BookOpen} label="Disciplinas" value={totalDisciplinas} /></StaggerItem>
+        <StaggerItem><MetricCard compact icon={CheckCircle2} label="Concluídas" value={totalConcluidas} /></StaggerItem>
+        <StaggerItem><MetricCard compact icon={XCircle} label="Restantes" value={totalDisciplinas - totalConcluidas} /></StaggerItem>
+      </Stagger>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalConcluidas}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Concluídas</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-amber-500/20 to-orange-500/20 rounded-xl flex items-center justify-center">
-                <XCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalDisciplinas - totalConcluidas}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Restantes</p>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </motion.div>
-
-      <motion.div variants={sectionVariants} className="flex flex-wrap gap-2 sm:gap-4 p-3 sm:p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+      <div className="flex flex-wrap gap-x-5 gap-y-2 px-1">
         {[
           { icon: CheckCircle2, color: 'text-emerald-500', label: 'Concluída' },
           { icon: XCircle, color: 'text-amber-500', label: 'Pendente' },
           { icon: XCircle, color: 'text-red-500', label: 'Não Concluída' },
-          { icon: AlertCircle, color: 'text-blue-500', label: 'Equivalente' },
+          { icon: AlertCircle, color: 'text-gray-500 dark:text-gray-400', label: 'Equivalente' },
         ].map(({ icon: Icon, color, label }) => (
           <div key={label} className="flex items-center gap-1.5">
             <Icon className={`w-4 h-4 ${color}`} />
             <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{label}</span>
           </div>
         ))}
-      </motion.div>
+      </div>
 
       {periodosLetivos.length > 0 && (
-        <motion.div variants={sectionVariants} className="space-y-4">
+        <div className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <GraduationCap className="w-5 h-5 text-emerald-500" />
             Períodos Letivos
           </h2>
-          <div className="space-y-3">
+          <section aria-label="Períodos letivos" className="academic-stack">
             {periodosLetivos.map((periodo) => {
               const isExpanded = expandedPeriods.has(periodo.nome);
+              const panelId = `periodo-${periodo.nome.replace(/\s+/g, '-')}`;
               const concluidasNoPeriodo = periodo.disciplinas.filter(d =>
                 d.status === 'concluida' || d.status === 'equivalente'
               ).length;
@@ -302,21 +248,19 @@ export default function HistoricoPage() {
               const periodoConcluido = concluidasNoPeriodo === periodo.disciplinas.length;
 
               return (
-                <div
+                <AcademicPanel
                   key={periodo.nome}
-                  className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm"
+                  expanded={isExpanded}
                 >
                   <button
+                    type="button"
                     onClick={() => togglePeriod(periodo.nome)}
-                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                    className="flex min-h-16 w-full items-center justify-between p-4 transition-colors motion-reduce:transition-none hover:bg-gray-50/80 dark:hover:bg-white/[0.025] sm:px-5"
+                    aria-expanded={isExpanded}
+                    aria-controls={panelId}
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg ${periodoConcluido
-                        ? 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/20'
-                        : 'bg-gradient-to-br from-gray-400 to-gray-500 shadow-gray-400/20'
-                        }`}>
-                        <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                      </div>
+                      <GraduationCap className={`h-5 w-5 shrink-0 ${periodoConcluido ? 'text-emerald-500' : 'text-gray-400'}`} />
                       <div className="text-left min-w-0">
                         <h3 className="font-semibold text-gray-900 dark:text-white capitalize text-sm sm:text-base truncate">
                           {periodo.nome}
@@ -329,7 +273,7 @@ export default function HistoricoPage() {
 
                     <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                       {mediaPeriodo && (
-                        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/30 rounded-full border border-emerald-200 dark:border-emerald-900/50">
+                        <div className="hidden items-center gap-1.5 sm:flex">
                           <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                           <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
                             {mediaPeriodo}
@@ -337,7 +281,7 @@ export default function HistoricoPage() {
                         </div>
                       )}
                       {mediaPeriodo && (
-                        <div className="sm:hidden px-2 py-1 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
+                        <div className="sm:hidden">
                           <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
                             {mediaPeriodo}
                           </span>
@@ -350,26 +294,18 @@ export default function HistoricoPage() {
                     </div>
                   </button>
 
-                  <div className="px-4 pb-3 -mt-1">
-                    <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div className="px-4 pb-3 -mt-1 sm:px-5">
+                    <div className="h-1 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
                       <div
-                        className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500"
+                        className="h-full rounded-full bg-emerald-500 transition-[width] duration-300 motion-reduce:transition-none"
                         style={{ width: `${periodoProgress}%` }}
                       />
                     </div>
                   </div>
 
-                  <AnimatePresence initial={false}>
-                    {isExpanded && (
-                      <motion.div
-                        key={`periodo-${periodo.nome}`}
-                        initial={{ height: 0, opacity: 0, y: -4 }}
-                        animate={{ height: 'auto', opacity: 1, y: 0 }}
-                        exit={{ height: 0, opacity: 0, y: -4 }}
-                        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-                        className="overflow-hidden"
-                      >
-                        <div className="border-t border-gray-100 dark:border-gray-700">
+                  {isExpanded && (
+                      <div id={panelId} className="detail-reveal overflow-hidden motion-reduce:transition-none">
+                        <div className="academic-panel-body">
                       {periodo.disciplinas.map((disciplina, idx) => {
                         const statusConfig = getStatusConfig(disciplina.status);
                         const StatusIcon = statusConfig.icon;
@@ -377,21 +313,16 @@ export default function HistoricoPage() {
                         return (
                           <div
                             key={`${disciplina.codigo}-${idx}`}
-                            className={`p-4 border-b border-gray-50 dark:border-gray-700/50 last:border-b-0 ${disciplina.status === 'equivalente'
-                              ? 'bg-blue-50/50 dark:bg-blue-950/20'
-                              : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
-                              } transition-colors`}
+                            className="border-b border-gray-200/65 p-4 transition-colors last:border-b-0 hover:bg-gray-50/70 dark:border-white/[0.055] dark:hover:bg-white/[0.02] sm:px-5"
                           >
                             <div className="flex gap-3">
-                              <div className={`w-8 h-8 sm:w-10 sm:h-10 ${statusConfig.bg} rounded-xl flex items-center justify-center flex-shrink-0 border ${statusConfig.border}`}>
-                                <StatusIcon className={`w-4 h-4 sm:w-5 sm:h-5 ${statusConfig.color}`} />
-                              </div>
+                              <StatusIcon className={`mt-0.5 h-5 w-5 shrink-0 ${statusConfig.color}`} />
                               <div className="flex-1 min-w-0">
                                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-2 mb-2">
                                   <h4 className="font-medium text-gray-900 dark:text-white text-sm sm:text-base leading-tight">
                                     {disciplina.nome}
                                   </h4>
-                                  <span className={`self-start px-2 py-0.5 text-xs font-medium rounded-lg ${statusConfig.bg} ${statusConfig.color} border ${statusConfig.border} whitespace-nowrap`}>
+                                  <span className={`self-start text-xs font-semibold ${statusConfig.color} whitespace-nowrap`}>
                                     {statusConfig.label}
                                   </span>
                                 </div>
@@ -431,40 +362,41 @@ export default function HistoricoPage() {
                         );
                       })}
                     </div>
-                  </motion.div>
+                  </div>
                 )}
-              </AnimatePresence>
-                </div>
+                </AcademicPanel>
               );
             })}
-          </div>
-        </motion.div>
+          </section>
+        </div>
       )}
 
       {outrosBlocos.length > 0 && (
-        <motion.div variants={sectionVariants} className="space-y-4">
+        <div className="space-y-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-blue-500" />
+            <BookOpen className="w-5 h-5 text-emerald-500" />
             Outros Componentes
           </h2>
-          <div className="space-y-3">
+          <section aria-label="Outros componentes" className="academic-stack">
             {outrosBlocos.map((bloco) => {
               const isExpanded = expandedPeriods.has(bloco.nome);
+              const panelId = `bloco-${bloco.nome.replace(/\s+/g, '-')}`;
               const mediaBloco = calcularMediaBloco(bloco);
 
               return (
-                <div
+                <AcademicPanel
                   key={bloco.nome}
-                  className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm"
+                  expanded={isExpanded}
                 >
                   <button
+                    type="button"
                     onClick={() => togglePeriod(bloco.nome)}
-                    className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                    className="flex min-h-16 w-full items-center justify-between p-4 transition-colors motion-reduce:transition-none hover:bg-gray-50/80 dark:hover:bg-white/[0.025] sm:px-5"
+                    aria-expanded={isExpanded}
+                    aria-controls={panelId}
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                        <BookOpen className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
-                      </div>
+                      <BookOpen className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
                       <div className="text-left min-w-0">
                         <h3 className="font-semibold text-gray-900 dark:text-white capitalize text-sm sm:text-base truncate">
                           {bloco.nome}
@@ -477,16 +409,16 @@ export default function HistoricoPage() {
 
                     <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                       {mediaBloco && (
-                        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/30 rounded-full border border-blue-200 dark:border-blue-900/50">
-                          <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                          <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                        <div className="hidden items-center gap-1.5 sm:flex">
+                          <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
                             {mediaBloco.toFixed(1)}
                           </span>
                         </div>
                       )}
                       {mediaBloco && (
-                        <div className="sm:hidden px-2 py-1 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
-                          <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                        <div className="sm:hidden">
+                          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
                             {mediaBloco.toFixed(1)}
                           </span>
                         </div>
@@ -498,17 +430,9 @@ export default function HistoricoPage() {
                     </div>
                   </button>
 
-                  <AnimatePresence initial={false}>
-                    {isExpanded && (
-                      <motion.div
-                        key={`bloco-${bloco.nome}`}
-                        initial={{ height: 0, opacity: 0, y: -4 }}
-                        animate={{ height: 'auto', opacity: 1, y: 0 }}
-                        exit={{ height: 0, opacity: 0, y: -4 }}
-                        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-                        className="overflow-hidden"
-                      >
-                        <div className="border-t border-gray-100 dark:border-gray-700">
+                  {isExpanded && (
+                      <div id={panelId} className="detail-reveal overflow-hidden motion-reduce:transition-none">
+                        <div className="academic-panel-body">
                       {bloco.disciplinas.map((disciplina, idx) => {
                         const statusConfig = getStatusConfig(disciplina.status);
                         const StatusIcon = statusConfig.icon;
@@ -516,21 +440,16 @@ export default function HistoricoPage() {
                         return (
                           <div
                             key={`${disciplina.codigo}-${idx}`}
-                            className={`p-4 border-b border-gray-50 dark:border-gray-700/50 last:border-b-0 ${disciplina.status === 'equivalente'
-                              ? 'bg-blue-50/50 dark:bg-blue-950/20'
-                              : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
-                              } transition-colors`}
+                            className="border-b border-gray-200/65 p-4 transition-colors last:border-b-0 hover:bg-gray-50/70 dark:border-white/[0.055] dark:hover:bg-white/[0.02] sm:px-5"
                           >
                             <div className="flex gap-3">
-                              <div className={`w-8 h-8 sm:w-10 sm:h-10 ${statusConfig.bg} rounded-xl flex items-center justify-center flex-shrink-0 border ${statusConfig.border}`}>
-                                <StatusIcon className={`w-4 h-4 sm:w-5 sm:h-5 ${statusConfig.color}`} />
-                              </div>
+                              <StatusIcon className={`mt-0.5 h-5 w-5 shrink-0 ${statusConfig.color}`} />
                               <div className="flex-1 min-w-0">
                                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-2 mb-2">
                                   <h4 className="font-medium text-gray-900 dark:text-white text-sm sm:text-base leading-tight">
                                     {disciplina.nome}
                                   </h4>
-                                  <span className={`self-start px-2 py-0.5 text-xs font-medium rounded-lg ${statusConfig.bg} ${statusConfig.color} border ${statusConfig.border} whitespace-nowrap`}>
+                                  <span className={`self-start text-xs font-semibold ${statusConfig.color} whitespace-nowrap`}>
                                     {statusConfig.label}
                                   </span>
                                 </div>
@@ -570,16 +489,15 @@ export default function HistoricoPage() {
                         );
                       })}
                     </div>
-                  </motion.div>
+                  </div>
                 )}
-              </AnimatePresence>
-                </div>
+                </AcademicPanel>
               );
             })}
-          </div>
-        </motion.div>
+          </section>
+        </div>
       )}
       <PullToRefresh onRefresh={handleRefresh} />
-    </motion.div>
+    </PageTransition>
   );
 }

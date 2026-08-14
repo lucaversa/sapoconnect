@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch, SessionExpiredError } from '@/lib/fetch-client';
 import { parseApiError, isSessionExpiredApiError } from '@/lib/api-response-error';
 import { queryKeys } from '@/lib/query-keys';
+import { QUERY_STALE_TIME } from '@/lib/query-policy';
 
 export interface DisciplinaOpcao {
   codigo: string;
@@ -31,10 +32,6 @@ export interface ResultadoAvaliacoes {
   mediaParaAprovacao: number;
 }
 
-export interface AvaliacoesResponse {
-  disciplinas?: DisciplinaOpcao[];
-}
-
 export interface DisciplinaComAvaliacoes extends DisciplinaOpcao {
   resultado?: ResultadoAvaliacoes;
   error?: string;
@@ -43,23 +40,7 @@ export interface DisciplinaComAvaliacoes extends DisciplinaOpcao {
 
 export interface AvaliacoesCompletoResponse {
   disciplinas?: DisciplinaComAvaliacoes[];
-}
-
-export function useAvaliacoes() {
-  return useQuery({
-    queryKey: queryKeys.avaliacoes(),
-    queryFn: async () => {
-      const response = await apiFetch('/api/avaliacoes');
-      if (!response.ok) {
-        const apiError = await parseApiError(response);
-        if (isSessionExpiredApiError(apiError)) {
-          throw new SessionExpiredError();
-        }
-        throw apiError;
-      }
-      return response.json() as Promise<AvaliacoesResponse>;
-    },
-  });
+  __cacheStale?: boolean;
 }
 
 export function useAvaliacoesCompleto() {
@@ -74,31 +55,10 @@ export function useAvaliacoesCompleto() {
         }
         throw apiError;
       }
-      return response.json() as Promise<AvaliacoesCompletoResponse>;
+      const data = await response.json() as AvaliacoesCompletoResponse;
+      if (response.headers.get('x-sapoconnect-cache') === 'stale') data.__cacheStale = true;
+      return data;
     },
-  });
-}
-
-export function useAvaliacoesNotas(codigo: string) {
-  return useQuery({
-    queryKey: queryKeys.avaliacoesNotas(codigo),
-    queryFn: async () => {
-      const response = await apiFetch('/api/avaliacoes/notas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codigo }),
-      });
-
-      if (!response.ok) {
-        const apiError = await parseApiError(response);
-        if (isSessionExpiredApiError(apiError)) {
-          throw new SessionExpiredError();
-        }
-        throw apiError;
-      }
-
-      return response.json() as Promise<ResultadoAvaliacoes>;
-    },
-    enabled: !!codigo,
+    staleTime: QUERY_STALE_TIME.avaliacoes,
   });
 }

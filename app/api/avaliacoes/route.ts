@@ -1,8 +1,4 @@
-/**
- * GET /api/avaliacoes
- * Lista as disciplinas disponiveis para ver avaliacoes.
- */
-
+/** Backward-compatible lightweight discipline listing. */
 import { parseDisciplinasHTML } from '@/lib/avaliacoes-parser';
 import { fetchTOTVSResponse, HTTPError } from '@/lib/totvs-api';
 
@@ -13,8 +9,8 @@ export async function GET() {
     '[Avaliacoes]',
     {
       validate: (data) => {
-        if (!data.disciplinas || data.disciplinas.length === 0) {
-          throw new HTTPError('Falha ao validar sessao. Tente novamente.', 401, 'SESSION_EXPIRED');
+        if (!data.disciplinas?.length) {
+          throw new HTTPError('Falha ao validar sessão. Tente novamente.', 401, 'SESSION_EXPIRED');
         }
       },
     }

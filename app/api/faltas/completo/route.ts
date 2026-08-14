@@ -3,11 +3,13 @@
  * Obtém faltas enriquecidas com dados de histórico (CH) e horário (aulas)
  */
 
-import { NextResponse } from 'next/server';
-import { getExternalCookies } from '@/lib/session';
+import { getSession } from '@/lib/session';
 import { formatCookiesForRequest } from '@/lib/external-auth';
 import { parseHorariosHTML } from '@/lib/html-horarios-parser';
 import { ensureTotvsContext, TotvsContextError } from '@/lib/totvs-context';
+import { privateJson } from '@/lib/server/http';
+import { fetchTotvs, isTransientUpstreamError } from '@/lib/server/upstream';
+import { getOrLoad } from '@/lib/server/cache';
 
 interface DisciplinaHistorico {
   nome: string;
@@ -206,10 +208,15 @@ function parseHistoricoHTML(html: string): DisciplinaHistorico[] {
   return disciplinas;
 }
 
-async function fetchFromTOTVS(url: string, cookies: string): Promise<string> {
+async function fetchFromTOTVS(url: string, cookies: string, cacheScope?: string): Promise<{ value: string; cache: 'hit' | 'miss' | 'stale' }> {
+  if (!cacheScope) return { value: await fetchFromTOTVSUncached(url, cookies), cache: 'miss' };
+  return getOrLoad(cacheScope, `source:${url}`, () => fetchFromTOTVSUncached(url, cookies), { ttlMs: 45_000, staleMs: 120_000, canServeStale: isTransientUpstreamError });
+}
+
+async function fetchFromTOTVSUncached(url: string, cookies: string): Promise<string> {
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await fetchTotvs(url, {
       method: 'GET',
       redirect: 'follow',
       headers: {
@@ -219,7 +226,7 @@ async function fetchFromTOTVS(url: string, cookies: string): Promise<string> {
           'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
         Referer: 'https://fundacaoeducacional132827.rm.cloudtotvs.com.br/EducaMobile/Home/Index',
       },
-    });
+    }, { idempotentRead: true });
   } catch {
     throw new TotvsFetchError('TOTVS_NETWORK', 503);
   }
@@ -230,6 +237,15 @@ async function fetchFromTOTVS(url: string, cookies: string): Promise<string> {
 
   if (!response.ok) {
     throw new TotvsFetchError(`HTTP ${response.status}: ${response.statusText}`, response.status);
+  }
+
+  const finalUrl = response.url.toLowerCase();
+  if (
+    finalUrl.includes('loginexternoapp') ||
+    finalUrl.includes('/account/login') ||
+    finalUrl.includes('loginexterno')
+  ) {
+    throw new TotvsFetchError('TOTVS_401', 401);
   }
 
   return response.text();
@@ -263,10 +279,11 @@ function parseLocalDate(dateIso: string): Date | null {
 
 export async function GET() {
   try {
-    const externalCookies = await getExternalCookies();
+    const session = await getSession();
+    const externalCookies = session?.externalCookies;
 
     if (!externalCookies) {
-      return NextResponse.json(
+      return privateJson(
         { error: 'Sessão não encontrada. Faça login novamente.', code: 'SESSION_MISSING' },
         { status: 401 }
       );
@@ -275,15 +292,15 @@ export async function GET() {
     const cookieHeader = formatCookiesForRequest(externalCookies);
 
     try {
-      await ensureTotvsContext(cookieHeader);
+      await ensureTotvsContext(cookieHeader, session.cacheScope);
     } catch (error) {
       if (error instanceof TotvsContextError) {
-        return NextResponse.json(
+        return privateJson(
           { error: error.message, code: error.code },
           { status: error.status }
         );
       }
-      return NextResponse.json(
+      return privateJson(
         { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
         { status: 503 }
       );
@@ -293,15 +310,15 @@ export async function GET() {
     const results = await Promise.allSettled([
       fetchFromTOTVS(
         'https://fundacaoeducacional132827.rm.cloudtotvs.com.br/EducaMobile/Educacional/EduAluno/EduAvisos?tp=A',
-        cookieHeader
+        cookieHeader, session.cacheScope
       ),
       fetchFromTOTVS(
         'https://fundacaoeducacional132827.rm.cloudtotvs.com.br/EducaMobile/Educacional/EduAluno/EduAnaliseCurricular?tp=A',
-        cookieHeader
+        cookieHeader, session.cacheScope
       ),
       fetchFromTOTVS(
         'https://fundacaoeducacional132827.rm.cloudtotvs.com.br/EducaMobile/Educacional/EduAluno/EduQuadroHorarioAluno?tp=A',
-        cookieHeader
+        cookieHeader, session.cacheScope
       ),
     ]);
 
@@ -309,39 +326,34 @@ export async function GET() {
 
     if (faltasResult.status === 'rejected') {
       const error = faltasResult.reason;
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-
-      console.error('[FALTAS API] Erro na fonte primária:', {
-        error: errorMessage,
-        historicoStatus: historicoResult.status,
-        horarioStatus: horarioResult.status,
-      });
-
       if (error instanceof TotvsFetchError) {
         if (error.status === 401) {
-          return NextResponse.json(
+          return privateJson(
             { error: 'Sessão expirada no sistema TOTVS', code: 'SESSION_EXPIRED' },
             { status: 401 }
           );
         }
         if (error.status >= 500) {
-          return NextResponse.json(
-            { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE', details: errorMessage },
+          return privateJson(
+            { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
             { status: 503 }
           );
         }
       }
 
-      return NextResponse.json(
-        { error: 'Erro ao buscar dados de faltas', code: 'UPSTREAM_ERROR', details: errorMessage },
+      return privateJson(
+        { error: 'Erro ao buscar dados de faltas', code: 'UPSTREAM_ERROR' },
         { status: 502 }
       );
     }
 
       // Sucesso - processar dados
-      const faltasHtml = faltasResult.value;
-      const historicoHtml = historicoResult.status === 'fulfilled' ? historicoResult.value : '';
-      const horarioHtml = horarioResult.status === 'fulfilled' ? horarioResult.value : '';
+      const faltasHtml = faltasResult.value.value;
+      const historicoHtml = historicoResult.status === 'fulfilled' ? historicoResult.value.value : '';
+      const horarioHtml = horarioResult.status === 'fulfilled' ? horarioResult.value.value : '';
+      const servedStale = [faltasResult, historicoResult, horarioResult].some(
+        (result) => result.status === 'fulfilled' && result.value.cache === 'stale'
+      );
 
       // Parsear dados
       const faltas = parseFaltasHTML(faltasHtml);
@@ -460,37 +472,39 @@ export async function GET() {
       if (faltasEnriquecidas.length === 0 &&
           historicoResult.status === 'fulfilled' &&
           horarioResult.status === 'fulfilled') {
-        return NextResponse.json(
+        return privateJson(
           { error: 'Falha ao validar sessão. Tente novamente.', code: 'SESSION_EXPIRED' },
           { status: 401 }
         );
       }
 
-      return NextResponse.json({ faltas: faltasEnriquecidas });
+      return privateJson(
+        { faltas: faltasEnriquecidas },
+        servedStale ? { headers: { 'X-SapoConnect-Cache': 'stale' } } : undefined
+      );
 
   } catch (error) {
     if (error instanceof TotvsFetchError) {
       if (error.status === 401) {
-        return NextResponse.json(
+        return privateJson(
           { error: 'Sessão expirada no sistema TOTVS', code: 'SESSION_EXPIRED' },
           { status: 401 }
         );
       }
       if (error.status >= 500) {
-        return NextResponse.json(
-          { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE', details: error.message },
+        return privateJson(
+          { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
           { status: 503 }
         );
       }
-      return NextResponse.json(
-        { error: 'Erro ao buscar dados de faltas', code: 'UPSTREAM_ERROR', details: error.message },
+      return privateJson(
+        { error: 'Erro ao buscar dados de faltas', code: 'UPSTREAM_ERROR' },
         { status: 502 }
       );
     }
 
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    return NextResponse.json(
-      { error: 'Erro ao buscar dados completos de faltas', code: 'INTERNAL_ERROR', details: errorMessage },
+    return privateJson(
+      { error: 'Erro ao buscar dados completos de faltas', code: 'INTERNAL_ERROR' },
       { status: 500 }
     );
   }

@@ -1,12 +1,25 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSessionManager, SessionInfo, SessionUserData, DisconnectReason } from './session-manager';
-import { clearQueryCache, getCredentials } from './storage';
+import {
+  DisconnectReason,
+  getSessionManager,
+  type SessionInfo,
+  type SessionUserData,
+} from './session-manager';
 import { queryClient } from './query-client';
-import { QUERY_PERSIST_KEY_PREFIX, QUERY_PERSIST_USER_KEY, getPersistKeyForUser } from './query-persist';
+import { getPersistKeyForScope } from './query-persist';
+import { clearQueryCache, hasStoredCredentials } from './storage';
 
 interface SessionContextValue {
   user: SessionUserData | null;
@@ -16,289 +29,201 @@ interface SessionContextValue {
   logout: (reason?: DisconnectReason) => Promise<void>;
   reconnectFailed: boolean;
   sessionStatus: SessionInfo['status'];
+  cacheScope: string | null;
+  lastExternalLoginAt: number;
 }
 
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
+const PUBLIC_PATHS = new Set(['/login', '/']);
+const sessionManager = getSessionManager();
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<SessionUserData | null>(null);
+  const currentScopeRef = useRef<string | null>(null);
+  const previousStatusRef = useRef<SessionInfo['status']>('active');
+  const [initialPathname] = useState(pathname);
+  const [session, setSession] = useState<SessionInfo>(() => sessionManager.getCurrentState());
   const [isLoading, setIsLoading] = useState(true);
   const [reconnectFailed, setReconnectFailed] = useState(false);
-  const [sessionStatus, setSessionStatus] = useState<SessionInfo['status']>('active');
-  const publicPaths = ['/login', '/'];
-  const sessionManagerRef = useRef(getSessionManager());
-  const isInitialized = useRef(false);
-  const previousStatusRef = useRef<SessionInfo['status']>('active');
-  const hasHandledFirstStatusUpdateRef = useRef(false);
-  const lastUserRaRef = useRef<string | null>(null);
 
-  const clearPersistedCache = useCallback((raToClear?: string | null) => {
-    queryClient.clear();
-    const keysToClear = new Set<string>();
-    keysToClear.add(QUERY_PERSIST_KEY_PREFIX);
-    if (raToClear) {
-      keysToClear.add(getPersistKeyForUser(raToClear));
-    }
-    try {
-      const storedRa = localStorage.getItem(QUERY_PERSIST_USER_KEY);
-      if (storedRa) {
-        keysToClear.add(getPersistKeyForUser(storedRa));
-      }
-    } catch {
-      // ignore storage errors
+  const publishSession = useCallback((next: SessionInfo) => {
+    const previousScope = currentScopeRef.current;
+    if (next.cacheScope && previousScope !== next.cacheScope) {
+      queryClient.clear();
+      currentScopeRef.current = next.cacheScope;
     }
 
-    keysToClear.forEach((key) => {
-      try {
-        localStorage.removeItem(key);
-      } catch {
-        // ignore storage errors
+    const previousStatus = previousStatusRef.current;
+    previousStatusRef.current = next.status;
+    setSession(next);
+
+    if (next.status === 'active') {
+      setReconnectFailed(false);
+    } else if (
+      previousStatus === 'active' &&
+      next.status === 'expired' &&
+      !next.cacheScope
+    ) {
+      const reason = sessionManager.getDisconnectReason();
+      if (reason === DisconnectReason.LOGOUT_USER) {
+        sessionManager.clearDisconnectReason();
+      } else {
+        setReconnectFailed(true);
       }
-      void clearQueryCache(key).catch(() => {});
-    });
+    }
   }, []);
 
   useEffect(() => {
-    if (isInitialized.current) return;
+    const manager = sessionManager;
+    const unsubscribe = manager.subscribe(publishSession);
+    let cancelled = false;
 
-    const initSession = async () => {
+    const initialize = async () => {
       setIsLoading(true);
-      const sessionManager = sessionManagerRef.current;
+      let info = await manager.initialize();
 
-      const info = await sessionManager.initialize();
-
-      if (info.status === 'active' && info.user) {
-        setUser(info.user);
-        setSessionStatus('active');
-        setReconnectFailed(false);
-      } else if (!publicPaths.includes(pathname)) {
-        const reconnected = await sessionManager.reconnect();
+      if ((!info.user || info.status !== 'active') && !PUBLIC_PATHS.has(initialPathname)) {
+        const reconnected = await manager.reconnect();
+        info = manager.getCurrentState();
         if (!reconnected) {
-          const currentState = sessionManager.getCurrentState();
-          const credentials = await getCredentials();
-
-          if (credentials) {
-            setUser({ ra: credentials.codUsuario });
-          }
-
-          if (currentState.status === 'error') {
-            setSessionStatus('error');
+          if (info.status === 'error') {
             setReconnectFailed(false);
-            setIsLoading(false);
-            isInitialized.current = true;
-            return;
-          }
-
-          setSessionStatus('expired');
-          if (credentials) {
+          } else if (await hasStoredCredentials()) {
             setReconnectFailed(true);
           } else {
-            setReconnectFailed(false);
-            router.push('/login');
+            router.replace('/login');
           }
         }
       }
 
-      setIsLoading(false);
-      isInitialized.current = true;
+      if (!cancelled) {
+        publishSession(info);
+        setIsLoading(false);
+      }
     };
 
-    initSession();
-
-    const unsubscribe = sessionManagerRef.current.subscribe((info: SessionInfo) => {
-      const previousStatus = previousStatusRef.current;
-      previousStatusRef.current = info.status;
-
-      setUser((prev) => {
-        if (info.user) return info.user;
-        if (info.status === 'error' || info.status === 'expired') return prev;
-        return null;
-      });
-      setSessionStatus(info.status);
-      if (info.status === 'active') {
-        setReconnectFailed(false);
-      }
-
-      if (!hasHandledFirstStatusUpdateRef.current) {
-        hasHandledFirstStatusUpdateRef.current = true;
-        return;
-      }
-
-      if (previousStatus === 'active' && info.status === 'expired') {
-        const reason = sessionManagerRef.current.getDisconnectReason();
-        if (reason === DisconnectReason.LOGOUT_USER) {
-          sessionManagerRef.current.clearDisconnectReason();
-          setReconnectFailed(false);
-          return;
-        }
-        if (reason) {
-          sessionManagerRef.current.clearDisconnectReason();
-        }
-        setReconnectFailed(true);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [pathname, router]);
+    void initialize();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [initialPathname, publishSession, router]);
 
   useEffect(() => {
     if (pathname !== '/login' || !reconnectFailed) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setReconnectFailed(false);
-    }, 4500);
-
+    const timeoutId = window.setTimeout(() => setReconnectFailed(false), 4_500);
     return () => window.clearTimeout(timeoutId);
   }, [pathname, reconnectFailed]);
 
-  const handleManualReconnect = useCallback(async () => {
-    const sessionManager = sessionManagerRef.current;
-    const refreshed = await sessionManager.refreshSession();
-
-    if (refreshed) {
-      setReconnectFailed(false);
-      return;
-    }
-
-    const currentState = sessionManager.getCurrentState();
-    if (currentState.status === 'error') {
-      toast.error('Sistema da TOTVS possivelmente fora do ar.', { id: 'reconnect' });
-      return;
-    }
-
-    const errorMessage = sessionManager.getLastReconnectError();
-    toast.error(errorMessage || 'Não foi possível atualizar a sessão.', { id: 'reconnect' });
-  }, []);
-
-  useEffect(() => {
-    try {
-      const storedRa = localStorage.getItem(QUERY_PERSIST_USER_KEY);
-      if (storedRa) {
-        lastUserRaRef.current = storedRa;
-      }
-    } catch {
-      // ignore storage errors
-    }
-  }, []);
-
-  useEffect(() => {
-    const currentRa = user?.ra ?? null;
-    if (currentRa && lastUserRaRef.current && currentRa !== lastUserRaRef.current) {
-      clearPersistedCache(lastUserRaRef.current);
-    }
-    if (currentRa) {
-      lastUserRaRef.current = currentRa;
+  const logout = useCallback(
+    async (reason: DisconnectReason = DisconnectReason.LOGOUT_USER) => {
+      const scopeToClear = currentScopeRef.current;
       try {
-        localStorage.setItem(QUERY_PERSIST_USER_KEY, currentRa);
+        await sessionManager.logout(reason);
       } catch {
-        // ignore storage errors
+        toast.error('Não foi possível encerrar a sessão. Verifique a conexão e tente novamente.');
+        return;
       }
-    }
-  }, [user?.ra, clearPersistedCache]);
+      queryClient.clear();
+      if (scopeToClear) await clearQueryCache(getPersistKeyForScope(scopeToClear));
+      currentScopeRef.current = null;
+      setReconnectFailed(false);
 
-  const logout = useCallback(async (reason: DisconnectReason = DisconnectReason.LOGOUT_USER) => {
-    const sessionManager = sessionManagerRef.current;
-    await sessionManager.logout(reason);
-    clearPersistedCache(lastUserRaRef.current);
-    lastUserRaRef.current = null;
-    try {
-      localStorage.removeItem(QUERY_PERSIST_USER_KEY);
-    } catch {
-      // ignore storage errors
-    }
-    setUser(null);
-    setSessionStatus('expired');
-    setReconnectFailed(false);
-
-    // Mostrar toast baseado no motivo
-    if (reason === DisconnectReason.LOGOUT_USER) {
-      toast.success('Você saiu da conta.');
-    }
-
-    if (!publicPaths.includes(pathname)) {
-      router.push('/login');
-    }
-  }, [pathname, router]);
+      if (reason === DisconnectReason.LOGOUT_USER) toast.success('Voce saiu da conta.');
+      if (!PUBLIC_PATHS.has(pathname)) router.replace('/login');
+    },
+    [pathname, router]
+  );
 
   const refreshSession = useCallback(async () => {
-    const sessionManager = sessionManagerRef.current;
-    const info = await sessionManager.checkSession(false);
+    const manager = sessionManager;
+    const current = await manager.checkSession(false);
+    if (current.status === 'active' && current.user) return;
 
-    if (info.status !== 'active' || !info.user) {
-      const reconnected = await sessionManager.reconnect();
-      if (!reconnected) {
-        const currentState = sessionManager.getCurrentState();
-        if (currentState.status === 'error') {
-          return;
-        }
+    const reconnected = await manager.reconnect();
+    if (!reconnected) {
+      if (manager.getCurrentState().status === 'error') {
+        toast.error(
+          manager.getLastReconnectError() || 'Não foi possível restabelecer a sessão.',
+          { id: 'reconnect' }
+        );
+      } else {
         setReconnectFailed(true);
-        await logout();
       }
     }
-  }, [logout]);
+  }, []);
 
-  const value: SessionContextValue = {
-    user,
-    isLoading,
-    isAuthenticated: !!user,
-    refreshSession,
-    logout,
-    reconnectFailed,
-    sessionStatus,
-  };
-  const isOnLoginPage = pathname === '/login';
+  const manualReconnect = useCallback(async () => {
+    const refreshed = await sessionManager.refreshSession();
+    if (refreshed) return;
+    toast.error(
+      sessionManager.getLastReconnectError() || 'Nao foi possivel atualizar a sessao.',
+      { id: 'reconnect' }
+    );
+  }, []);
+
+  const value = useMemo<SessionContextValue>(
+    () => ({
+      user: session.user,
+      isLoading,
+      isAuthenticated: !!session.user && session.status === 'active',
+      refreshSession,
+      logout,
+      reconnectFailed,
+      sessionStatus: session.status,
+      cacheScope: session.cacheScope,
+      lastExternalLoginAt: session.lastRefreshedAt,
+    }),
+    [isLoading, logout, reconnectFailed, refreshSession, session]
+  );
+
+  const isLogin = pathname === '/login';
 
   return (
     <SessionContext.Provider value={value}>
       {children}
-      {reconnectFailed && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-sm w-full px-4">
-          <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl">
-            <div className="flex-1">
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                Sessão expirada
+      {reconnectFailed ? (
+        <div className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-50 mx-auto max-w-md">
+          <div
+            className="flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-amber-950 shadow-lg shadow-amber-950/5 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-50"
+            role="alert"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">Sessao expirada</p>
+              <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-200">
+                {isLogin
+                  ? 'Entre novamente para continuar.'
+                  : 'Tente reconectar ou abra a tela de login.'}
               </p>
-              <p className={`text-xs text-amber-600 dark:text-amber-400 mt-1 ${isOnLoginPage ? 'hidden' : ''}`}>
-                Não foi possível reconectar automaticamente. Atualize a sessão para continuar.
-              </p>
-              {isOnLoginPage && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                  Sua sessão expirou. Faça login novamente para continuar.
-                </p>
-              )}
             </div>
-            {!isOnLoginPage && (
-              <div className="flex items-center gap-2">
+            {!isLogin ? (
+              <div className="flex shrink-0 gap-2">
                 <button
-                  onClick={handleManualReconnect}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-md border border-amber-700 bg-amber-700 text-white hover:bg-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-300 dark:bg-amber-300 dark:text-amber-950 dark:hover:bg-amber-200"
+                  type="button"
+                  onClick={manualReconnect}
+                  className="min-h-11 rounded-xl bg-amber-800 px-3 text-xs font-semibold text-white active:scale-[0.98] dark:bg-amber-200 dark:text-amber-950"
                 >
-                  Atualizar sessão
+                  Reconectar
                 </button>
                 <button
-                  onClick={() => {
-                    setReconnectFailed(false);
-                    router.push('/login');
-                  }}
-                  className="px-3 py-1.5 text-xs font-semibold rounded-md border border-amber-500 bg-amber-100 text-amber-800 hover:bg-amber-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 dark:border-amber-200 dark:bg-amber-900/60 dark:text-amber-100 dark:hover:bg-amber-900"
+                  type="button"
+                  onClick={() => router.push('/login')}
+                  className="min-h-11 rounded-xl border border-amber-400 px-3 text-xs font-semibold active:scale-[0.98] dark:border-amber-700"
                 >
                   Login
                 </button>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
-      )}
+      ) : null}
     </SessionContext.Provider>
   );
 }
 
-export function useSession() {
+export function useSession(): SessionContextValue {
   const context = useContext(SessionContext);
-  if (context === undefined) {
-    throw new Error('useSession must be used within a SessionProvider');
-  }
+  if (!context) throw new Error('useSession must be used within a SessionProvider');
   return context;
 }

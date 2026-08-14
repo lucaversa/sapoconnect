@@ -27,6 +27,7 @@ export interface Aula {
  */
 export interface HorarioResponse {
   aulas: Aula[];
+  __cacheStale?: boolean;
 }
 
 export interface EventoHorario {

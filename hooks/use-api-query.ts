@@ -1,8 +1,9 @@
 'use client';
 
-import { useQuery, UseQueryOptions } from '@tanstack/react-query';
+import { useQuery, type UseQueryOptions } from '@tanstack/react-query';
 import { apiFetch, SessionExpiredError } from '@/lib/fetch-client';
 import { parseApiError, isSessionExpiredApiError } from '@/lib/api-response-error';
+import { QUERY_GC_TIME } from '@/lib/query-policy';
 
 type QueryOptions<T> = Omit<UseQueryOptions<T>, 'queryKey' | 'queryFn'>;
 
@@ -11,23 +12,26 @@ export function useApiQuery<T>(
   url: string,
   options?: QueryOptions<T>
 ) {
-  const result = useQuery({
+  return useQuery({
     queryKey,
     queryFn: async () => {
       const response = await apiFetch(url);
       if (!response.ok) {
         const apiError = await parseApiError(response);
-        if (isSessionExpiredApiError(apiError)) {
-          throw new SessionExpiredError();
-        }
+        if (isSessionExpiredApiError(apiError)) throw new SessionExpiredError();
         throw apiError;
       }
-      return response.json() as Promise<T>;
+      const data = await response.json() as T;
+      if (
+        response.headers.get('x-sapoconnect-cache') === 'stale' &&
+        data &&
+        typeof data === 'object'
+      ) {
+        Object.assign(data as object, { __cacheStale: true });
+      }
+      return data;
     },
     ...options,
-    // Mantém dados antigos disponíveis mesmo em erro
-    gcTime: 7 * 24 * 60 * 60 * 1000,
+    gcTime: QUERY_GC_TIME,
   });
-
-  return result;
 }

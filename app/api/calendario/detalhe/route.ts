@@ -3,10 +3,11 @@
  * Obtém os detalhes de uma aula específica (incluindo professores)
  */
 
-import { NextResponse } from 'next/server';
 import { getExternalCookies } from '@/lib/session';
 import { formatCookiesForRequest } from '@/lib/external-auth';
 import { parseDetalheHTML } from '@/lib/html-detalhe-parser';
+import { privateJson } from '@/lib/server/http';
+import { fetchTotvs } from '@/lib/server/upstream';
 
 const DETALHE_URL =
   'https://fundacaoeducacional132827.rm.cloudtotvs.com.br/EducaMobile/Educacional/EduAluno/EduQuadroHorarioAlunoDetalhe';
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
     const id = searchParams.get('id');
 
     if (!id) {
-    return NextResponse.json(
+    return privateJson(
       { error: 'ID da aula é obrigatório', code: 'BAD_REQUEST' },
       { status: 400 }
     );
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
     const externalCookies = await getExternalCookies();
 
     if (!externalCookies) {
-    return NextResponse.json(
+    return privateJson(
       { error: 'Sessão não encontrada. Faça login novamente.', code: 'SESSION_MISSING' },
       { status: 401 }
     );
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
 
     const cookieHeader = formatCookiesForRequest(externalCookies);
 
-    const response = await fetch(`${DETALHE_URL}/${id}`, {
+    const response = await fetchTotvs(`${DETALHE_URL}/${id}`, {
       method: 'GET',
       redirect: 'follow',
       headers: {
@@ -58,11 +59,11 @@ export async function GET(request: Request) {
           'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
         Referer: 'https://fundacaoeducacional132827.rm.cloudtotvs.com.br/EducaMobile/Home/Index',
       },
-    });
+    }, { idempotentRead: true });
 
     if (!response.ok) {
       if (response.status === 401) {
-        return NextResponse.json(
+        return privateJson(
           { error: 'Sessão expirada no sistema TOTVS', code: 'SESSION_EXPIRED' },
           { status: 401 }
         );
@@ -71,7 +72,7 @@ export async function GET(request: Request) {
     }
 
     if (isExternalLoginResponse(response)) {
-      return NextResponse.json(
+      return privateJson(
         { error: 'Sessão externa expirada. Tente novamente.', code: 'SESSION_EXPIRED' },
         { status: 401 }
       );
@@ -80,18 +81,18 @@ export async function GET(request: Request) {
     const html = await response.text();
     const detalhe = parseDetalheHTML(html);
 
-    return NextResponse.json(detalhe);
+    return privateJson(detalhe);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     const isTotvsOffline = /HTTP 5\d{2}/.test(errorMessage) || errorMessage.includes('fetch');
     if (isTotvsOffline) {
-      return NextResponse.json(
-        { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE', details: errorMessage },
+      return privateJson(
+        { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
         { status: 503 }
       );
     }
-    return NextResponse.json(
-      { error: 'Erro ao buscar detalhes da aula', code: 'INTERNAL_ERROR', details: errorMessage },
+    return privateJson(
+      { error: 'Erro ao buscar detalhes da aula', code: 'INTERNAL_ERROR' },
       { status: 500 }
     );
   }

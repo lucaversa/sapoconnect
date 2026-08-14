@@ -1,36 +1,33 @@
-import type { Metadata } from "next"
-import { Plus_Jakarta_Sans, Playfair_Display } from "next/font/google"
+import type { Metadata, Viewport } from "next"
+import { Plus_Jakarta_Sans } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/context/ThemeContext"
-import { SidebarProvider } from "@/context/SidebarContext"
-import { SessionProvider } from "@/lib/session-provider"
-import { SessionPreWarm } from "@/components/session-prewarm"
+import { PwaRuntime } from "@/components/pwa-runtime"
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  variable: "--font-plus-jakarta-sans",
-  weight: ["400", "500", "600", "700"],
-})
-
-const playfairDisplay = Playfair_Display({
-  subsets: ["latin"],
-  variable: "--font-playfair-display",
-  weight: ["400", "500", "600", "700"],
-  style: ["normal", "italic"],
+  display: "swap",
 })
 
 export const metadata: Metadata = {
   title: "SapoConnect",
   description: "Alternativa otimizada ao EduConnect",
   icons: {
-    icon: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
+    icon: "/brand/sapoconnect-icon-192.png",
+    apple: "/brand/sapoconnect-icon-192.png",
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "SapoConnect",
   },
+}
+
+export const viewport: Viewport = {
+  themeColor: "#0c111d",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 }
 
 export default function RootLayout({
@@ -40,15 +37,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className={`${plusJakartaSans.className} ${playfairDisplay.variable}`}>
-        <SessionProvider>
-          <SessionPreWarm />
-          <ThemeProvider>
-            <SidebarProvider>
-              {children}
-            </SidebarProvider>
-          </ThemeProvider>
-        </SessionProvider>
+      <body className={`${plusJakartaSans.className} antialiased`}>
+        <ThemeProvider>
+          <PwaRuntime />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )

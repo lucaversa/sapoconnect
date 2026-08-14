@@ -1,15 +1,24 @@
 'use client';
 
-import { getCredentials, clearCredentials } from './storage';
+import {
+  cleanupLegacyCredentials,
+  clearOfflineSessionHint,
+  clearCredentials,
+  getCredentials,
+  getOfflineSessionHint,
+  markReconnectCookieConfirmed,
+  saveOfflineSessionHint,
+  type Credentials,
+} from './storage';
 
 export type SessionStatus = 'active' | 'refreshing' | 'expired' | 'error';
 
 export enum DisconnectReason {
-  SESSION_EXPIRED = 'Sua sessão expirou. Faça login novamente.',
-  INVALID_CREDENTIALS = 'Credenciais inválidas.',
-  SERVER_ERROR = 'O servidor está temporariamente indisponível.',
-  NETWORK_ERROR = 'Sem conexão com a internet.',
-  LOGOUT_USER = 'Você saiu da conta.',
+  SESSION_EXPIRED = 'Sua sessao expirou. Faca login novamente.',
+  INVALID_CREDENTIALS = 'Credenciais invalidas.',
+  SERVER_ERROR = 'O servidor esta temporariamente indisponivel.',
+  NETWORK_ERROR = 'Sem conexao com a internet.',
+  LOGOUT_USER = 'Voce saiu da conta.',
 }
 
 export interface SessionUserData {
@@ -21,341 +30,363 @@ export interface SessionInfo {
   status: SessionStatus;
   lastCheckedAt: number;
   lastRefreshedAt: number;
+  cacheScope: string | null;
+}
+
+interface RefreshPayload {
+  type?: 'refresh';
+  ok?: boolean;
+  ra?: string;
+  cacheScope?: string;
+  lastExternalLoginAt?: number;
+  reconnectStorage?: 'httpOnly';
+  migrationConfirmed?: boolean;
+  error?: string;
+  code?: string;
+}
+
+interface LogoutPayload {
+  type: 'logout';
 }
 
 const CONFIG = {
-  SESSION_CHECK_INTERVAL: 2 * 60 * 1000,
-  SESSION_TTL: 20 * 60 * 1000,
-  REFRESH_TIMEOUT: 15 * 1000,
-  MIN_DELAY_BETWEEN_REQUESTS: 500,
-  CACHE_TTL: 10 * 1000,
+  SESSION_TTL: 20 * 60 * 1_000,
+  RESUME_CHECK_AFTER: 5 * 60 * 1_000,
+  CHECK_CACHE_TTL: 30 * 1_000,
+  REQUEST_TIMEOUT: 20 * 1_000,
+  PREEMPTIVE_WINDOW: 60 * 1_000,
+  RECENT_INTERACTION_WINDOW: 5 * 60 * 1_000,
 };
 
-class SessionManager {
+export class SessionManager {
   private state: SessionInfo = {
     user: null,
     status: 'active',
     lastCheckedAt: 0,
     lastRefreshedAt: 0,
+    cacheScope: null,
   };
 
   private disconnectReason: DisconnectReason | null = null;
   private refreshPromise: Promise<boolean> | null = null;
-  private sessionCheckPromise: Promise<SessionInfo | null> | null = null;
-  private listeners: Set<(info: SessionInfo) => void> = new Set();
-  private checkInterval: NodeJS.Timeout | null = null;
-  private visibilityHandler: (() => void) | null = null;
+  private sessionCheckPromise: Promise<SessionInfo> | null = null;
   private backgroundReconnectPromise: Promise<boolean> | null = null;
+  private listeners = new Set<(info: SessionInfo) => void>();
   private lastReconnectError: string | null = null;
+  private lastReconnectCode: string | null = null;
+  private lastInteractionAt = Date.now();
+  private channel: BroadcastChannel | null = null;
+  private visibilityHandler: (() => void) | null = null;
+  private onlineHandler: (() => void) | null = null;
+  private offlineHandler: (() => void) | null = null;
+  private interactionHandler: (() => void) | null = null;
 
   constructor() {
-    if (typeof window !== 'undefined') {
-      this.startPeriodicCheck();
-      this.setupVisibilityHandler();
-    }
+    if (typeof window === 'undefined') return;
+    this.setupLifecycleHandlers();
+    void cleanupLegacyCredentials();
   }
 
-  private setupVisibilityHandler(): void {
-    if (typeof document === 'undefined') return;
-
+  private setupLifecycleHandlers(): void {
+    this.interactionHandler = () => {
+      this.lastInteractionAt = Date.now();
+    };
     this.visibilityHandler = () => {
-      if (document.visibilityState === 'visible' && this.state.user) {
-        const timeSinceLastCheck = Date.now() - this.state.lastCheckedAt;
-        if (timeSinceLastCheck > 60 * 1000) {
-          if (this.backgroundReconnectPromise) {
-            void this.backgroundReconnectPromise;
-            return;
-          }
-
-          this.backgroundReconnectPromise = (async () => {
-            try {
-              const info = await this.checkSession(false);
-              if (info.status === 'expired') {
-                return this.reconnect();
-              }
-              return true;
-            } finally {
-              setTimeout(() => {
-                this.backgroundReconnectPromise = null;
-              }, 2000);
-            }
-          })();
-
-          void this.backgroundReconnectPromise;
-        }
-      }
+      if (document.visibilityState !== 'visible' || !this.state.user) return;
+      const elapsed = Date.now() - this.state.lastCheckedAt;
+      if (elapsed < CONFIG.RESUME_CHECK_AFTER) return;
+      void this.checkAndReconnectInBackground();
+    };
+    this.onlineHandler = () => {
+      if (!this.state.user || document.visibilityState !== 'visible') return;
+      const jitter = 250 + Math.floor(Math.random() * 750);
+      window.setTimeout(() => void this.checkAndReconnectInBackground(), jitter);
+    };
+    this.offlineHandler = () => {
+      if (this.state.user) this.setState({ status: 'error' });
     };
 
     document.addEventListener('visibilitychange', this.visibilityHandler);
-  }
+    window.addEventListener('online', this.onlineHandler);
+    window.addEventListener('offline', this.offlineHandler);
+    window.addEventListener('pointerdown', this.interactionHandler, { passive: true });
+    window.addEventListener('keydown', this.interactionHandler);
 
-  private startPeriodicCheck(): void {
-    if (this.checkInterval) return;
-
-    this.checkInterval = setInterval(async () => {
-      if (this.state.user && this.state.status === 'active') {
-        const info = await this.checkSession(true);
-        if (info.status === 'expired') {
-          this.notifyListeners();
+    if ('BroadcastChannel' in window) {
+      this.channel = new BroadcastChannel('sapoconnect-session-v2');
+      this.channel.addEventListener('message', (event: MessageEvent<RefreshPayload | LogoutPayload>) => {
+        const payload = event.data;
+        if (payload?.type === 'logout') {
+          this.disconnectReason = DisconnectReason.LOGOUT_USER;
+          void Promise.all([clearCredentials(), clearOfflineSessionHint()]);
+          this.setState({
+            user: null,
+            status: 'expired',
+            lastCheckedAt: Date.now(),
+            lastRefreshedAt: 0,
+            cacheScope: null,
+          });
+          window.location.replace('/login');
+          return;
         }
-      }
-    }, CONFIG.SESSION_CHECK_INTERVAL);
-  }
-
-  private stopPeriodicCheck(): void {
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-      this.checkInterval = null;
+        if (!payload?.ok || !payload.ra || !payload.cacheScope) return;
+        this.applyActivePayload(payload);
+      });
     }
   }
 
+  private async checkAndReconnectInBackground(): Promise<boolean> {
+    if (this.backgroundReconnectPromise) return this.backgroundReconnectPromise;
+
+    this.backgroundReconnectPromise = (async () => {
+      try {
+        const info = await this.checkSession(false);
+        return info.status === 'expired' ? this.refreshSession() : info.status === 'active';
+      } finally {
+        this.backgroundReconnectPromise = null;
+      }
+    })();
+    return this.backgroundReconnectPromise;
+  }
+
   private notifyListeners(): void {
+    const snapshot = { ...this.state };
     this.listeners.forEach((listener) => {
       try {
-        listener({ ...this.state });
+        listener(snapshot);
       } catch {
+        // A consumer must not break the session state machine.
       }
     });
   }
 
   private setState(updates: Partial<SessionInfo>): void {
-    const previousStatus = this.state.status;
-    this.state = { ...this.state, ...updates };
-
-    if (previousStatus !== this.state.status || updates.user) {
+    const previous = this.state;
+    this.state = { ...previous, ...updates };
+    if (
+      previous.status !== this.state.status ||
+      previous.user?.ra !== this.state.user?.ra ||
+      previous.cacheScope !== this.state.cacheScope ||
+      previous.lastRefreshedAt !== this.state.lastRefreshedAt
+    ) {
       this.notifyListeners();
     }
   }
 
-  private async getErrorMessage(response: Response): Promise<string | null> {
-    try {
-      const payload = await response.json();
-      if (payload && typeof payload.error === 'string') {
-        return payload.error;
-      }
-    } catch {
-      // ignore parse errors
-    }
-    return null;
-  }
-
-  private shouldUseCache(): boolean {
+  private applyActivePayload(payload: RefreshPayload): void {
     const now = Date.now();
-    const timeSinceCheck = now - this.state.lastCheckedAt;
-    return timeSinceCheck < CONFIG.CACHE_TTL && this.state.status === 'active';
+    this.setState({
+      user: { ra: payload.ra || this.state.user?.ra || '' },
+      status: 'active',
+      lastCheckedAt: now,
+      lastRefreshedAt: payload.lastExternalLoginAt || now,
+      cacheScope: payload.cacheScope || this.state.cacheScope,
+    });
+    this.lastReconnectError = null;
+    this.lastReconnectCode = null;
+    if (payload.ra && payload.cacheScope) {
+      void saveOfflineSessionHint(payload.ra, payload.cacheScope).catch(() => {});
+    }
+    if (payload.reconnectStorage === 'httpOnly' || payload.migrationConfirmed) {
+      void markReconnectCookieConfirmed(payload.cacheScope);
+    }
   }
 
-  async checkSession(silent = false): Promise<SessionInfo> {
-    if (silent && this.shouldUseCache() && this.state.user) {
-      return { ...this.state };
-    }
+  private async restoreOfflineIdentity(): Promise<boolean> {
+    const hint = await getOfflineSessionHint();
+    if (!hint) return false;
+    this.setState({
+      user: { ra: hint.ra },
+      status: 'error',
+      cacheScope: hint.cacheScope,
+    });
+    return true;
+  }
 
-    if (this.sessionCheckPromise) {
-      return this.sessionCheckPromise.then((info) => info ?? { ...this.state });
+  private async readPayload(response: Response): Promise<RefreshPayload> {
+    try {
+      return (await response.json()) as RefreshPayload;
+    } catch {
+      return {};
     }
+  }
+
+  private shouldUseCheckCache(): boolean {
+    return (
+      !!this.state.user &&
+      this.state.status === 'active' &&
+      Date.now() - this.state.lastCheckedAt < CONFIG.CHECK_CACHE_TTL
+    );
+  }
+
+  async checkSession(useCache = false): Promise<SessionInfo> {
+    if (useCache && this.shouldUseCheckCache()) return { ...this.state };
+    if (this.sessionCheckPromise) return this.sessionCheckPromise;
 
     this.sessionCheckPromise = (async () => {
       try {
         const response = await fetch('/api/auth/session', {
-          signal: AbortSignal.timeout(CONFIG.REFRESH_TIMEOUT),
+          cache: 'no-store',
+          signal: AbortSignal.timeout(CONFIG.REQUEST_TIMEOUT),
         });
+        const payload = await this.readPayload(response);
 
-        if (response.ok) {
-          const data = await response.json();
-          const lastExternalLoginAt = typeof data.lastExternalLoginAt === 'number'
-            ? data.lastExternalLoginAt
-            : Date.now();
-          this.setState({
-            user: { ra: data.ra || '' },
-            status: 'active',
-            lastCheckedAt: Date.now(),
-            lastRefreshedAt: lastExternalLoginAt,
-          });
-          return { ...this.state };
+        if (response.ok && payload.ra) {
+          this.applyActivePayload(payload);
         } else if (response.status === 401) {
-          this.setState({ status: 'expired', user: null, lastCheckedAt: Date.now() });
-          return { ...this.state };
-        } else {
+          this.setState({
+            status: 'expired',
+            lastCheckedAt: Date.now(),
+          });
+        } else if (!this.state.user) {
           this.setState({ status: 'error', lastCheckedAt: Date.now() });
-          return { ...this.state };
         }
+        return { ...this.state };
       } catch {
-        if (this.state.status === 'active' && this.state.user) {
-          return { ...this.state };
-        }
-        this.setState({ status: 'error', lastCheckedAt: Date.now() });
+        if (!this.state.user) this.setState({ status: 'error', lastCheckedAt: Date.now() });
         return { ...this.state };
       } finally {
         this.sessionCheckPromise = null;
       }
     })();
-
-    return this.sessionCheckPromise.then((info) => info ?? { ...this.state });
+    return this.sessionCheckPromise;
   }
 
-  async refreshSession(): Promise<boolean> {
-    if (this.refreshPromise) {
-      return this.refreshPromise;
+  private async postRefresh(credentials?: Credentials): Promise<{
+    response: Response;
+    payload: RefreshPayload;
+  }> {
+    const credentialPayload = credentials
+      ? {
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(credentials),
+        }
+      : {};
+    const response = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      cache: 'no-store',
+      ...credentialPayload,
+      signal: AbortSignal.timeout(CONFIG.REQUEST_TIMEOUT),
+    });
+    return { response, payload: await this.readPayload(response) };
+  }
+
+  private async performRefresh(): Promise<boolean> {
+    let result = await this.postRefresh();
+
+    if (result.response.status === 428 || result.payload.code === 'LEGACY_CREDENTIALS_REQUIRED') {
+      const legacyCredentials = await getCredentials();
+      if (!legacyCredentials) {
+        this.lastReconnectError = DisconnectReason.SESSION_EXPIRED;
+        this.lastReconnectCode = 'SESSION_EXPIRED';
+        if (await this.restoreOfflineIdentity()) return false;
+        this.setState({ status: 'expired', user: null, cacheScope: null });
+        return false;
+      }
+
+      result = await this.postRefresh(legacyCredentials);
+      if (result.response.ok) {
+        const confirmation = await this.postRefresh();
+        if (confirmation.response.ok) result = confirmation;
+      }
     }
 
-    const credentials = await getCredentials();
-    if (!credentials) {
-      this.lastReconnectError = DisconnectReason.SESSION_EXPIRED;
+    if (result.response.ok && result.payload.ok !== false) {
+      this.applyActivePayload(result.payload);
+      this.channel?.postMessage(result.payload);
+      return true;
+    }
+
+    this.lastReconnectError = result.payload.error || DisconnectReason.SESSION_EXPIRED;
+    this.lastReconnectCode = result.payload.code || 'SESSION_EXPIRED';
+    if (result.response.status === 429 || result.response.status >= 500 || result.payload.code === 'TOTVS_OFFLINE') {
+      await this.restoreOfflineIdentity();
+      this.setState({ status: 'error' });
       return false;
     }
 
+    if (
+      result.payload.code === 'INVALID_CREDENTIALS' ||
+      result.payload.code === 'IDENTITY_MISMATCH'
+    ) {
+      await Promise.all([clearCredentials(), clearOfflineSessionHint()]);
+    }
+    this.setState({ status: 'expired', user: null, cacheScope: null });
+    return false;
+  }
+
+  private async withCrossTabLock(task: () => Promise<boolean>): Promise<boolean> {
+    const lockManager = (navigator as Navigator & {
+      locks?: { request<T>(name: string, callback: () => Promise<T>): Promise<T> };
+    }).locks;
+    if (!lockManager) return task();
+
+    return lockManager.request('sapoconnect-session-refresh', async () => {
+      const info = await this.checkSession(false);
+      if (
+        info.status === 'active' &&
+        info.user &&
+        Date.now() - info.lastRefreshedAt < CONFIG.SESSION_TTL - CONFIG.PREEMPTIVE_WINDOW
+      ) {
+        return true;
+      }
+      return task();
+    });
+  }
+
+  async refreshSession(): Promise<boolean> {
+    if (this.refreshPromise) return this.refreshPromise;
+
     this.setState({ status: 'refreshing' });
     this.lastReconnectError = null;
-
-    this.refreshPromise = (async () => {
-      try {
-        const startTime = Date.now();
-
-        const response = await fetch('/api/auth/refresh', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(credentials),
-          signal: AbortSignal.timeout(CONFIG.REFRESH_TIMEOUT),
-        });
-
-        if (response.ok) {
-          const elapsed = Date.now() - startTime;
-          const remainingDelay = Math.max(0, CONFIG.MIN_DELAY_BETWEEN_REQUESTS - elapsed);
-          if (remainingDelay > 0) {
-            await new Promise(resolve => setTimeout(resolve, remainingDelay));
-          }
-
-          const sessionInfo = await this.checkSession();
-
-          if (sessionInfo.status === 'active' && sessionInfo.user) {
-            this.setState({ status: 'active', lastRefreshedAt: Date.now() });
-            return true;
-          }
-        }
-
-        const errorMessage = await this.getErrorMessage(response);
-
-        if (response.status >= 500) {
-          this.lastReconnectError = errorMessage || DisconnectReason.SERVER_ERROR;
-          this.setState({ status: 'error' });
-          return false;
-        }
-
-        if (response.status === 401 || response.status === 400) {
-          await clearCredentials();
-          this.lastReconnectError = errorMessage || DisconnectReason.SESSION_EXPIRED;
-        }
-
-        if (!this.lastReconnectError) {
-          this.lastReconnectError = errorMessage || 'Não foi possível atualizar a sessão.';
-        }
-
-        this.setState({ status: 'expired', user: null });
-        return false;
-      } catch {
-        this.lastReconnectError = DisconnectReason.SERVER_ERROR;
+    this.lastReconnectCode = null;
+    this.refreshPromise = this.withCrossTabLock(() => this.performRefresh())
+      .catch(async () => {
+        this.lastReconnectError = DisconnectReason.NETWORK_ERROR;
+        this.lastReconnectCode = 'NETWORK_ERROR';
+        await this.restoreOfflineIdentity();
         this.setState({ status: 'error' });
         return false;
-      } finally {
-        setTimeout(() => {
-          this.refreshPromise = null;
-        }, 3000);
-      }
-    })();
-
+      })
+      .finally(() => {
+        this.refreshPromise = null;
+      });
     return this.refreshPromise;
   }
 
   async reconnect(): Promise<boolean> {
-    if (this.refreshPromise) {
-      return this.refreshPromise;
-    }
-
-    const credentials = await getCredentials();
-    if (!credentials) {
-      this.lastReconnectError = DisconnectReason.SESSION_EXPIRED;
-      return false;
-    }
-
-    this.setState({ status: 'refreshing' });
-    this.lastReconnectError = null;
-
-    this.refreshPromise = (async () => {
-      try {
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(credentials),
-          signal: AbortSignal.timeout(CONFIG.REFRESH_TIMEOUT),
-        });
-
-        if (response.ok) {
-          const sessionInfo = await this.checkSession();
-
-          if (sessionInfo.status === 'active' && sessionInfo.user) {
-            this.setState({ status: 'active', lastRefreshedAt: Date.now() });
-            return true;
-          }
-        }
-
-        const errorMessage = await this.getErrorMessage(response);
-
-        if (response.status >= 500) {
-          this.lastReconnectError = errorMessage || DisconnectReason.SERVER_ERROR;
-          this.setState({ status: 'error' });
-          return false;
-        }
-
-        if (response.status === 401 || response.status === 400) {
-          await clearCredentials();
-          this.lastReconnectError = errorMessage || DisconnectReason.SESSION_EXPIRED;
-        }
-
-        if (!this.lastReconnectError) {
-          this.lastReconnectError = errorMessage || 'Não foi possível atualizar a sessão.';
-        }
-
-        this.setState({ status: 'expired', user: null });
-        return false;
-      } catch {
-        this.lastReconnectError = DisconnectReason.SERVER_ERROR;
-        this.setState({ status: 'error' });
-        return false;
-      } finally {
-        setTimeout(() => {
-          this.refreshPromise = null;
-        }, 3000);
-      }
-    })();
-
-    return this.refreshPromise;
+    return this.refreshSession();
   }
 
   async logout(reason: DisconnectReason = DisconnectReason.LOGOUT_USER): Promise<void> {
-    this.disconnectReason = reason;
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } finally {
-      this.stopPeriodicCheck();
-      this.setState({ user: null, status: 'expired' });
+    const response = await fetch('/api/auth/logout', {
+      method: 'POST',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(CONFIG.REQUEST_TIMEOUT),
+    });
+    if (!response.ok) {
+      throw new Error('Não foi possível encerrar a sessão no servidor.');
     }
-  }
 
-  getDisconnectReason(): DisconnectReason | null {
-    return this.disconnectReason;
-  }
-
-  getLastReconnectError(): string | null {
-    return this.lastReconnectError;
-  }
-
-  clearDisconnectReason(): void {
-    this.disconnectReason = null;
+    this.disconnectReason = reason;
+    await Promise.all([clearCredentials(), clearOfflineSessionHint()]);
+    this.setState({
+      user: null,
+      status: 'expired',
+      lastCheckedAt: Date.now(),
+      lastRefreshedAt: 0,
+      cacheScope: null,
+    });
+    this.channel?.postMessage({ type: 'logout' } satisfies LogoutPayload);
   }
 
   async initialize(): Promise<SessionInfo> {
-    const info = await this.checkSession();
-    return info;
+    await cleanupLegacyCredentials();
+    const checked = await this.checkSession(false);
+    if (!checked.user && checked.status === 'error') {
+      await this.restoreOfflineIdentity();
+    }
+    return this.getCurrentState();
   }
 
   getCurrentState(): SessionInfo {
@@ -366,64 +397,75 @@ class SessionManager {
     return this.refreshPromise !== null || this.state.status === 'refreshing';
   }
 
+  markSessionActive(): void {
+    this.setState({ status: 'active', lastCheckedAt: Date.now() });
+  }
+
+  markSessionExpired(): void {
+    this.setState({ status: 'refreshing' });
+  }
+
+  shouldRefreshPreemptively(): boolean {
+    return (
+      !!this.state.user &&
+      this.state.status === 'active' &&
+      typeof document !== 'undefined' &&
+      document.visibilityState === 'visible' &&
+      navigator.onLine !== false &&
+      Date.now() - this.lastInteractionAt < CONFIG.RECENT_INTERACTION_WINDOW &&
+      Date.now() - this.state.lastRefreshedAt >= CONFIG.SESSION_TTL - CONFIG.PREEMPTIVE_WINDOW
+    );
+  }
+
+  async preemptiveRefreshIfNeeded(): Promise<boolean> {
+    return this.shouldRefreshPreemptively() ? this.refreshSession() : true;
+  }
+
+  async waitForBackgroundReconnect(): Promise<void> {
+    if (this.backgroundReconnectPromise) await this.backgroundReconnectPromise;
+  }
+
   subscribe(callback: (info: SessionInfo) => void): () => void {
     this.listeners.add(callback);
     return () => this.listeners.delete(callback);
   }
 
+  getDisconnectReason(): DisconnectReason | null {
+    return this.disconnectReason;
+  }
+
+  getLastReconnectError(): string | null {
+    return this.lastReconnectError;
+  }
+
+  getLastReconnectCode(): string | null {
+    return this.lastReconnectCode;
+  }
+
+  clearDisconnectReason(): void {
+    this.disconnectReason = null;
+  }
+
   destroy(): void {
-    this.stopPeriodicCheck();
-    if (this.visibilityHandler && typeof document !== 'undefined') {
-      document.removeEventListener('visibilitychange', this.visibilityHandler);
-      this.visibilityHandler = null;
+    if (typeof window !== 'undefined') {
+      if (this.visibilityHandler) {
+        document.removeEventListener('visibilitychange', this.visibilityHandler);
+      }
+      if (this.onlineHandler) window.removeEventListener('online', this.onlineHandler);
+      if (this.offlineHandler) window.removeEventListener('offline', this.offlineHandler);
+      if (this.interactionHandler) {
+        window.removeEventListener('pointerdown', this.interactionHandler);
+        window.removeEventListener('keydown', this.interactionHandler);
+      }
     }
+    this.channel?.close();
     this.listeners.clear();
-  }
-
-  markSessionActive(): void {
-    this.setState({
-      status: 'active',
-      lastRefreshedAt: Date.now(),
-      lastCheckedAt: Date.now(),
-    });
-  }
-
-  shouldRefreshPreemptively(): boolean {
-    if (!this.state.user || this.state.status !== 'active') {
-      return false;
-    }
-
-    const now = Date.now();
-    const timeSinceRefresh = now - this.state.lastRefreshedAt;
-    return timeSinceRefresh > (CONFIG.SESSION_TTL - 5 * 60 * 1000);
-  }
-
-  async preemptiveRefreshIfNeeded(): Promise<boolean> {
-    if (this.shouldRefreshPreemptively() && !this.isRefreshing()) {
-      return this.refreshSession();
-    }
-    return true;
-  }
-
-  async waitForBackgroundReconnect(): Promise<void> {
-    if (this.backgroundReconnectPromise) {
-      await this.backgroundReconnectPromise;
-    }
   }
 }
 
 let sessionManagerInstance: SessionManager | null = null;
 
 export function getSessionManager(): SessionManager {
-  if (!sessionManagerInstance) {
-    sessionManagerInstance = new SessionManager();
-  }
+  if (!sessionManagerInstance) sessionManagerInstance = new SessionManager();
   return sessionManagerInstance;
-}
-
-export function destroySessionManager(): void {
-  if (sessionManagerInstance) {
-    sessionManagerInstance.destroy();
-    sessionManagerInstance = null;
-  }
 }

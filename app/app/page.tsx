@@ -13,11 +13,11 @@ export default function AppPage() {
     if (isLoading) return;
 
     if (user || sessionStatus === 'error') {
-      router.push('/app/calendario');
+      router.replace('/app/calendario');
       return;
     }
 
-    router.push('/login');
+    router.replace('/login');
   }, [isLoading, user, sessionStatus, router]);
 
   return <PageLoading message="Carregando..." />;

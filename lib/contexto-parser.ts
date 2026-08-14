@@ -112,8 +112,6 @@ export function parseSelecaoPeriodo(
 
     // Para links diretos, precisamos extrair o hdKeyTD ou a URL de destino
     let hdKeyTD = '';
-    let formAction = '/EducaMobile/Educacional/EduContexto/SetContextoAluno';
-
     if (onclick) {
       // Tenta extrair do onclick (formato SubmitForm)
       hdKeyTD = extractHdKeyTD(onclick);
