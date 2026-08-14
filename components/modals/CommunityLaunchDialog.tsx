@@ -1,7 +1,15 @@
 "use client"
 
 import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { Activity, RefreshCw, UsersRound } from "lucide-react"
+import {
+  Activity,
+  CalendarDays,
+  ClipboardCheck,
+  GraduationCap,
+  History,
+  RefreshCw,
+  UsersRound,
+} from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 import { useEffect, useState } from "react"
 
@@ -35,47 +43,78 @@ function rememberAnnouncement() {
   document.cookie = `${ANNOUNCEMENT_COOKIE}=seen; Max-Age=${ONE_YEAR_IN_SECONDS}; Path=/; SameSite=Lax${secure}`
 }
 
+function OrbitNode({
+  icon: Icon,
+  radiusX,
+  radiusY,
+  phase,
+  tilt,
+  direction,
+  duration,
+  reducedMotion,
+}: {
+  icon: typeof Activity
+  radiusX: number
+  radiusY: number
+  phase: number
+  tilt: number
+  direction: 1 | -1
+  duration: number
+  reducedMotion: boolean | null
+}) {
+  const steps = 32
+  const tiltInRadians = tilt * (Math.PI / 180)
+  const points = Array.from({ length: steps + 1 }, (_, index) => {
+    const angle = phase + direction * ((Math.PI * 2 * index) / steps)
+    const ellipseX = Math.cos(angle) * radiusX
+    const ellipseY = Math.sin(angle) * radiusY
+
+    return {
+      x: ellipseX * Math.cos(tiltInRadians) - ellipseY * Math.sin(tiltInRadians),
+      y: ellipseX * Math.sin(tiltInRadians) + ellipseY * Math.cos(tiltInRadians),
+    }
+  })
+
+  return (
+    <motion.span
+      animate={reducedMotion
+        ? { x: points[0].x, y: points[0].y }
+        : { x: points.map((point) => point.x), y: points.map((point) => point.y) }}
+      transition={{ duration, ease: "linear", repeat: reducedMotion ? 0 : Infinity }}
+      className="absolute left-1/2 top-1/2 z-10 -ml-3.5 -mt-3.5 flex size-7 items-center justify-center rounded-[0.7rem] border border-white/65 bg-white/70 text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_22px_-12px_rgba(0,172,147,0.8)] backdrop-blur-xl dark:border-white/10 dark:bg-gray-900/75"
+    >
+      <Icon className="size-3.5" strokeWidth={1.8} />
+    </motion.span>
+  )
+}
+
 function CommunityPulseAnimation() {
   const reducedMotion = useReducedMotion()
 
   return (
-    <div className="relative mx-auto flex h-32 w-52 items-center justify-center" aria-hidden="true">
-      <motion.span
-        className="absolute size-24 rounded-full border border-primary/35"
-        animate={reducedMotion ? undefined : { opacity: [0.55, 0], scale: [0.82, 1.5] }}
-        transition={{ duration: 2.4, ease: "easeOut", repeat: Infinity }}
+    <div className="relative mx-auto flex h-44 w-[17.5rem] max-w-full items-center justify-center" aria-hidden="true">
+      <div
+        data-community-orbit="outer"
+        className="absolute h-[6.75rem] w-[12.75rem] -rotate-[8deg] rounded-[50%] border border-primary/25 shadow-[inset_0_0_26px_rgba(0,172,147,0.055)]"
       />
-      <motion.span
-        className="absolute size-24 rounded-full border border-primary/25"
-        animate={reducedMotion ? undefined : { opacity: [0.45, 0], scale: [0.82, 1.75] }}
-        transition={{ delay: 0.8, duration: 2.4, ease: "easeOut", repeat: Infinity }}
+      <div
+        data-community-orbit="inner"
+        className="absolute h-24 w-36 rotate-[16deg] rounded-[50%] border border-dashed border-primary/35"
       />
 
-      <motion.div
-        className="absolute inset-2 rounded-full border border-dashed border-primary/30"
-        animate={reducedMotion ? undefined : { rotate: 360 }}
-        transition={{ duration: 14, ease: "linear", repeat: Infinity }}
-      >
-        <span className="absolute left-1/2 top-0 flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/60 bg-white/75 text-primary shadow-[0_8px_24px_-10px_rgba(0,172,147,0.9)] backdrop-blur-xl dark:border-white/10 dark:bg-gray-900/80">
-          <UsersRound className="size-3.5" />
-        </span>
-        <span className="absolute bottom-2 right-1 flex size-6 items-center justify-center rounded-full border border-white/60 bg-white/75 text-primary shadow-[0_8px_24px_-10px_rgba(0,172,147,0.9)] backdrop-blur-xl dark:border-white/10 dark:bg-gray-900/80">
-          <Activity className="size-3" />
-        </span>
-      </motion.div>
+      <OrbitNode icon={CalendarDays} radiusX={102} radiusY={54} phase={-Math.PI / 2} tilt={-8} direction={1} duration={18} reducedMotion={reducedMotion} />
+      <OrbitNode icon={History} radiusX={102} radiusY={54} phase={Math.PI / 6} tilt={-8} direction={1} duration={18} reducedMotion={reducedMotion} />
+      <OrbitNode icon={ClipboardCheck} radiusX={102} radiusY={54} phase={(Math.PI * 5) / 6} tilt={-8} direction={1} duration={18} reducedMotion={reducedMotion} />
+      <OrbitNode icon={GraduationCap} radiusX={72} radiusY={48} phase={0} tilt={16} direction={-1} duration={12} reducedMotion={reducedMotion} />
+      <OrbitNode icon={UsersRound} radiusX={72} radiusY={48} phase={Math.PI} tilt={16} direction={-1} duration={12} reducedMotion={reducedMotion} />
 
       <motion.div
         initial={reducedMotion ? false : { opacity: 0, scale: 0.75, rotate: -8 }}
         animate={{ opacity: 1, scale: 1, rotate: 0 }}
         transition={{ type: "spring", stiffness: 260, damping: 19, delay: 0.1 }}
-        className="relative rounded-[1.35rem] border border-white/70 bg-white/45 p-2 shadow-[0_20px_45px_-18px_rgba(0,172,147,0.75)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.055]"
+        className="relative z-20 rounded-[1.35rem] border border-white/70 bg-white/45 p-2 shadow-[0_20px_45px_-18px_rgba(0,172,147,0.75)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.055]"
       >
         <BrandMark className="size-16" priority />
-        <motion.span
-          className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-white bg-primary dark:border-gray-900"
-          animate={reducedMotion ? undefined : { opacity: [1, 0.4, 1], scale: [1, 0.72, 1] }}
-          transition={{ duration: 1.7, repeat: Infinity }}
-        />
       </motion.div>
     </div>
   )
