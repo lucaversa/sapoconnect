@@ -123,7 +123,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
                   </span>
                   <div className="min-w-0">
                     <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400">Criado e mantido por</p>
-                    <p className="truncate text-sm font-extrabold text-gray-950 dark:text-white">Luca Versiani</p>
+                    <p className="truncate text-sm font-extrabold text-gray-950 dark:text-white">Luca Janini</p>
                   </div>
                 </div>
 
