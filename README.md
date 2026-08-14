@@ -1,12 +1,22 @@
 # SapoConnect
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/lucaversa/sapoconnect/main/public/sapo.png" alt="SapoConnect Logo" width="120" />
+  <img src="https://raw.githubusercontent.com/lucaversa/sapoconnect/main/public/brand/sapoconnect-icon-192.png" alt="SapoConnect Logo" width="120" />
 </p>
 
 Interface alternativa para o sistema acadêmico TOTVS EduConnect, desenvolvida através de engenharia reversa.
 
 **GitHub:** [lucaversa/sapoconnect](https://github.com/lucaversa/sapoconnect)
+
+## Comunidade
+
+O SapoConnect é um projeto independente criado e mantido por Luca Versiani. O aplicativo publica somente métricas agregadas e anônimas do Web Analytics, com cache de 6 horas para evitar consumo desnecessário de infraestrutura.
+
+- [Sugerir uma melhoria](https://github.com/lucaversa/sapoconnect/issues/new?template=feature_request.yml)
+- [Relatar um problema](https://github.com/lucaversa/sapoconnect/issues/new?template=bug_report.yml)
+- [Como participar](CONTRIBUTING.md)
+
+Nunca publique RA, senha, notas ou outros dados acadêmicos pessoais nas Issues.
 
 ## Sobre o Projeto
 
@@ -178,6 +188,8 @@ Os endpoints TOTVS retornam HTML, não JSON. Cada endpoint tem um parser especí
 SESSION_ENCRYPTION_KEY=<64-caracteres-hexadecimais-gerados-com-seguranca>
 ALLOW_INSECURE_SESSION_KEY=false
 TOTVS_TIMEOUT_MS=12000
+VERCEL_ANALYTICS_TOKEN=<token-servidor-dedicado>
+VERCEL_ANALYTICS_TEAM_ID=<team_id>
 NODE_ENV=production
 ```
 

@@ -1,9 +1,22 @@
 'use client';
 
-import { ExternalLink, MonitorSmartphone, MoonStar, ShieldCheck, Smartphone } from 'lucide-react';
+import {
+  Bug,
+  ExternalLink,
+  GitFork,
+  MessageSquarePlus,
+  MonitorSmartphone,
+  MoonStar,
+  ShieldCheck,
+  Smartphone,
+  UserRound,
+} from 'lucide-react';
 
 import { BrandMark } from '@/components/brand/BrandMark';
+import { CommunityPulse } from '@/components/community/CommunityPulse';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+const GITHUB_REPOSITORY = 'https://github.com/lucaversa/sapoconnect';
 
 function InstallGuide({ platform, steps }: { platform: string; steps: string[] }) {
   return (
@@ -50,6 +63,8 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
             </div>
           </section>
 
+          <CommunityPulse enabled={open} />
+
           <section className="border-t border-gray-200/70 py-5 dark:border-white/[0.065]">
             <div className="mb-3 flex items-start gap-3">
               <span className="icon-orb size-9"><Smartphone className="size-[18px]" aria-hidden="true" /></span>
@@ -94,12 +109,44 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
               </div>
             </div>
           </section>
-        </div>
 
-        <div className="border-t border-gray-200/70 p-4 dark:border-white/[0.065] sm:px-6 sm:py-5">
-          <a href="https://github.com/lucaversa/sapoconnect" target="_blank" rel="noopener noreferrer" className="native-control flex min-h-11 items-center justify-center gap-2 px-4 text-sm font-bold">
-            Código-fonte no GitHub <ExternalLink className="size-4" aria-hidden="true" />
-          </a>
+          <section className="border-t border-gray-200/70 py-5 dark:border-white/[0.065]">
+            <div className="flex items-start gap-3">
+              <span className="icon-orb size-9"><GitFork className="size-[18px]" aria-hidden="true" /></span>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-extrabold text-gray-950 dark:text-white">Projeto independente</h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">O código é público. Sugestões e problemas são organizados pelo GitHub.</p>
+
+                <div className="mt-3 flex items-center gap-2.5 rounded-2xl border border-white/70 bg-white/45 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] dark:border-white/[0.07] dark:bg-white/[0.035]">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary-700 dark:text-primary-300">
+                    <UserRound className="size-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400">Criado e mantido por</p>
+                    <p className="truncate text-sm font-extrabold text-gray-950 dark:text-white">Luca Versiani</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
+                  <a href={GITHUB_REPOSITORY} target="_blank" rel="noopener noreferrer" className="native-control flex min-h-11 items-center justify-center gap-2 px-3 text-xs font-bold min-[420px]:col-span-2">
+                    <GitFork className="size-4 text-primary" aria-hidden="true" />
+                    Ver código
+                    <ExternalLink className="size-3.5 text-gray-400" aria-hidden="true" />
+                  </a>
+                  <a href={`${GITHUB_REPOSITORY}/issues/new?template=feature_request.yml`} target="_blank" rel="noopener noreferrer" className="native-control flex min-h-11 items-center justify-center gap-2 px-3 text-xs font-bold">
+                    <MessageSquarePlus className="size-4 text-primary" aria-hidden="true" />
+                    Sugerir melhoria
+                  </a>
+                  <a href={`${GITHUB_REPOSITORY}/issues/new?template=bug_report.yml`} target="_blank" rel="noopener noreferrer" className="native-control flex min-h-11 items-center justify-center gap-2 px-3 text-xs font-bold">
+                    <Bug className="size-4 text-primary" aria-hidden="true" />
+                    Relatar problema
+                  </a>
+                </div>
+
+                <p className="mt-3 text-[11px] leading-5 text-gray-500 dark:text-gray-400">Não publique RA, senha, notas ou outros dados acadêmicos nas Issues.</p>
+              </div>
+            </div>
+          </section>
         </div>
       </DialogContent>
     </Dialog>

@@ -1,0 +1,50 @@
+name: Sugerir melhoria
+description: Proponha uma melhoria para a experiência dos alunos.
+title: "[Sugestão] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por ajudar a melhorar o SapoConnect. Não informe RA, senha, notas, nomes de professores ou outros dados acadêmicos pessoais.
+  - type: dropdown
+    id: module
+    attributes:
+      label: Área relacionada
+      options:
+        - Horários
+        - Faltas
+        - Avaliações
+        - Histórico
+        - Login e reconexão
+        - Instalação e PWA
+        - Interface geral
+        - Outra
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: O que pode melhorar?
+      description: Explique a dificuldade ou oportunidade de forma objetiva.
+      placeholder: Hoje eu preciso... mas o aplicativo...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Como você imagina a solução?
+      placeholder: Seria útil se...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto adicional
+      description: Imagens são opcionais. Remova qualquer informação pessoal antes de anexar.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacidade
+      options:
+        - label: Confirmei que esta Issue não contém RA, senha, notas ou outros dados acadêmicos pessoais.
+          required: true
