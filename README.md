@@ -1,7 +1,7 @@
 # SapoConnect
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/lucaversa/sapoconnect/main/public/brand/sapoconnect-icon-192.png" alt="SapoConnect Logo" width="120" />
+  <img src="./public/brand/sapoconnect-icon-192.png" alt="Logo atual do SapoConnect" width="120" />
 </p>
 
 Interface alternativa para o sistema acadêmico TOTVS EduConnect, desenvolvida através de engenharia reversa.
