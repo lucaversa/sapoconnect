@@ -6,6 +6,7 @@ import { ptBR } from "date-fns/locale"
 
 import { cn } from "@/lib/utils"
 import { EventItem } from "./event-item"
+import { useMobileHorizontalScroll } from "./hooks/use-mobile-horizontal-scroll"
 import type { CalendarEvent } from "./types"
 import { getAgendaEventsForDay } from "./utils"
 
@@ -24,9 +25,10 @@ export function MonthView({ currentDate, events, onEventSelect }: MonthViewProps
     })
   }, [currentDate])
   const weekdays = useMemo(() => days.slice(0, 7), [days])
+  const horizontalScroll = useMobileHorizontalScroll()
 
   return (
-    <div data-calendar-scroll className="touch-auto overflow-x-auto overscroll-x-contain">
+    <div data-calendar-scroll className="touch-pan-y overflow-x-auto overscroll-x-contain" {...horizontalScroll}>
       <div className="min-w-[720px]">
         <div className="grid grid-cols-7 border-b border-gray-200/70 dark:border-white/[0.07]">
           {weekdays.map((day) => (
