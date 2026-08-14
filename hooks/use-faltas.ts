@@ -2,6 +2,7 @@
 
 import { useApiQuery } from './use-api-query';
 import { queryKeys } from '@/lib/query-keys';
+import { QUERY_STALE_TIME } from '@/lib/query-policy';
 
 export interface FaltasItem {
   codigo: string;
@@ -22,11 +23,13 @@ export interface FaltasItem {
 
 export interface FaltasResponse {
   faltas?: FaltasItem[];
+  __cacheStale?: boolean;
 }
 
 export function useFaltas() {
   return useApiQuery<FaltasResponse>(
     queryKeys.faltas(),
-    '/api/faltas/completo'
+    '/api/faltas/completo',
+    { staleTime: QUERY_STALE_TIME.faltas }
   );
 }

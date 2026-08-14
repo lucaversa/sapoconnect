@@ -1,19 +1,27 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { QueryClientProvider, dehydrate, hydrate, type DehydratedState } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import {
+  QueryClientProvider,
+  dehydrate,
+  hydrate,
+  type DehydratedState,
+} from '@tanstack/react-query';
+import { Toaster } from 'sonner';
+import { useSession } from '@/lib/session-provider';
 import { queryClient } from '@/lib/query-client';
 import {
-  QUERY_PERSIST_KEY_PREFIX,
   QUERY_PERSIST_THROTTLE_MS,
-  QUERY_PERSIST_USER_KEY,
-  getPersistKeyForUser,
+  getPersistKeyForScope,
+  shouldPersistQuery,
 } from '@/lib/query-persist';
-import { getCredentials, getQueryCache, saveQueryCache } from '@/lib/storage';
-import { Toaster } from 'sonner';
+import { clearQueryCache, getQueryCache, saveQueryCache } from '@/lib/storage';
+import { BrandMark } from '@/components/brand/BrandMark';
+import { Button } from '@/components/ui/button';
 
-const CACHE_RESTORE_TIMEOUT_MS = 4000;
+const CACHE_RESTORE_TIMEOUT_MS = 1_500;
+const LEGACY_CACHE_PURGED_KEY = 'sapoconnect_query_cache_v2_ready';
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
   return new Promise((resolve) => {
@@ -25,170 +33,159 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Pr
   });
 }
 
+function CacheBootScreen() {
+  return (
+    <div
+      className="app-shell flex min-h-[100dvh] items-center justify-center px-6"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="w-full max-w-xs space-y-3">
+        <div className="h-3 w-24 animate-pulse rounded-full bg-gray-200 motion-reduce:animate-none dark:bg-gray-800" />
+        <div className="liquid-panel h-20 animate-pulse rounded-3xl motion-reduce:animate-none" />
+        <span className="sr-only">Preparando seus dados</span>
+      </div>
+    </div>
+  );
+}
+
+function SessionUnavailableScreen({
+  onRetry,
+  isRetrying,
+}: {
+  onRetry: () => void;
+  isRetrying: boolean;
+}) {
+  return (
+    <main className="app-shell flex min-h-[100dvh] items-center justify-center px-5">
+      <section className="liquid-panel w-full max-w-sm rounded-[1.75rem] p-6 text-center">
+        <BrandMark className="mx-auto size-14" />
+        <h1 className="mt-4 text-lg font-extrabold tracking-[-0.03em] text-gray-950 dark:text-white">
+          Não foi possível preparar seus dados
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
+          Verifique sua conexão ou tente novamente. Seus dados locais permanecem protegidos.
+        </p>
+        <div className="mt-5 grid gap-2">
+          <Button type="button" onClick={onRetry} disabled={isRetrying}>
+            {isRetrying ? 'Reconectando...' : 'Tentar novamente'}
+          </Button>
+          <Link
+            href="/login"
+            className="native-control flex min-h-11 items-center justify-center px-4 text-sm font-bold"
+          >
+            Ir para o login
+          </Link>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [isCacheRestored, setIsCacheRestored] = useState(false);
-
-  const getCandidatePersistKeys = useCallback(async () => {
-    const keys = new Set<string>();
-
-    try {
-      const storedRa = localStorage.getItem(QUERY_PERSIST_USER_KEY);
-      if (storedRa) {
-        keys.add(getPersistKeyForUser(storedRa));
-      }
-    } catch {
-      // ignore localStorage errors
-    }
-
-    if (keys.size === 0) {
-      const credentials = await withTimeout(getCredentials(), CACHE_RESTORE_TIMEOUT_MS, null);
-      if (credentials?.codUsuario) {
-        keys.add(getPersistKeyForUser(credentials.codUsuario));
-      }
-    }
-
-    keys.add(QUERY_PERSIST_KEY_PREFIX);
-    return Array.from(keys);
-  }, []);
-
-  const getPersistWriteKeys = useCallback(async () => {
-    const keys = new Set<string>();
-
-    try {
-      const storedRa = localStorage.getItem(QUERY_PERSIST_USER_KEY);
-      if (storedRa) {
-        keys.add(getPersistKeyForUser(storedRa));
-      }
-    } catch {
-      // ignore localStorage errors
-    }
-
-    if (keys.size === 0) {
-      const credentials = await withTimeout(getCredentials(), CACHE_RESTORE_TIMEOUT_MS, null);
-      if (credentials?.codUsuario) {
-        keys.add(getPersistKeyForUser(credentials.codUsuario));
-      }
-    }
-
-    keys.add(QUERY_PERSIST_KEY_PREFIX);
-    return Array.from(keys);
-  }, []);
+  const { cacheScope, isLoading: isSessionLoading, refreshSession } = useSession();
+  const [restoredScope, setRestoredScope] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const persistKey = useMemo(
+    () => (cacheScope ? getPersistKeyForScope(cacheScope) : null),
+    [cacheScope]
+  );
 
   const persistCache = useCallback(async () => {
-    const dehydrated = dehydrate(queryClient, {
-      shouldDehydrateQuery: (query) => query.state.status === 'success' || query.state.data !== undefined,
-    });
-    const keys = await getPersistWriteKeys();
+    if (!persistKey || !cacheScope) return;
 
-    keys.forEach((key) => {
-      try {
-        localStorage.setItem(key, JSON.stringify(dehydrated));
-      } catch {
-        // ignore localStorage errors
-      }
-      void saveQueryCache(key, dehydrated).catch(() => {});
-    });
-  }, [getPersistWriteKeys]);
+    const dehydrated = dehydrate(queryClient, { shouldDehydrateQuery: shouldPersistQuery });
+    await saveQueryCache(
+      persistKey,
+      cacheScope,
+      dehydrated
+    ).catch(() => {});
+  }, [cacheScope, persistKey]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    try {
-      if (navigator.storage?.persist) {
-        navigator.storage.persist().catch(() => {});
-      }
-    } catch {
-      // ignore persistence request errors
+    if (!cacheScope || !persistKey) {
+      return;
     }
 
-    let isCancelled = false;
+    let cancelled = false;
     let timeoutId: number | null = null;
-
-    const hydrateCache = async () => {
-      const keys = await getCandidatePersistKeys();
-      const tryHydrate = (payload: string | null | DehydratedState) => {
-        if (!payload || isCancelled) return false;
-        try {
-          const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
-          hydrate(queryClient, data);
-          return true;
-        } catch {
-          return false;
-        }
-      };
-
-      let hydrated = false;
-      try {
-        for (const key of keys) {
-          hydrated = tryHydrate(localStorage.getItem(key));
-          if (hydrated) break;
-        }
-      } catch {
-        // ignore localStorage errors
-      }
-
-      if (!hydrated) {
-        for (const key of keys) {
-          const idbCached = await withTimeout(
-            getQueryCache<DehydratedState>(key),
-            CACHE_RESTORE_TIMEOUT_MS,
-            null
-          );
-          if (tryHydrate(idbCached)) {
-            break;
-          }
-        }
-      }
-    };
-
-    const persistSoon = () => {
-      if (timeoutId) return;
-      timeoutId = window.setTimeout(() => {
-        timeoutId = null;
-        void persistCache();
-      }, QUERY_PERSIST_THROTTLE_MS);
-    };
-
-    const handlePageHide = () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-      void persistCache();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        handlePageHide();
-      }
-    };
-
     let unsubscribe: (() => void) | null = null;
 
-    hydrateCache().finally(() => {
-      if (isCancelled) return;
-      setIsCacheRestored(true);
-      unsubscribe = queryClient.getQueryCache().subscribe(persistSoon);
-      window.addEventListener('pagehide', handlePageHide);
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-    });
+    const restore = async () => {
+      queryClient.clear();
 
-    return () => {
-      isCancelled = true;
-      unsubscribe?.();
-      window.removeEventListener('pagehide', handlePageHide);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      try {
+        if (!localStorage.getItem(LEGACY_CACHE_PURGED_KEY)) {
+          await clearQueryCache();
+          localStorage.setItem(LEGACY_CACHE_PURGED_KEY, '1');
+        }
+      } catch {
+        // Scoped v2 keys remain safe even if localStorage is unavailable.
       }
+
+      const cached = await withTimeout(
+        getQueryCache<DehydratedState>(persistKey, cacheScope),
+        CACHE_RESTORE_TIMEOUT_MS,
+        null
+      );
+      if (cached && !cancelled) hydrate(queryClient, cached);
+      if (cancelled) return;
+
+      setRestoredScope(cacheScope);
+      unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+        if (!shouldPersistQuery(event.query)) return;
+        if (timeoutId) return;
+        timeoutId = window.setTimeout(() => {
+          timeoutId = null;
+          void persistCache();
+        }, QUERY_PERSIST_THROTTLE_MS);
+      });
     };
-  }, [getCandidatePersistKeys, persistCache]);
+
+    void restore();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [cacheScope, persistCache, persistKey]);
+
+  useEffect(() => {
+    if (!cacheScope || restoredScope !== cacheScope) return;
+
+    const flush = () => void persistCache();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') flush();
+    };
+
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [cacheScope, persistCache, restoredScope]);
+
+  const isReady = !isSessionLoading && !!cacheScope && restoredScope === cacheScope;
+  const retrySession = async () => {
+    setIsRetrying(true);
+    try {
+      await refreshSession();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   return (
     <QueryClientProvider client={queryClient}>
-      {isCacheRestored ? children : null}
-      <Toaster richColors closeButton position="top-right" />
-      <ReactQueryDevtools initialIsOpen={false} />
+      {isReady ? (
+        children
+      ) : !isSessionLoading && !cacheScope ? (
+        <SessionUnavailableScreen onRetry={() => void retrySession()} isRetrying={isRetrying} />
+      ) : (
+        <CacheBootScreen />
+      )}
+      <Toaster richColors closeButton position="top-center" />
     </QueryClientProvider>
   );
 }

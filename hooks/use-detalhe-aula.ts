@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { queryKeys } from '@/lib/query-keys';
 import { apiFetch, SessionExpiredError } from '@/lib/fetch-client';
 import { parseApiError, isSessionExpiredApiError } from '@/lib/api-response-error';
+import { QUERY_STALE_TIME } from '@/lib/query-policy';
 
 export interface DetalheAula {
   horario?: string;
@@ -19,8 +19,6 @@ export interface DetalheAula {
 }
 
 type DetalheAulaResponse = DetalheAula;
-const DETALHE_STALE_TIME_MS = 10 * 60 * 1000;
-const EMPTY_PROFESSOR_STALE_TIME_MS = 0;
 
 export function useDetalheAula(id: string | null) {
   return useQuery<DetalheAulaResponse>({
@@ -39,14 +37,8 @@ export function useDetalheAula(id: string | null) {
       return response.json();
     },
     enabled: !!id,
-    retry: 2,
-    refetchOnMount: 'always',
-    staleTime: (query) => {
-      const cached = query.state.data as DetalheAulaResponse | undefined;
-      if (!cached) return EMPTY_PROFESSOR_STALE_TIME_MS;
-      return cached.professores.length > 0
-        ? DETALHE_STALE_TIME_MS
-        : EMPTY_PROFESSOR_STALE_TIME_MS;
-    },
+    retry: false,
+    refetchOnMount: true,
+    staleTime: QUERY_STALE_TIME.detalheAula,
   });
 }

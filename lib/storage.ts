@@ -1,9 +1,20 @@
-import { encrypt, decrypt, getDeviceId, getOrCreateDeviceId, setDeviceId } from './crypto';
+import { decrypt, getDeviceId, setDeviceId } from './crypto';
+import { QUERY_PERSIST_SCHEMA_VERSION } from './query-persist';
 
 const DB_NAME = 'sapoconnect_db';
-const DB_VERSION = 2;
-const STORE_NAME = 'credentials';
-const CACHE_STORE_NAME = 'query_cache';
+const DB_VERSION = 4;
+const CREDENTIAL_STORE = 'credentials';
+const CACHE_STORE = 'query_cache';
+const SESSION_STORE = 'session_state';
+const LEGACY_CREDENTIAL_KEY = 'user_credentials';
+const MIGRATION_MARKER_KEY = 'reconnect_cookie_migration';
+const LEGACY_ROLLBACK_WINDOW_MS = 7 * 24 * 60 * 60 * 1_000;
+const OFFLINE_SESSION_HINT_KEY = 'offline_session_hint';
+
+export interface Credentials {
+  codUsuario: string;
+  senha: string;
+}
 
 interface StoredCredentials {
   encrypted: string;
@@ -13,9 +24,46 @@ interface StoredCredentials {
   deviceId?: string;
 }
 
-interface Credentials {
-  codUsuario: string;
-  senha: string;
+export interface MigrationMarker {
+  confirmedAt: number;
+  cacheScope?: string;
+}
+
+interface StoredQueryCache<T> {
+  version: number;
+  cacheScope: string;
+  data: T;
+  timestamp: number;
+  expiresAt: number;
+}
+
+export interface OfflineSessionHint {
+  ra: string;
+  cacheScope: string;
+  expiresAt: number;
+}
+
+export function getReconnectMigrationMode(): 'dual' | 'cookie-only' {
+  return process.env.NEXT_PUBLIC_RECONNECT_MIGRATION_MODE === 'cookie-only'
+    ? 'cookie-only'
+    : 'dual';
+}
+
+export function resolveMigrationMarker(
+  existing: MigrationMarker | undefined,
+  now: number,
+  cacheScope?: string
+): MigrationMarker | null {
+  const confirmedAt = existing?.confirmedAt;
+  if (
+    typeof confirmedAt === 'number' &&
+    Number.isFinite(confirmedAt) &&
+    confirmedAt <= now
+  ) {
+    if (now - confirmedAt >= LEGACY_ROLLBACK_WINDOW_MS) return null;
+    return { confirmedAt, cacheScope };
+  }
+  return { confirmedAt: now, cacheScope };
 }
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -24,192 +72,239 @@ function openDatabase(): Promise<IDBDatabase> {
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result);
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(CREDENTIAL_STORE)) {
+        db.createObjectStore(CREDENTIAL_STORE);
       }
-      if (!db.objectStoreNames.contains(CACHE_STORE_NAME)) {
-        db.createObjectStore(CACHE_STORE_NAME);
+      if (!db.objectStoreNames.contains(CACHE_STORE)) {
+        db.createObjectStore(CACHE_STORE);
+      }
+      if (!db.objectStoreNames.contains(SESSION_STORE)) {
+        db.createObjectStore(SESSION_STORE);
       }
     };
   });
 }
 
-export async function saveCredentials(credentials: Credentials): Promise<void> {
-  const deviceId = getOrCreateDeviceId();
-  const data = JSON.stringify(credentials);
-  const { encrypted, salt, iv } = await encrypt(data, deviceId);
-
+async function idbRequest<T>(
+  storeName: string,
+  mode: IDBTransactionMode,
+  operation: (store: IDBObjectStore) => IDBRequest<T>
+): Promise<T> {
   const db = await openDatabase();
-  const transaction = db.transaction(STORE_NAME, 'readwrite');
-  const store = transaction.objectStore(STORE_NAME);
-
-  const storedData: StoredCredentials = {
-    encrypted,
-    salt,
-    iv,
-    timestamp: Date.now(),
-    deviceId,
-  };
-
-  return new Promise((resolve, reject) => {
-    const request = store.put(storedData, 'user_credentials');
-    request.onsuccess = () => {
-      db.close();
-      resolve();
-    };
-    request.onerror = () => {
-      db.close();
-      reject(request.error);
-    };
-  });
+  try {
+    return await new Promise<T>((resolve, reject) => {
+      const transaction = db.transaction(storeName, mode);
+      const request = operation(transaction.objectStore(storeName));
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
+  }
 }
 
 export async function getCredentials(): Promise<Credentials | null> {
+  if (getReconnectMigrationMode() === 'cookie-only') return null;
+
   try {
-    const db = await openDatabase();
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
+    const storedData = await idbRequest<StoredCredentials | undefined>(
+      CREDENTIAL_STORE,
+      'readonly',
+      (store) => store.get(LEGACY_CREDENTIAL_KEY)
+    );
+    if (!storedData) return null;
 
-    return new Promise((resolve, reject) => {
-      const request = store.get('user_credentials');
+    let deviceId = getDeviceId();
+    if (!deviceId && storedData.deviceId) {
+      deviceId = storedData.deviceId;
+      try {
+        setDeviceId(deviceId);
+      } catch {
+        // Storage may be unavailable in private browsing.
+      }
+    }
+    if (!deviceId) return null;
 
-      request.onsuccess = async () => {
-        db.close();
-        const storedData = request.result as StoredCredentials | undefined;
-
-        if (!storedData) {
-          resolve(null);
-          return;
-        }
-
-        try {
-          let deviceId = getDeviceId();
-
-          if (!deviceId && storedData.deviceId) {
-            deviceId = storedData.deviceId;
-            try {
-              setDeviceId(deviceId);
-            } catch {
-              // ignore storage errors
-            }
-          }
-
-          if (!deviceId) {
-            resolve(null);
-            return;
-          }
-
-          const decrypted = await decrypt(
-            storedData.encrypted,
-            storedData.salt,
-            storedData.iv,
-            deviceId
-          );
-          const credentials: Credentials = JSON.parse(decrypted);
-          resolve(credentials);
-        } catch (error) {
-          resolve(null);
-        }
-      };
-
-      request.onerror = () => {
-        db.close();
-        reject(request.error);
-      };
-    });
-  } catch (error) {
+    const decrypted = await decrypt(
+      storedData.encrypted,
+      storedData.salt,
+      storedData.iv,
+      deviceId
+    );
+    const parsed = JSON.parse(decrypted) as Partial<Credentials>;
+    if (typeof parsed.codUsuario !== 'string' || typeof parsed.senha !== 'string') {
+      return null;
+    }
+    return { codUsuario: parsed.codUsuario, senha: parsed.senha };
+  } catch {
     return null;
   }
 }
 
 export async function clearCredentials(): Promise<void> {
-  const db = await openDatabase();
-  const transaction = db.transaction(STORE_NAME, 'readwrite');
-  const store = transaction.objectStore(STORE_NAME);
-
-  return new Promise((resolve, reject) => {
-    const request = store.delete('user_credentials');
-    request.onsuccess = () => {
-      db.close();
-      resolve();
-    };
-    request.onerror = () => {
-      db.close();
-      reject(request.error);
-    };
-  });
+  try {
+    await Promise.all([
+      idbRequest(CREDENTIAL_STORE, 'readwrite', (store) =>
+        store.delete(LEGACY_CREDENTIAL_KEY)
+      ),
+      idbRequest(CREDENTIAL_STORE, 'readwrite', (store) =>
+        store.delete(MIGRATION_MARKER_KEY)
+      ),
+    ]);
+  } catch {
+    // Clearing is best-effort when IndexedDB is unavailable.
+  }
 }
 
 export async function hasStoredCredentials(): Promise<boolean> {
-  const credentials = await getCredentials();
-  return credentials !== null;
+  return (await getCredentials()) !== null;
 }
 
-export async function saveQueryCache(key: string, data: unknown): Promise<void> {
-  const db = await openDatabase();
-  const transaction = db.transaction(CACHE_STORE_NAME, 'readwrite');
-  const store = transaction.objectStore(CACHE_STORE_NAME);
-
-  const payload = {
-    data,
-    timestamp: Date.now(),
-  };
-
-  return new Promise((resolve, reject) => {
-    const request = store.put(payload, key);
-    request.onsuccess = () => {
-      db.close();
-      resolve();
-    };
-    request.onerror = () => {
-      db.close();
-      reject(request.error);
-    };
-  });
-}
-
-export async function getQueryCache<T = unknown>(key: string): Promise<T | null> {
+export async function markReconnectCookieConfirmed(cacheScope?: string): Promise<void> {
   try {
-    const db = await openDatabase();
-    const transaction = db.transaction(CACHE_STORE_NAME, 'readonly');
-    const store = transaction.objectStore(CACHE_STORE_NAME);
+    if (getReconnectMigrationMode() === 'cookie-only') {
+      await clearCredentials();
+      return;
+    }
 
-    return new Promise((resolve, reject) => {
-      const request = store.get(key);
+    const existing = await idbRequest<MigrationMarker | undefined>(
+      CREDENTIAL_STORE,
+      'readonly',
+      (store) => store.get(MIGRATION_MARKER_KEY)
+    );
+    const marker = resolveMigrationMarker(existing, Date.now(), cacheScope);
+    if (!marker) {
+      await clearCredentials();
+      return;
+    }
+    await idbRequest(CREDENTIAL_STORE, 'readwrite', (store) =>
+      store.put(marker, MIGRATION_MARKER_KEY)
+    );
+  } catch {
+    // Authentication already succeeded; an unavailable IndexedDB must never
+    // turn the migration marker into a login/refresh failure.
+  }
+}
 
-      request.onsuccess = () => {
-        db.close();
-        const stored = request.result as { data?: T } | undefined;
-        resolve(stored?.data ?? null);
-      };
+export async function cleanupLegacyCredentials(): Promise<void> {
+  if (getReconnectMigrationMode() === 'cookie-only') {
+    await clearCredentials();
+    return;
+  }
 
-      request.onerror = () => {
-        db.close();
-        reject(request.error);
-      };
-    });
+  try {
+    const marker = await idbRequest<MigrationMarker | undefined>(
+      CREDENTIAL_STORE,
+      'readonly',
+      (store) => store.get(MIGRATION_MARKER_KEY)
+    );
+    if (marker && Date.now() - marker.confirmedAt >= LEGACY_ROLLBACK_WINDOW_MS) {
+      await clearCredentials();
+    }
+  } catch {
+    // Migration cleanup is retried on the next app start.
+  }
+}
+
+export async function saveOfflineSessionHint(ra: string, cacheScope: string): Promise<void> {
+  if (!ra.trim() || !/^[a-zA-Z0-9_-]{8,128}$/.test(cacheScope)) return;
+  const hint: OfflineSessionHint = {
+    ra: ra.trim(),
+    cacheScope,
+    // Zero means that the app does not expire the hint by age. The browser can
+    // still evict origin storage under pressure, and explicit logout clears it.
+    expiresAt: 0,
+  };
+  await idbRequest(SESSION_STORE, 'readwrite', (store) =>
+    store.put(hint, OFFLINE_SESSION_HINT_KEY)
+  );
+}
+
+export async function getOfflineSessionHint(): Promise<OfflineSessionHint | null> {
+  try {
+    const hint = await idbRequest<OfflineSessionHint | undefined>(
+      SESSION_STORE,
+      'readonly',
+      (store) => store.get(OFFLINE_SESSION_HINT_KEY)
+    );
+    const isValid = !!hint
+      && typeof hint.ra === 'string'
+      && hint.ra.trim().length > 0
+      && /^[a-zA-Z0-9_-]{8,128}$/.test(hint.cacheScope);
+
+    if (!isValid) {
+      await clearOfflineSessionHint();
+      return null;
+    }
+    return hint;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearOfflineSessionHint(): Promise<void> {
+  try {
+    await idbRequest(SESSION_STORE, 'readwrite', (store) =>
+      store.delete(OFFLINE_SESSION_HINT_KEY)
+    );
+  } catch {
+    // Cache identity cleanup is best-effort when IndexedDB is unavailable.
+  }
+}
+
+export async function saveQueryCache(
+  key: string,
+  cacheScope: string,
+  data: unknown
+): Promise<void> {
+  const now = Date.now();
+  const payload: StoredQueryCache<unknown> = {
+    version: QUERY_PERSIST_SCHEMA_VERSION,
+    cacheScope,
+    data,
+    timestamp: now,
+    // Kept for backwards-compatible reads of the v2 payload shape. Zero means
+    // retain until logout, a schema migration, or browser-managed eviction.
+    expiresAt: 0,
+  };
+  await idbRequest(CACHE_STORE, 'readwrite', (store) => store.put(payload, key));
+}
+
+export async function getQueryCache<T>(
+  key: string,
+  expectedScope: string
+): Promise<T | null> {
+  try {
+    const stored = await idbRequest<StoredQueryCache<T> | undefined>(
+      CACHE_STORE,
+      'readonly',
+      (store) => store.get(key)
+    );
+    if (!stored) return null;
+
+    const isValid =
+      stored.version === QUERY_PERSIST_SCHEMA_VERSION &&
+      stored.cacheScope === expectedScope;
+
+    if (!isValid) {
+      await clearQueryCache(key);
+      return null;
+    }
+    return stored.data;
   } catch {
     return null;
   }
 }
 
 export async function clearQueryCache(key?: string): Promise<void> {
-  const db = await openDatabase();
-  const transaction = db.transaction(CACHE_STORE_NAME, 'readwrite');
-  const store = transaction.objectStore(CACHE_STORE_NAME);
-
-  return new Promise((resolve, reject) => {
-    const request = key ? store.delete(key) : store.clear();
-    request.onsuccess = () => {
-      db.close();
-      resolve();
-    };
-    request.onerror = () => {
-      db.close();
-      reject(request.error);
-    };
-  });
+  try {
+    await idbRequest(CACHE_STORE, 'readwrite', (store) =>
+      key ? store.delete(key) : store.clear()
+    );
+  } catch {
+    // Cache removal is best-effort.
+  }
 }

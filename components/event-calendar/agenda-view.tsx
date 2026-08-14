@@ -1,16 +1,14 @@
 "use client"
 
 import { useMemo } from "react"
-import { RiCalendarEventLine } from "@remixicon/react"
 import { addDays, format, isToday } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import { CalendarX } from "lucide-react"
 
-import {
-  AgendaDaysToShow,
-  CalendarEvent,
-  EventItem,
-  getAgendaEventsForDay,
-} from "@/components/event-calendar"
+import { AgendaDaysToShow } from "./constants"
+import { EventItem } from "./event-item"
+import type { CalendarEvent } from "./types"
+import { getAgendaEventsForDay } from "./utils"
 
 interface AgendaViewProps {
   currentDate: Date
@@ -18,70 +16,13 @@ interface AgendaViewProps {
   onEventSelect: (event: CalendarEvent) => void
 }
 
-export function AgendaView({
-  currentDate,
-  events,
-  onEventSelect,
-}: AgendaViewProps) {
-    const days = useMemo(() => {
-      return Array.from({ length: AgendaDaysToShow }, (_, i) =>
-      addDays(new Date(currentDate), i)
-    )
-  }, [currentDate])
+export function AgendaView({ currentDate, events, onEventSelect }: AgendaViewProps) {
+  const days = useMemo(() => Array.from({ length: AgendaDaysToShow }, (_, index) => addDays(currentDate, index)), [currentDate])
+  const daysWithEvents = useMemo(() => days.map((day) => ({ day, events: getAgendaEventsForDay(events, day) })).filter(({ events }) => events.length > 0), [days, events])
 
-  const handleEventClick = (event: CalendarEvent, e: React.MouseEvent) => {
-    e.stopPropagation()
-      onEventSelect(event)
+  if (daysWithEvents.length === 0) {
+    return <div className="flex min-h-[22rem] flex-col items-center justify-center px-6 text-center"><span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"><CalendarX className="h-6 w-6" /></span><h3 className="mt-4 font-semibold text-gray-900 dark:text-white">Nenhuma aula neste período</h3><p className="mt-1 max-w-xs text-sm text-gray-500 dark:text-gray-400">Navegue para outro período para consultar sua agenda.</p></div>
   }
 
-    const hasEvents = days.some(
-    (day) => getAgendaEventsForDay(events, day).length > 0
-  )
-
-  return (
-    <div className="border-border/70 border-t px-4">
-      {!hasEvents ? (
-        <div className="flex min-h-[70svh] flex-col items-center justify-center py-16 text-center">
-          <RiCalendarEventLine
-            size={32}
-            className="text-muted-foreground/50 mb-2"
-          />
-          <h3 className="text-lg font-medium">Nenhum evento encontrado</h3>
-          <p className="text-muted-foreground">
-            Não há eventos agendados para este período.
-          </p>
-        </div>
-      ) : (
-        days.map((day) => {
-          const dayEvents = getAgendaEventsForDay(events, day)
-
-          if (dayEvents.length === 0) return null
-
-          return (
-            <div
-              key={day.toString()}
-              className="border-border/70 relative my-12 border-t"
-            >
-              <span
-                className="bg-background absolute -top-3 left-0 flex h-6 items-center pe-4 text-[10px] uppercase data-today:font-medium sm:pe-4 sm:text-xs"
-                data-today={isToday(day) || undefined}
-              >
-                {format(day, "d 'de' MMM, EEEE", { locale: ptBR })}
-              </span>
-              <div className="mt-6 space-y-2">
-                {dayEvents.map((event) => (
-                  <EventItem
-                    key={event.id}
-                    event={event}
-                    view="agenda"
-                    onClick={(e) => handleEventClick(event, e)}
-                  />
-                ))}
-              </div>
-            </div>
-          )
-        })
-      )}
-    </div>
-  )
+  return <div className="divide-y divide-gray-200/75 dark:divide-white/[0.065]">{daysWithEvents.map(({ day, events: dayEvents }) => <section key={day.toISOString()} className="grid gap-3 px-4 py-5 sm:grid-cols-[7rem_minmax(0,1fr)] sm:px-5"><div className="flex items-baseline gap-2 sm:block"><span className={isToday(day) ? "text-2xl font-extrabold tabular-nums text-primary" : "text-2xl font-extrabold tabular-nums text-gray-900 dark:text-white"}>{format(day, "d")}</span><div><h3 className="text-sm font-semibold capitalize text-gray-900 dark:text-white">{isToday(day) ? "Hoje" : format(day, "EEEE", { locale: ptBR })}</h3><p className="text-xs capitalize text-gray-500 dark:text-gray-400">{format(day, "MMMM", { locale: ptBR })}</p></div></div><div className="divide-y divide-gray-200/65 dark:divide-white/[0.055]">{dayEvents.map((event) => <EventItem key={event.id} event={event} view="agenda" onClick={() => onEventSelect(event)} className="rounded-none" />)}</div></section>)}</div>
 }

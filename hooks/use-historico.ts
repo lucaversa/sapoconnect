@@ -2,6 +2,7 @@
 
 import { useApiQuery } from './use-api-query';
 import { queryKeys } from '@/lib/query-keys';
+import { QUERY_STALE_TIME } from '@/lib/query-policy';
 
 export interface Disciplina {
   nome: string;
@@ -25,11 +26,13 @@ export interface Periodo {
 
 export interface HistoricoResponse {
   periodos?: Periodo[];
+  __cacheStale?: boolean;
 }
 
 export function useHistorico() {
   return useApiQuery<HistoricoResponse>(
     queryKeys.historico(),
-    '/api/historico'
+    '/api/historico',
+    { staleTime: QUERY_STALE_TIME.historico }
   );
 }

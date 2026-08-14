@@ -1,294 +1,180 @@
-'use client';
+"use client"
 
-import { useState } from 'react';
-import { Calendar as CalendarIcon, RefreshCw, Sun, CalendarDays, Download, ArrowUpRight } from 'lucide-react';
-import {
-  format,
-  formatDistanceToNow,
-  isAfter,
-  isSameDay,
-} from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { toast } from 'sonner';
-import {
-  EventCalendar,
-  EventViewDialog,
-  CalendarEvent,
-} from '@/components/event-calendar';
-import { HorarioResponse } from '@/types/calendario';
-import { aulasToCalendarEvents } from '@/lib/event-calendar-adapter';
-import { exportCalendarioToPDF } from '@/lib/calendar-export';
-import { PageLoading } from '@/components/page-loading';
-import { PullToRefresh } from '@/components/pull-to-refresh';
-import { ApiError } from '@/components/api-error';
-import { EmptyState } from '@/components/empty-state';
-import { useHorario } from '@/hooks/use-horario';
-import { useUserInfo } from '@/hooks/use-user-info';
-import { isTotvsOfflineError } from '@/lib/api-response-error';
-import { motion, type Variants } from 'framer-motion';
+import dynamic from "next/dynamic"
+import { useState } from "react"
+import { Calendar as CalendarIcon, CalendarDays, Download, RefreshCw, Sun } from "lucide-react"
+import { format, formatDistanceToNow, isAfter } from "date-fns"
+import { ptBR } from "date-fns/locale"
+import { toast } from "sonner"
 
-const pageVariants: Variants = {
-  hidden: { opacity: 0, y: 6 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1], when: 'beforeChildren', staggerChildren: 0.04 },
-  },
-};
+import { ApiError } from "@/components/api-error"
+import { EmptyState } from "@/components/empty-state"
+import { PageLoading } from "@/components/page-loading"
+import { PullToRefresh } from "@/components/pull-to-refresh"
+import { TotvsOfflineBanner } from "@/components/totvs-offline-banner"
+import { PageTransition, Stagger, StaggerItem } from "@/components/ui/app-motion"
+import { Button } from "@/components/ui/button"
+import { MetricCard } from "@/components/ui/metric-card"
+import { PageHeading } from "@/components/ui/page-heading"
+import type { CalendarEvent } from "@/components/event-calendar/types"
+import { useHorario } from "@/hooks/use-horario"
+import { useUserInfo } from "@/hooks/use-user-info"
+import { isTotvsOfflineError } from "@/lib/api-response-error"
+import { exportCalendarioToPDF } from "@/lib/calendar-export"
+import { aulasToCalendarEvents } from "@/lib/event-calendar-adapter"
 
-const sectionVariants: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } },
-};
+const EventCalendar = dynamic(
+  () => import("@/components/event-calendar/event-calendar").then((module) => module.EventCalendar),
+  { ssr: false, loading: () => <div className="content-surface h-80 animate-pulse motion-reduce:animate-none" /> },
+)
+
+const EventViewDialog = dynamic(
+  () => import("@/components/event-calendar/event-view-dialog").then((module) => module.EventViewDialog),
+  { ssr: false },
+)
 
 export default function CalendarioPage() {
-  const { data, error, isLoading, isFetching, refetch, dataUpdatedAt } = useHorario();
-  const { ra } = useUserInfo();
-  const [isExporting, setIsExporting] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
+  const { data, error, isLoading, isFetching, fetchStatus, refetch, dataUpdatedAt } = useHorario()
+  const { ra } = useUserInfo()
+  const [isExporting, setIsExporting] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
+  const [isEventDialogOpen, setIsEventDialogOpen] = useState(false)
 
   const handleRefresh = async () => {
-    const toastId = toast.loading('Atualizando...', { id: 'refresh-calendar' });
+    const toastId = toast.loading("Atualizando...", { id: "refresh-calendar" })
     try {
-      const result = await refetch();
-      if (result.error) {
-        throw result.error;
+      const result = await refetch()
+      if (result.error) throw result.error
+      toast.success("Atualizado com sucesso!", { id: toastId })
+    } catch (refreshError) {
+      if (isTotvsOfflineError(refreshError)) {
+        toast.error("Sistema da TOTVS possivelmente fora do ar.", { id: toastId })
+        return
       }
-      toast.success('Atualizado com sucesso!', { id: toastId });
-    } catch (err) {
-      if (isTotvsOfflineError(err)) {
-        toast.error('Sistema da TOTVS possivelmente fora do ar.', { id: toastId });
-        return;
-      }
-      toast.error('Erro ao atualizar. Tente novamente.', { id: toastId });
+      toast.error("Erro ao atualizar. Tente novamente.", { id: toastId })
     }
-  };
+  }
 
   const handleExportPDF = async () => {
-    if (!data?.aulas || data.aulas.length === 0) {
-      toast.error('Não há aulas para exportar.');
-      return;
+    if (!data?.aulas?.length) {
+      toast.error("Não há aulas para exportar.")
+      return
     }
-
-    setIsExporting(true);
-    const toastId = toast.loading('Gerando PDF...');
-
+    setIsExporting(true)
+    const toastId = toast.loading("Gerando PDF...")
     try {
-      await exportCalendarioToPDF(data.aulas, ra);
-      toast.success('PDF gerado com sucesso!', { id: toastId });
-    } catch (err) {
-      console.error('Erro ao exportar PDF:', err);
-      toast.error('Erro ao gerar PDF. Tente novamente.', { id: toastId });
+      await exportCalendarioToPDF(data.aulas, ra)
+      toast.success("PDF gerado com sucesso!", { id: toastId })
+    } catch {
+      toast.error("Erro ao gerar PDF. Tente novamente.", { id: toastId })
     } finally {
-      setIsExporting(false);
+      setIsExporting(false)
     }
-  };
-
-  function encontrarProximaAula(): CalendarEvent | null {
-    if (!data?.aulas) return null;
-    const eventos = aulasToCalendarEvents(data.aulas);
-    const agora = new Date();
-    const aulasFuturas = eventos.filter((evento) => isAfter(new Date(evento.start), agora));
-    return aulasFuturas[0] || null;
   }
 
-  function encontrarProximoSabado(): CalendarEvent | null {
-    if (!data?.aulas) return null;
-    const eventos = aulasToCalendarEvents(data.aulas);
-    const agora = new Date();
-    const sabadosFuturos = eventos.filter((evento) => {
-      const eventDate = new Date(evento.start);
-      return isAfter(eventDate, agora) && eventDate.getDay() === 6;
-    });
-    return sabadosFuturos[0] || null;
+  const encontrarProximaAula = (): CalendarEvent | null => {
+    if (!data?.aulas) return null
+    const agora = new Date()
+    return aulasToCalendarEvents(data.aulas).find((evento) => isAfter(new Date(evento.start), agora)) ?? null
   }
 
-  if (isLoading) {
-    return <PageLoading message="Carregando calendário..." />;
+  const encontrarProximoSabado = (): CalendarEvent | null => {
+    if (!data?.aulas) return null
+    const agora = new Date()
+    return aulasToCalendarEvents(data.aulas).find((evento) => {
+      const eventDate = new Date(evento.start)
+      return isAfter(eventDate, agora) && eventDate.getDay() === 6
+    }) ?? null
   }
 
-  if (error && !data) {
-    return <ApiError error={error} retry={() => refetch()} />;
+  if (isLoading && fetchStatus === "paused") {
+    return (
+      <EmptyState
+        title="Sem dados salvos"
+        description="Conecte-se uma vez e abra este módulo para disponibilizá-lo offline."
+        icon="calendar"
+        retry={() => void refetch()}
+      />
+    )
   }
+  if (isLoading) return <PageLoading message="Carregando calendário..." />
+  if (error && !data) return <ApiError error={error} retry={() => refetch()} />
+  if (!data?.aulas?.length) return <EmptyState title="Nenhum horário encontrado" description="Não há aulas cadastradas para exibir." icon="calendar" retry={() => refetch()} />
 
-  if (!data?.aulas?.length) {
-    return <EmptyState title="Nenhum horário encontrado" description="Não há aulas cadastradas para exibir." icon="calendar" retry={() => refetch()} />;
-  }
-
-  const eventos = aulasToCalendarEvents(data.aulas);
-  const proximaAula = encontrarProximaAula();
-  const proximoSabado = encontrarProximoSabado();
-  const aulasHojeCount = eventos.filter((evento) =>
-    isSameDay(new Date(evento.start), new Date())
-  ).length;
+  const eventos = aulasToCalendarEvents(data.aulas)
+  const proximaAula = encontrarProximaAula()
+  const proximoSabado = encontrarProximoSabado()
   const lastUpdatedLabel = dataUpdatedAt
     ? formatDistanceToNow(new Date(dataUpdatedAt), { addSuffix: true, locale: ptBR })
-    : null;
+    : null
 
   return (
-    <motion.div
-      className="p-4 sm:p-6 space-y-6"
-      variants={pageVariants}
-      initial="hidden"
-      animate="show"
-    >
-      {/* Header */}
-      <motion.div variants={sectionVariants} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-              Horários
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Visualize sua grade horária e próximas atividades
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-              {lastUpdatedLabel && (
-                <span className="inline-flex items-center gap-1">
-                  Atualizado {lastUpdatedLabel}
-                  {isFetching && (
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
-                  )}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex w-full items-center gap-2 sm:w-auto">
-            <button
-              onClick={handleExportPDF}
-              disabled={isExporting || isLoading || !data?.aulas?.length}
-              className="flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-emerald-600 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition-colors hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400 disabled:shadow-none dark:border-emerald-500 dark:bg-emerald-500 dark:text-gray-950 dark:hover:bg-emerald-400 dark:focus-visible:ring-offset-gray-900 dark:disabled:border-gray-800 dark:disabled:bg-gray-800 dark:disabled:text-gray-500 sm:flex-none"
-              aria-label="Exportar PDF"
-              title="Exportar horário para PDF"
-            >
-              <Download className={`w-4 h-4 ${isExporting ? 'animate-pulse' : ''}`} />
-              <span className="truncate">{isExporting ? 'Gerando PDF...' : 'Exportar horário em PDF'}</span>
-            </button>
-            <button
-              onClick={handleRefresh}
-              disabled={isFetching}
-              className="hidden sm:flex items-center justify-center w-10 h-10 text-gray-500 border border-gray-200 rounded-lg dark:border-gray-800 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-              aria-label="Atualizar"
-            >
-              <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
+    <PageTransition className="app-page">
+      {(error && data) || data.__cacheStale || fetchStatus === "paused" ? (
+        <TotvsOfflineBanner updatedAt={data.__cacheStale ? undefined : dataUpdatedAt} onRetry={() => void refetch()} />
+      ) : null}
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-          {/* Próxima Aula */}
-          <button
-            type="button"
-            onClick={() => {
-              if (!proximaAula) return;
-              setSelectedEvent(proximaAula);
-              setIsEventDialogOpen(true);
-            }}
-            disabled={!proximaAula}
-            className="group h-full bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-900 disabled:cursor-default disabled:opacity-75 hover:bg-emerald-50/40 dark:hover:bg-emerald-900/10"
-            aria-label={proximaAula ? 'Abrir detalhes da próxima aula' : 'Nenhuma próxima aula'}
-          >
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                <CalendarIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Próxima Aula</p>
-                {proximaAula ? (
-                  <>
-                    <p className="font-semibold text-gray-900 dark:text-white text-sm truncate mt-0.5">
-                      {proximaAula.title}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      {format(new Date(proximaAula.start), "EEE, dd/MM 'às' HH:mm", { locale: ptBR })}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm text-gray-400 mt-0.5">Nenhuma programada</p>
-                )}
-              </div>
-              {proximaAula && (
-                <div className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600/80 dark:text-emerald-400/80">
-                  Detalhes
-                  <ArrowUpRight className="h-3 w-3" />
-                </div>
-              )}
-            </div>
-          </button>
+      <div className="flex flex-col gap-5">
+        <PageHeading
+          icon={CalendarDays}
+          title="Horários"
+          meta={lastUpdatedLabel ? <span className="inline-flex items-center gap-1.5">Atualizado {lastUpdatedLabel}{isFetching ? <RefreshCw className="size-3.5 animate-spin text-primary" /> : null}</span> : undefined}
+          actions={<>
+            <Button onClick={handleExportPDF} disabled={isExporting || isLoading || !data.aulas.length} className="min-w-0 flex-1 gap-2 sm:flex-none" aria-label="Exportar PDF" title="Exportar horário para PDF">
+              <Download className={`size-4 ${isExporting ? "animate-pulse" : ""}`} />
+              <span className="truncate">{isExporting ? "Gerando PDF..." : "Exportar PDF"}</span>
+            </Button>
+            <Button variant="outline" size="icon" onClick={handleRefresh} disabled={isFetching} aria-label="Atualizar" className="hidden sm:inline-flex">
+              <RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
+            </Button>
+          </>}
+        />
 
-          {/* Próximo Sábado Letivo */}
-          <button
-            type="button"
-            onClick={() => {
-              if (!proximoSabado) return;
-              setSelectedEvent(proximoSabado);
-              setIsEventDialogOpen(true);
-            }}
-            disabled={!proximoSabado}
-            className="group h-full bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-900 disabled:cursor-default disabled:opacity-75 hover:bg-amber-50/40 dark:hover:bg-amber-900/10"
-            aria-label={proximoSabado ? 'Abrir detalhes do próximo sábado letivo' : 'Nenhum sábado letivo programado'}
-          >
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-amber-500/20 to-orange-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Sun className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Próximo Sábado Letivo</p>
-                {proximoSabado ? (
-                  <>
-                    <p className="font-semibold text-gray-900 dark:text-white text-sm truncate mt-0.5">
-                      {proximoSabado.title}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      {format(new Date(proximoSabado.start), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm text-gray-400 mt-0.5">Nenhum programado</p>
-                )}
-              </div>
-              {proximoSabado && (
-                <div className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/80">
-                  Detalhes
-                  <ArrowUpRight className="h-3 w-3" />
-                </div>
-              )}
-            </div>
-          </button>
+        <Stagger className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <StaggerItem>
+            <MetricCard
+              icon={CalendarIcon}
+              label="Próxima aula"
+              onClick={() => {
+                if (!proximaAula) return
+                setSelectedEvent(proximaAula)
+                setIsEventDialogOpen(true)
+              }}
+              disabled={!proximaAula}
+              actionHint={proximaAula ? "Ver detalhes" : undefined}
+              value={proximaAula ? <span className="block break-words text-[15px] leading-5">{proximaAula.title}</span> : <span className="text-sm text-gray-400">Nenhuma programada</span>}
+              detail={proximaAula ? format(new Date(proximaAula.start), "EEE, dd/MM 'às' HH:mm", { locale: ptBR }) : undefined}
+            />
+          </StaggerItem>
+          <StaggerItem>
+            <MetricCard
+              icon={Sun}
+              label="Próximo sábado letivo"
+              onClick={() => {
+                if (!proximoSabado) return
+                setSelectedEvent(proximoSabado)
+                setIsEventDialogOpen(true)
+              }}
+              disabled={!proximoSabado}
+              actionHint={proximoSabado ? "Ver detalhes" : undefined}
+              value={proximoSabado ? <span className="block break-words text-[15px] leading-5">{proximoSabado.title}</span> : <span className="text-sm text-gray-400">Nenhum programado</span>}
+              detail={proximoSabado ? format(new Date(proximoSabado.start), "dd/MM 'às' HH:mm", { locale: ptBR }) : undefined}
+            />
+          </StaggerItem>
+        </Stagger>
+      </div>
 
-          {/* Aulas Hoje */}
-          <div className="h-full bg-white dark:bg-gray-800 rounded-2xl p-3 sm:p-4 border border-gray-100 dark:border-gray-700 shadow-sm">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                <CalendarDays className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-500 dark:text-gray-400">Aulas Hoje</p>
-                <p className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white mt-0.5">
-                  {aulasHojeCount}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* EventCalendar Component */}
-      <motion.div variants={sectionVariants}>
-      <EventCalendar events={eventos} initialView="week" />
-      </motion.div>
+      <EventCalendar events={eventos} initialView="week" desktopInitialView="week" />
 
       <EventViewDialog
         event={selectedEvent}
         isOpen={isEventDialogOpen}
         onClose={() => {
-          setIsEventDialogOpen(false);
-          setSelectedEvent(null);
+          setIsEventDialogOpen(false)
+          setSelectedEvent(null)
         }}
       />
       <PullToRefresh onRefresh={handleRefresh} />
-    </motion.div>
-  );
+    </PageTransition>
+  )
 }

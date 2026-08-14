@@ -4,6 +4,8 @@ import {
   parseSelecaoPeriodo,
   selecionarPeriodoMaisNovo,
 } from './contexto-parser';
+import { fetchTotvs, UpstreamTimeoutError } from './server/upstream';
+import { getOrLoad } from './server/cache';
 
 const BASE_URL =
   'https://fundacaoeducacional132827.rm.cloudtotvs.com.br';
@@ -25,10 +27,14 @@ export class TotvsContextError extends Error {
   }
 }
 
-export async function ensureTotvsContext(cookieHeader: string): Promise<void> {
+export async function ensureTotvsContext(cookieHeader: string, cacheScope?: string, force = false): Promise<void> {
+  if (cacheScope && !force) {
+    await getOrLoad(cacheScope, 'totvs-context', () => ensureTotvsContext(cookieHeader, undefined, true), { ttlMs: 30_000 });
+    return;
+  }
   let response: Response;
   try {
-    response = await fetch(CONTEXTO_URL, {
+    response = await fetchTotvs(CONTEXTO_URL, {
       method: 'GET',
       redirect: 'follow',
       headers: {
@@ -39,9 +45,9 @@ export async function ensureTotvsContext(cookieHeader: string): Promise<void> {
           'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
         Referer: `${BASE_URL}/EducaMobile/Home/Index`,
       },
-    });
-  } catch {
-    throw new TotvsContextError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
+    }, { idempotentRead: true });
+  } catch (error) {
+    throw new TotvsContextError(error instanceof UpstreamTimeoutError ? 'Tempo de espera da TOTVS esgotado.' : 'Sistema da TOTVS possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
   }
 
   if (!response.ok) {
@@ -76,7 +82,7 @@ export async function ensureTotvsContext(cookieHeader: string): Promise<void> {
       : `${BASE_URL}${periodoSelecionado.hdKeyTD}`;
 
     try {
-      response = await fetch(targetUrl, {
+      response = await fetchTotvs(targetUrl, {
         method: 'GET',
         redirect: 'follow',
         headers: {
@@ -87,9 +93,9 @@ export async function ensureTotvsContext(cookieHeader: string): Promise<void> {
             'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
           Referer: `${BASE_URL}/EducaMobile/Home/Index`,
         },
-      });
-    } catch {
-      throw new TotvsContextError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
+      }, { idempotentRead: true });
+    } catch (error) {
+      throw new TotvsContextError(error instanceof UpstreamTimeoutError ? 'Tempo de espera da TOTVS esgotado.' : 'Sistema da TOTVS possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
     }
   } else {
     const targetUrl = selecao.formAction.startsWith('http')
@@ -99,7 +105,7 @@ export async function ensureTotvsContext(cookieHeader: string): Promise<void> {
     const body = buildPeriodoSelectionBody(periodoSelecionado);
 
     try {
-      response = await fetch(targetUrl, {
+      response = await fetchTotvs(targetUrl, {
         method: 'POST',
         redirect: 'follow',
         headers: {
@@ -112,9 +118,9 @@ export async function ensureTotvsContext(cookieHeader: string): Promise<void> {
           Referer: CONTEXTO_URL,
         },
         body,
-      });
-    } catch {
-      throw new TotvsContextError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
+      }, { idempotentRead: false });
+    } catch (error) {
+      throw new TotvsContextError(error instanceof UpstreamTimeoutError ? 'Tempo de espera da TOTVS esgotado.' : 'Sistema da TOTVS possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
     }
   }
 

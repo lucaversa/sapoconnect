@@ -50,10 +50,15 @@ O aplicativo oficial EduConnect sofre com problemas de performance e estabilidad
 
 ### Cache de Dados e Resiliência
 
-- React Query com persistência local (`localStorage`) via hydrate/dehydrate.
-- Cache mantido por até 24h (gcTime) para fallback offline.
-- Ao abrir uma tela, dados em cache aparecem imediatamente; o refetch em background mostra "Atualizando dados..." e "Atualizado há ...".
-- Se a TOTVS estiver fora do ar (5xx/503), a UI exibe banner de indisponibilidade e mantém o cache.
+- React Query com persistência em IndexedDB, isolada por um identificador opaco de usuário (`cacheScope`).
+- Consultas acadêmicas concluídas com sucesso são persistidas em até 750 ms e mantidas até o logout explícito, uma migração incompatível ou a limpeza do armazenamento pelo navegador/sistema operacional.
+- Um indicador offline separado guarda somente RA e `cacheScope`, sem expiração artificial; senha, token e cookies de sessão não fazem parte desse registro.
+- Ao abrir uma tela já visitada, os dados persistidos aparecem imediatamente e a atualização acontece em segundo plano.
+- Se a TOTVS ou a internet estiver indisponível, a UI mantém o último snapshot válido e informa que ele pode estar desatualizado.
+- Se um módulo nunca tiver sido carregado com sucesso, a tela exibe "Sem dados salvos" em vez de permanecer em carregamento infinito.
+- O logout explícito remove o cache do usuário atual. Uma indisponibilidade temporária da sessão não apaga o snapshot persistido.
+- O app solicita o modo persistente da Storage API e registra um Service Worker que mantém o shell, as rotas acadêmicas e os assets estáticos disponíveis para reabertura offline.
+- Safari e o Web App instalado no iOS podem usar contêineres de armazenamento separados. Cada contexto mantém o próprio snapshot depois de ser aberto online; sincronização entre navegadores ou dispositivos exigiria armazenamento no servidor.
 - Se a resposta vier vazia onde deveria ter conteúdo (ex.: horários), tratamos como `SESSION_EXPIRED` para forçar reautenticação.
 
 ## Engenharia Reversa
@@ -68,8 +73,8 @@ O aplicativo foi desenvolvido analisando o tráfego de rede do aplicativo móvel
 
 ### Criptografia
 - Credenciais de login (RA e senha) são criptografadas usando AES-256-GCM antes de serem armazenadas
-- Chave de criptografia derivada de `SESSION_ENCRYPTION_KEY` (variável de ambiente)
-- Em produção, **defina** `SESSION_ENCRYPTION_KEY` ou as credenciais usarão uma chave padrão (menos seguro)
+- Chave de criptografia derivada de `SESSION_ENCRYPTION_KEY` ou do keyring `SESSION_ENCRYPTION_KEYS`
+- O servidor falha de forma segura quando nenhuma chave válida está configurada; não existe chave padrão em produção
 
 ### Sem Banco de Dados
 - Nenhum dado persistido em servidor
@@ -170,9 +175,21 @@ Os endpoints TOTVS retornam HTML, não JSON. Cada endpoint tem um parser especí
 ## Variáveis de Ambiente
 
 ```env
-SESSION_ENCRYPTION_KEY=sua-chave-secreta-aqui-32-bytes
+SESSION_ENCRYPTION_KEY=<64-caracteres-hexadecimais-gerados-com-seguranca>
+ALLOW_INSECURE_SESSION_KEY=false
+TOTVS_TIMEOUT_MS=12000
 NODE_ENV=production
 ```
+
+Na Vercel, configure `SESSION_ENCRYPTION_KEY` nos ambientes Production, Preview e
+Development antes de publicar. Gere a chave com:
+
+```bash
+node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Ao trocar a chave, mantenha a anterior conforme as opções documentadas em
+`.env.example` para não invalidar imediatamente as sessões existentes.
 
 ## Instalação
 

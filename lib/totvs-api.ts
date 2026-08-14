@@ -1,7 +1,10 @@
-import { getExternalCookies } from '@/lib/session';
+import { getSession } from '@/lib/session';
 import { formatCookiesForRequest } from '@/lib/external-auth';
-import { NextResponse } from 'next/server';
+import type { NextResponse } from 'next/server';
 import { ensureTotvsContext, TotvsContextError } from '@/lib/totvs-context';
+import { getOrLoad } from '@/lib/server/cache';
+import { privateJson } from '@/lib/server/http';
+import { fetchTotvs, isTransientUpstreamError, UpstreamTimeoutError } from '@/lib/server/upstream';
 
 const BASE_URL =
   'https://fundacaoeducacional132827.rm.cloudtotvs.com.br';
@@ -35,11 +38,33 @@ function isExternalLoginResponse(response: Response, _html: string): boolean {
 
 export async function fetchTOTVS(
   path: string,
-  logPrefix = '[TOTVS API]'
+  _logPrefix = '[TOTVS API]'
 ): Promise<string> {
-  const externalCookies = await getExternalCookies();
+  return (await fetchTOTVSResult(path, _logPrefix)).html;
+}
 
-  if (!externalCookies) {
+async function fetchTOTVSResult(
+  path: string,
+  _logPrefix = '[TOTVS API]'
+): Promise<{ html: string; cache: 'hit' | 'miss' | 'stale' }> {
+  const scope = (await getSession())?.cacheScope;
+  if (!scope) return { html: await fetchTOTVSUncached(path, _logPrefix), cache: 'miss' };
+  const result = await getOrLoad(scope, `html:${path}`, () => fetchTOTVSUncached(path, _logPrefix), {
+    ttlMs: 45_000,
+    staleMs: 120_000,
+    canServeStale: isTransientUpstreamError,
+  });
+  return { html: result.value, cache: result.cache };
+}
+
+async function fetchTOTVSUncached(
+  path: string,
+  _logPrefix = '[TOTVS API]'
+): Promise<string> {
+  const session = await getSession();
+  const externalCookies = session?.externalCookies;
+
+  if (!session || !externalCookies) {
     throw new HTTPError('Sessão não encontrada. Faça login novamente.', 401, 'SESSION_MISSING');
   }
 
@@ -47,7 +72,7 @@ export async function fetchTOTVS(
   const url = `${BASE_URL}${path}`;
 
   try {
-    await ensureTotvsContext(cookieHeader);
+    await ensureTotvsContext(cookieHeader, session.cacheScope);
   } catch (error) {
     if (error instanceof TotvsContextError) {
       throw new HTTPError(error.message, error.status, error.code);
@@ -57,7 +82,7 @@ export async function fetchTOTVS(
 
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await fetchTotvs(url, {
       method: 'GET',
       redirect: 'follow',
       headers: {
@@ -68,9 +93,9 @@ export async function fetchTOTVS(
           'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
         Referer: `${BASE_URL}/EducaMobile/Home/Index`,
       },
-    });
-  } catch {
-    throw new HTTPError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
+    }, { idempotentRead: true });
+  } catch (error) {
+    throw new HTTPError(error instanceof UpstreamTimeoutError ? 'Tempo de espera da TOTVS esgotado.' : 'Sistema da TOTVS possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
   }
 
   if (!response.ok) {
@@ -91,7 +116,7 @@ export async function fetchTOTVS(
 
   if (html.includes('Object moved') && html.includes('GetContextoAluno')) {
     try {
-      await ensureTotvsContext(cookieHeader);
+      await ensureTotvsContext(cookieHeader, session.cacheScope, true);
     } catch (error) {
       if (error instanceof TotvsContextError) {
         throw new HTTPError(error.message, error.status, error.code);
@@ -100,7 +125,7 @@ export async function fetchTOTVS(
     }
 
     try {
-      response = await fetch(url, {
+      response = await fetchTotvs(url, {
         method: 'GET',
         redirect: 'follow',
         headers: {
@@ -110,9 +135,9 @@ export async function fetchTOTVS(
             'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
           Referer: `${BASE_URL}/EducaMobile/Home/Index`,
         },
-      });
-    } catch {
-      throw new HTTPError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
+      }, { idempotentRead: true });
+    } catch (error) {
+      throw new HTTPError(error instanceof UpstreamTimeoutError ? 'Tempo de espera da TOTVS esgotado.' : 'Sistema da TOTVS possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
     }
 
     html = await response.text();
@@ -134,19 +159,22 @@ export async function fetchTOTVSResponse<T>(
   }
 ): Promise<NextResponse> {
   try {
-    const html = await fetchTOTVS(path, logPrefix);
+    const { html, cache } = await fetchTOTVSResult(path, logPrefix);
     const data = processor(html);
     options?.validate?.(data, html);
-    return NextResponse.json(data);
+    return privateJson(
+      data,
+      cache === 'stale' ? { headers: { 'X-SapoConnect-Cache': 'stale' } } : undefined
+    );
   } catch (error) {
     if (error instanceof HTTPError) {
-      return NextResponse.json(
+      return privateJson(
         { error: error.message, code: error.debugCode },
         { status: error.statusCode }
       );
     }
 
-    return NextResponse.json(
+      return privateJson(
       { error: 'Erro ao buscar dados', code: 'INTERNAL_ERROR' },
       { status: 500 }
     );

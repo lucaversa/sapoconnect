@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,17 +17,18 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { saveCredentials } from '@/lib/storage';
-import { forceCheckSession } from '@/lib/auth-client';
-import { AlertCircle, Loader2, Shield, Github, Lock, Code, GraduationCap, Server, ExternalLink } from 'lucide-react';
+import { markReconnectCookieConfirmed } from '@/lib/storage';
+import { getLoginFailureView, type LoginFailureView } from '@/lib/login-error';
+import { AlertCircle, Loader2, Shield, Lock, Code, GraduationCap, Server, ExternalLink } from 'lucide-react';
 
 export function LoginForm() {
   const router = useRouter();
   const [codUsuario, setCodUsuario] = useState('');
   const [senha, setSenha] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LoginFailureView | null>(null);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const reducedMotion = useReducedMotion();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,18 +42,25 @@ export function LoginForm() {
         body: JSON.stringify({ codUsuario, senha }),
       });
 
-      const data = await response.json();
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        code?: string;
+        reconnectStorage?: 'httpOnly';
+        migrationConfirmed?: boolean;
+        cacheScope?: string;
+      };
 
       if (!response.ok) {
-        throw new Error(data.error || 'Erro ao fazer login');
+        setError(getLoginFailureView(data.code, data.error));
+        return;
       }
 
-      await saveCredentials({ codUsuario, senha });
-      // Atualiza o estado da sessão no client para remover o banner de sessão expirada.
-      void forceCheckSession();
-      router.push('/app/calendario');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+      if (data.reconnectStorage === 'httpOnly' || data.migrationConfirmed) {
+        void markReconnectCookieConfirmed(data.cacheScope);
+      }
+      router.replace('/app/calendario');
+    } catch {
+      setError(getLoginFailureView('NETWORK_ERROR'));
     } finally {
       setIsLoading(false);
     }
@@ -59,28 +68,32 @@ export function LoginForm() {
 
   return (
     <>
-      <Card className="shadow-theme-lg border-0">
-        <CardContent className="p-5 sm:p-8">
-          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-5">
+      <Card className="academic-panel overflow-visible rounded-[1.75rem]">
+        <CardContent className="p-5 sm:p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <AnimatePresence initial={false}>
             {error && (
-              <div className="animate-in slide-in-from-top-2 duration-300">
-                <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50">
+              <motion.div initial={reducedMotion ? false : { opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}>
+                <div
+                  className="flex items-start gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50"
+                  role="alert"
+                  aria-live="polite"
+                >
                   <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 space-y-2">
                     <div>
                       <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                        Não foi possível fazer login
+                        {error.title}
                       </p>
                       <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        Verifique seu RA e senha e tente novamente.
+                        {error.message}
                       </p>
                     </div>
-                    <div className="pt-2 border-t border-red-200 dark:border-red-900/50">
+                    {error.showPortalLink ? <div className="pt-2 border-t border-red-200 dark:border-red-900/50">
                       <p className="text-xs text-red-700 dark:text-red-300 flex items-start gap-1.5">
                         <Server className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
                         <span>
-                          Se o problema persistir, o sistema da faculdade (EduConnect) pode estar fora do ar.
-                          Tente acessar o{' '}
+                          Confira também o{' '}
                           <a
                             href="https://fundacaoeducacional132827.rm.cloudtotvs.com.br"
                             target="_blank"
@@ -90,17 +103,18 @@ export function LoginForm() {
                             portal oficial
                             <ExternalLink className="h-3 w-3" />
                           </a>
-                          {' '}para verificar.
+                          .
                         </span>
                       </p>
-                    </div>
+                    </div> : null}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )}
+            </AnimatePresence>
 
-            <div className="space-y-1 sm:space-y-2 animate-in fade-in slide-in-from-top-2 duration-300 delay-100">
-              <Label htmlFor="codUsuario" className="text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-medium">
+            <motion.div initial={reducedMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reducedMotion ? 0 : 0.12 }} className="space-y-2">
+              <Label htmlFor="codUsuario" className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
                 RA
               </Label>
               <Input
@@ -111,12 +125,14 @@ export function LoginForm() {
                 onChange={(e) => setCodUsuario(e.target.value)}
                 required
                 disabled={isLoading}
-                className="h-9 sm:h-11 text-sm border-gray-200 dark:border-gray-700 focus:border-primary focus:ring-primary/20 transition-all duration-200"
+                autoComplete="username"
+                inputMode="numeric"
+                className="h-12"
               />
-            </div>
+            </motion.div>
 
-            <div className="space-y-1 sm:space-y-2 animate-in fade-in slide-in-from-top-2 duration-300 delay-200">
-              <Label htmlFor="senha" className="text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-medium">
+            <motion.div initial={reducedMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reducedMotion ? 0 : 0.18 }} className="space-y-2">
+              <Label htmlFor="senha" className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">
                 Senha (EduConnect)
               </Label>
               <Input
@@ -127,14 +143,15 @@ export function LoginForm() {
                 onChange={(e) => setSenha(e.target.value)}
                 required
                 disabled={isLoading}
-                className="h-9 sm:h-11 text-sm border-gray-200 dark:border-gray-700 focus:border-primary focus:ring-primary/20 transition-all duration-200"
+                autoComplete="current-password"
+                className="h-12"
               />
-            </div>
+            </motion.div>
 
-            <div className="!mt-6 sm:!mt-5">
+            <div className="!mt-6">
               <Button
                 type="submit"
-                className="w-full h-9 sm:h-11 text-xs sm:text-sm font-semibold shadow-theme-sm hover:shadow-theme-md transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 animate-in fade-in slide-in-from-top-2 duration-300 delay-300"
+                className="h-12 w-full rounded-2xl text-sm font-extrabold"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -155,79 +172,58 @@ export function LoginForm() {
       <button
         type="button"
         onClick={() => setIsSecurityModalOpen(true)}
-        className="mt-5 sm:mt-4 w-full flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary transition-colors duration-200 animate-in fade-in slide-in-from-top-2 duration-500 delay-400"
+        className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl text-sm font-bold text-gray-600 transition-colors hover:bg-primary/5 hover:text-primary dark:text-gray-300 dark:hover:text-primary"
       >
         <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         Isso é seguro?
       </button>
 
       <Dialog open={isSecurityModalOpen} onOpenChange={setIsSecurityModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
-              <Shield className="h-5 w-5 text-primary" />
-              Segurança e Privacidade
+              <span className="icon-orb size-9"><Shield className="size-[18px]" /></span>
+              Segurança e privacidade
             </DialogTitle>
-            <DialogDescription className="sr-only"></DialogDescription>
+            <DialogDescription>Como o SapoConnect protege o acesso e renova sua sessão.</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 mt-2">
-            <div className="flex gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <Lock className="h-5 w-5 text-primary" />
+          <div className="no-scrollbar mt-1 max-h-[66dvh] space-y-3 overflow-y-auto pr-0.5">
+            <section className="rounded-[1.2rem] border border-primary/15 bg-primary/[0.055] p-4 dark:bg-primary/[0.07]">
+              <div className="flex items-start gap-3">
+                <span className="icon-orb size-9"><Lock className="size-[18px]" /></span>
+                <div className="min-w-0">
+                  <h4 className="text-sm font-extrabold text-gray-950 dark:text-white">
+                  Reconexão protegida e sem banco de senhas
+                  </h4>
+                  <div className="mt-2 space-y-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                    <p><strong className="text-gray-800 dark:text-gray-100">Não existe banco de credenciais.</strong> A reconexão usa um cookie criptografado e HttpOnly, que o JavaScript da interface não consegue ler.</p>
+                    <p>Esse cookie só participa da autenticação para renovar o acesso quando a sessão da TOTVS expira.</p>
+                    <p>Instalações antigas podem manter uma cópia criptografada no IndexedDB do navegador por até 7 dias durante a migração. Depois disso, ela é apagada.</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                  Seus dados ficam com você
-                </h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  <strong>Não existe banco de dados</strong>. Suas credenciais são criptografadas e armazenadas apenas no seu dispositivo. Todas as requisições são feitas diretamente pela API oficial do sistema da faculdade.
-                </p>
-              </div>
-            </div>
+            </section>
 
-            <div className="flex gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <Code className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                  Projeto Open Source
-                </h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Este é um projeto de código aberto. Qualquer pessoa pode verificar e auditar o código-fonte para garantir a segurança.
-                </p>
-                <a
-                  href="https://github.com/lucaversa/sapoconnect"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 mt-2 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
-                >
-                  <Github className="h-4 w-4" />
-                  Ver no GitHub
+            <div className="grid gap-3 sm:grid-cols-2">
+              <section className="rounded-[1.1rem] border border-white/80 bg-white/55 p-4 dark:border-white/[0.08] dark:bg-white/[0.035]">
+                <Code className="size-5 text-primary" aria-hidden="true" />
+                <h4 className="mt-3 text-sm font-extrabold text-gray-950 dark:text-white">Código aberto</h4>
+                <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">O projeto pode ser verificado e auditado por qualquer pessoa.</p>
+                <a href="https://github.com/lucaversa/sapoconnect" target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary/80">
+                  Ver no GitHub <ExternalLink className="size-3.5" aria-hidden="true" />
                 </a>
-              </div>
+              </section>
+              <section className="rounded-[1.1rem] border border-white/80 bg-white/55 p-4 dark:border-white/[0.08] dark:bg-white/[0.035]">
+                <GraduationCap className="size-5 text-primary" aria-hidden="true" />
+                <h4 className="mt-3 text-sm font-extrabold text-gray-950 dark:text-white">De aluno para aluno</h4>
+                <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">Criado para tornar notas, faltas e horários mais claros no celular.</p>
+              </section>
             </div>
 
-            <div className="flex gap-3">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <GraduationCap className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                  Feito por alunos, para alunos
-                </h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Desenvolvido por estudantes para facilitar a navegação de notas, faltas e horários de forma mais intuitiva e moderna.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                <strong className="text-gray-600 dark:text-gray-300">Importante:</strong> Este aplicativo não substitui o portal oficial da faculdade. Solicitações, financeiro e demais requerimentos devem ser tratados diretamente pelo portal da instituição.
-              </p>
-            </div>
+            <p className="rounded-2xl border border-gray-200/75 bg-gray-950/[0.025] px-4 py-3 text-center text-xs leading-5 text-gray-500 dark:border-white/[0.07] dark:bg-white/[0.025] dark:text-gray-400">
+              <strong className="text-gray-700 dark:text-gray-200">Importante:</strong> solicitações, financeiro e requerimentos continuam no portal oficial da instituição.
+            </p>
           </div>
         </DialogContent>
       </Dialog>

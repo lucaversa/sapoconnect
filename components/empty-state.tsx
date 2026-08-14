@@ -1,6 +1,7 @@
 'use client';
 
 import { FileSearch, CalendarDays, ClipboardList, BookOpen, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface EmptyStateProps {
   title: string;
@@ -21,11 +22,11 @@ export function EmptyState({ title, description, icon = 'search', retry }: Empty
 
   return (
     <div className="flex items-center justify-center p-8">
-      <div className="text-center max-w-md">
-        <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Icon className="w-8 h-8 text-gray-400" />
+      <div className="academic-panel w-full max-w-md p-6 text-center sm:p-8">
+        <div className="icon-orb mx-auto mb-4 size-16">
+          <Icon className="size-7" />
         </div>
-        <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+        <h3 className="mb-2 text-lg font-extrabold tracking-[-0.03em] text-gray-900 dark:text-white">
           {title}
         </h3>
         {description && (
@@ -34,13 +35,10 @@ export function EmptyState({ title, description, icon = 'search', retry }: Empty
           </p>
         )}
         {retry && (
-          <button
-            onClick={retry}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
-          >
+          <Button onClick={retry} className="gap-2">
             <RefreshCw className="w-4 h-4" />
             Tentar novamente
-          </button>
+          </Button>
         )}
       </div>
     </div>

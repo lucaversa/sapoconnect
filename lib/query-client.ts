@@ -1,24 +1,26 @@
 import { QueryClient } from '@tanstack/react-query';
 import { SessionExpiredError } from './fetch-client';
 import { ApiResponseError } from './api-response-error';
+import { QUERY_GC_TIME } from './query-policy';
+
+function shouldRetry(failureCount: number, error: unknown): boolean {
+  if (error instanceof SessionExpiredError || error instanceof ApiResponseError) return false;
+  if (error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')) {
+    return false;
+  }
+  return failureCount < 1;
+}
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 2 * 60 * 1000,      // 2 min - reduzido para tentar novamente mais rápido
-      gcTime: 7 * 24 * 60 * 60 * 1000,
-      retry: (failureCount, error) => {
-        // Não retry em 401 (sessão expirada)
-        if (error instanceof SessionExpiredError) return false;
-        if (error instanceof ApiResponseError && error.code === 'TOTVS_OFFLINE') return false;
-        // Em erros de rede, tenta até 3 vezes
-        if (error instanceof Error && error.message.includes('fetch')) return failureCount < 3;
-        return failureCount < 2;
-      },
+      staleTime: 5 * 60 * 1_000,
+      gcTime: QUERY_GC_TIME,
+      retry: shouldRetry,
+      refetchOnMount: true,
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
-      // Quando há erro, remove do cache mais rápido
-      throwOnError: () => false,
+      throwOnError: false,
     },
   },
 });

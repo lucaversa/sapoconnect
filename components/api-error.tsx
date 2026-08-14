@@ -4,6 +4,7 @@ import { XCircle, AlertCircle, WifiOff, FileSearch, LogIn, RefreshCw } from 'luc
 import { useRouter } from 'next/navigation';
 import { isSessionExpiredError } from '@/lib/fetch-client';
 import { ApiResponseError } from '@/lib/api-response-error';
+import { Button } from '@/components/ui/button';
 
 type ErrorType = 'network' | 'session' | 'server' | 'notFound' | 'offline';
 
@@ -69,13 +70,13 @@ export function ApiError({ type, error, message, retry }: ApiErrorProps) {
 
   return (
     <div className="flex items-center justify-center p-8">
-      <div className="text-center max-w-md">
-        <Icon
-          className={`w-12 h-12 mx-auto mb-4 ${
+      <div className="academic-panel w-full max-w-md p-6 text-center sm:p-8">
+        <span className="icon-orb mx-auto mb-4 size-16"><Icon
+          className={`size-7 ${
             detectedType === 'session' ? 'text-amber-500' : 'text-red-500'
           }`}
-        />
-        <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+        /></span>
+        <h3 className="mb-2 text-lg font-extrabold tracking-[-0.03em] text-gray-900 dark:text-white">
           {config.title}
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
@@ -84,31 +85,22 @@ export function ApiError({ type, error, message, retry }: ApiErrorProps) {
 
         {detectedType === 'session' ? (
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <button
-              onClick={handleLogin}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors w-full sm:w-auto"
-            >
+            <Button onClick={handleLogin} className="w-full gap-2 sm:w-auto">
               <LogIn className="w-4 h-4" />
               Fazer login
-            </button>
+            </Button>
             {retry && (
-              <button
-                onClick={retry}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-xl text-sm font-medium transition-colors w-full sm:w-auto"
-              >
+              <Button variant="outline" onClick={retry} className="w-full gap-2 sm:w-auto">
                 <RefreshCw className="w-4 h-4" />
                 Tentar novamente
-              </button>
+              </Button>
             )}
           </div>
         ) : retry ? (
-          <button
-            onClick={retry}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
-          >
+          <Button onClick={retry} className="gap-2">
             <RefreshCw className="w-4 h-4" />
             Tentar novamente
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>

@@ -80,7 +80,7 @@ function parseHistoricoHTML(html: string): { periodos: Periodo[] } {
   // Agora extrair as disciplinas de cada período
   const itemRegex = /<li data-icon="false">[\s\S]*?<\/li>/g;
   let itemMatch;
-  let periodoIndex = 0;
+  const periodoIndex = 0;
   let dividerCursor = 0;
 
   while ((itemMatch = itemRegex.exec(listContent)) !== null) {

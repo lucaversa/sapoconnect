@@ -4,16 +4,21 @@
  * Cliente deve limpar credenciais locais se necessário
  */
 
-import { NextResponse } from 'next/server';
 import { destroySession } from '@/lib/session';
+import { privateJson } from '@/lib/server/http';
+import { guardSameOriginRequest, RequestGuardError } from '@/lib/server/request-guard';
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
+    guardSameOriginRequest(request);
     await destroySession();
 
-    return NextResponse.json({ ok: true });
+    return privateJson({ ok: true });
   } catch (error) {
-    return NextResponse.json(
+    if (error instanceof RequestGuardError) {
+      return privateJson({ error: error.message, code: error.code }, { status: error.status });
+    }
+    return privateJson(
       { error: 'Erro ao fazer logout' },
       { status: 500 }
     );

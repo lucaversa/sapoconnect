@@ -1,4 +1,5 @@
 import setCookieParser from 'set-cookie-parser';
+import { fetchTotvs } from './server/upstream';
 
 const EXTERNAL_LOGIN_URL =
   'https://fundacaoeducacional132827.rm.cloudtotvs.com.br/EducaMobile/Account/LoginExternoApp';
@@ -17,6 +18,17 @@ export interface ExternalCookies {
   eduTipoUser?: string;
   redirectUrlContexto?: string;
   [key: string]: string | undefined;
+}
+
+export class ExternalAuthError extends Error {
+  constructor(
+    message: string,
+    public readonly code: 'INVALID_CREDENTIALS' | 'TOTVS_OFFLINE',
+    public readonly status: 401 | 503
+  ) {
+    super(message);
+    this.name = 'ExternalAuthError';
+  }
 }
 
 export async function performExternalLogin(
@@ -44,7 +56,7 @@ export async function performExternalLogin(
     CodInstituicao: COD_INSTITUICAO,
   });
 
-  const response = await fetch(EXTERNAL_LOGIN_URL, {
+  const response = await fetchTotvs(EXTERNAL_LOGIN_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -52,17 +64,19 @@ export async function performExternalLogin(
     },
     body: formData.toString(),
     redirect: 'manual',
-  });
+  }, { idempotentRead: false });
 
   if (!response.ok && response.status !== 302) {
-    const responseText = await response.text().catch(() => 'Unable to read response');
-    throw new Error(`External login failed with status ${response.status}: ${responseText.substring(0, 200)}`);
+    if (response.status >= 500) {
+      throw new ExternalAuthError('Sistema da TOTVS possivelmente fora do ar.', 'TOTVS_OFFLINE', 503);
+    }
+    throw new ExternalAuthError('Credenciais inválidas.', 'INVALID_CREDENTIALS', 401);
   }
 
   const cookies = extractCookiesFromResponse(response);
 
   if (!cookies.aspNetSessionId || !cookies.aspxAuth) {
-    throw new Error('Failed to extract session cookies from external login');
+    throw new ExternalAuthError('Credenciais inválidas.', 'INVALID_CREDENTIALS', 401);
   }
 
   return cookies;

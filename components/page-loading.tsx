@@ -15,12 +15,12 @@ export function PageLoading({
   minHeight = '400px',
 }: PageLoadingProps) {
   return (
-    <div className="flex items-center justify-center" style={{ minHeight }}>
-      <div className="text-center">
-        {icon || <Loader2 className="h-10 w-10 animate-spin text-emerald-500 mx-auto mb-4" />}
-        <p className="text-gray-600 dark:text-gray-400 font-medium">{message}</p>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-          Buscando informações no EduConnect
+    <div className="flex items-center justify-center px-4" style={{ minHeight }}>
+      <div className="liquid-panel w-full max-w-sm rounded-[1.75rem] p-7 text-center" role="status" aria-live="polite">
+        <span className="icon-orb mx-auto mb-4 size-14">{icon || <Loader2 className="size-6 animate-spin" />}</span>
+        <p className="font-extrabold tracking-[-0.02em] text-gray-900 dark:text-white">{message}</p>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          Sincronizando com o EduConnect
         </p>
       </div>
     </div>

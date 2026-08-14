@@ -18,24 +18,18 @@ import { toast } from 'sonner';
 import { PageLoading } from '@/components/page-loading';
 import { PullToRefresh } from '@/components/pull-to-refresh';
 import { ApiError } from '@/components/api-error';
+import { TotvsOfflineBanner } from '@/components/totvs-offline-banner';
 import { EmptyState } from '@/components/empty-state';
 import { ResultadoAvaliacoes, useAvaliacoesCompleto } from '@/hooks/use-avaliacoes';
 import { isTotvsOfflineError } from '@/lib/api-response-error';
-import { AnimatePresence, motion, type Variants } from 'framer-motion';
+import { PageTransition, Stagger, StaggerItem } from '@/components/ui/app-motion';
+import { Button } from '@/components/ui/button';
+import { MetricCard } from '@/components/ui/metric-card';
+import { PageHeading } from '@/components/ui/page-heading';
+import { AcademicPanel } from '@/components/ui/academic-panel';
+import { calculateEvaluationLaunchProgress, isSpecialEvaluation } from '@/lib/evaluation-progress';
 
 const TOTAL_PONTOS = 100;
-const pageVariants: Variants = {
-  hidden: { opacity: 0, y: 6 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1], when: 'beforeChildren', staggerChildren: 0.04 },
-  },
-};
-const sectionVariants: Variants = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] } },
-};
 
 function parseNumber(value?: string): number | null {
   if (value === undefined || value === null) return null;
@@ -83,13 +77,12 @@ function isAvaliacaoDeResumo(categoriaNome: string, avaliacaoNome: string): bool
     || normalized.includes('media final');
 }
 
-function isAvaliacaoEspecial(categoriaNome: string, avaliacaoNome: string): boolean {
-  const normalized = `${normalizeText(categoriaNome)} ${normalizeText(avaliacaoNome)}`;
-  return normalized.includes('especial');
+function hasNotaLancada(nota?: string): boolean {
+  return parseNumber(nota) !== null;
 }
 
 export default function AvaliacoesPage() {
-  const { data: disciplinasData, error, isLoading, isFetching, refetch, dataUpdatedAt } = useAvaliacoesCompleto();
+  const { data: disciplinasData, error, isLoading, isFetching, fetchStatus, refetch, dataUpdatedAt } = useAvaliacoesCompleto();
 
   const handleRefresh = async () => {
     const toastId = toast.loading('Atualizando...', { id: 'refresh-avaliacoes' });
@@ -154,52 +147,48 @@ export default function AvaliacoesPage() {
     }
   }
 
-  function getCategoriaGradient(categoria: string) {
+function getCategoriaStyle(categoria: string) {
     switch (categoria) {
       case 'Avaliação Parcial':
       case 'Nota Parcial':
         return {
-          bg: 'bg-gradient-to-br from-blue-500/20 to-indigo-500/20',
-          text: 'text-blue-600 dark:text-blue-400',
-          border: 'border-blue-500/20'
+          bg: 'bg-emerald-500/10',
+          text: 'text-emerald-700 dark:text-emerald-300',
+          border: 'border-emerald-500/20'
         };
       case 'Avaliação Somativa':
       case 'Nota Somativa':
         return {
-          bg: 'bg-gradient-to-br from-purple-500/20 to-pink-500/20',
-          text: 'text-purple-600 dark:text-purple-400',
-          border: 'border-purple-500/20'
+          bg: 'bg-emerald-500/10',
+          text: 'text-emerald-700 dark:text-emerald-300',
+          border: 'border-emerald-500/20'
         };
       case 'Avaliação Formativa':
       case 'Nota Formativa':
         return {
-          bg: 'bg-gradient-to-br from-amber-500/20 to-orange-500/20',
+          bg: 'bg-gray-100 dark:bg-gray-800',
           text: 'text-amber-600 dark:text-amber-400',
           border: 'border-amber-500/20'
         };
       case 'Exame Especial':
         return {
-          bg: 'bg-gradient-to-br from-red-500/20 to-rose-500/20',
+          bg: 'bg-red-500/10',
           text: 'text-red-600 dark:text-red-400',
           border: 'border-red-500/20'
         };
       case 'Nota Final':
         return {
-          bg: 'bg-gradient-to-br from-emerald-500/20 to-teal-500/20',
+          bg: 'bg-emerald-500/10',
           text: 'text-emerald-600 dark:text-emerald-400',
           border: 'border-emerald-500/20'
         };
       default:
         return {
-          bg: 'bg-gradient-to-br from-gray-500/20 to-slate-500/20',
+          bg: 'bg-gray-100 dark:bg-gray-800',
           text: 'text-gray-600 dark:text-gray-400',
           border: 'border-gray-500/20'
         };
     }
-  }
-
-  function hasNotaLancada(nota?: string): boolean {
-    return parseNumber(nota) !== null;
   }
 
   function hasNotasPendentes(resultado: ResultadoAvaliacoes): boolean {
@@ -224,7 +213,7 @@ export default function AvaliacoesPage() {
         const nota = parseNumber(avaliacao.nota);
         const valor = parseNumber(avaliacao.valor);
 
-        if (nota !== null && isAvaliacaoEspecial(categoria.nome, avaliacao.nome)) {
+        if (nota !== null && isSpecialEvaluation(categoria.nome, avaliacao.nome)) {
           notasEspeciais.push(nota);
           return;
         }
@@ -253,7 +242,7 @@ export default function AvaliacoesPage() {
       return total + categoria.avaliacoes.reduce((subtotal, avaliacao) => {
         const nota = parseNumber(avaliacao.nota);
         const valor = parseNumber(avaliacao.valor);
-        const isEspecial = isAvaliacaoEspecial(categoria.nome, avaliacao.nome);
+        const isEspecial = isSpecialEvaluation(categoria.nome, avaliacao.nome);
 
         if (nota !== null) {
           if (isEspecial) {
@@ -304,24 +293,11 @@ export default function AvaliacoesPage() {
   const mediaGeralLancada = aproveitamentosLancados.length > 0
     ? aproveitamentosLancados.reduce((total, aproveitamento) => total + aproveitamento, 0) / aproveitamentosLancados.length
     : 0;
-  const totalAvaliacoes = disciplinasComResultado.reduce(
-    (total, disciplina) => total + (disciplina.resultado?.categorias.reduce(
-      (categoriaTotal, categoria) => {
-        return categoriaTotal + categoria.avaliacoes.length;
-      },
-      0
-    ) ?? 0),
-    0
+  const launchProgress = calculateEvaluationLaunchProgress(
+    disciplinasComResultado.flatMap((disciplina) => disciplina.resultado?.categorias ?? [])
   );
-  const avaliacoesLancadas = disciplinasComResultado.reduce(
-    (total, disciplina) => total + (disciplina.resultado?.categorias.reduce(
-      (categoriaTotal, categoria) => {
-        return categoriaTotal + categoria.avaliacoes.filter((avaliacao) => hasNotaLancada(avaliacao.nota)).length;
-      },
-      0
-    ) ?? 0),
-    0
-  );
+  const totalAvaliacoes = launchProgress.total;
+  const avaliacoesLancadas = launchProgress.launched;
   const statusCounts = disciplinasComResultado.reduce(
     (counts, disciplina) => {
       if (!disciplina.resultado) return counts;
@@ -331,7 +307,7 @@ export default function AvaliacoesPage() {
     },
     { aprovado: 0, pendente: 0, reprovado: 0 }
   );
-  const progressoLancamentos = totalAvaliacoes > 0 ? (avaliacoesLancadas / totalAvaliacoes) * 100 : 0;
+  const progressoLancamentos = launchProgress.percentage;
   const metricas = [
     {
       label: 'Média geral',
@@ -348,9 +324,9 @@ export default function AvaliacoesPage() {
       value: `${avaliacoesLancadas}/${totalAvaliacoes}`,
       detail: `${formatNumber(progressoLancamentos, 0)}% preenchido`,
       icon: Layers,
-      color: 'text-blue-600 dark:text-blue-400',
-      bar: 'bg-blue-500',
-      bg: 'bg-blue-500/10',
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bar: 'bg-emerald-500',
+      bg: 'bg-emerald-500/10',
       progress: progressoLancamentos,
     },
     {
@@ -358,12 +334,23 @@ export default function AvaliacoesPage() {
       value: `${statusCounts.aprovado}/${disciplinasComResultado.length}`,
       detail: `${statusCounts.pendente} pendentes`,
       icon: CheckCircle,
-      color: 'text-teal-600 dark:text-teal-400',
-      bar: 'bg-teal-500',
-      bg: 'bg-teal-500/10',
+      color: 'text-emerald-600 dark:text-emerald-400',
+      bar: 'bg-emerald-500',
+      bg: 'bg-emerald-500/10',
       progress: disciplinasComResultado.length > 0 ? (statusCounts.aprovado / disciplinasComResultado.length) * 100 : 0,
     },
   ];
+  if (isLoading && fetchStatus === 'paused') {
+    return (
+      <EmptyState
+        title="Sem dados salvos"
+        description="Conecte-se uma vez e abra este módulo para disponibilizá-lo offline."
+        icon="clipboard"
+        retry={() => void refetch()}
+      />
+    );
+  }
+
   if (isLoading) {
     return <PageLoading message="Carregando avaliações..." />;
   }
@@ -377,80 +364,30 @@ export default function AvaliacoesPage() {
   }
 
   return (
-    <motion.div
-      className="p-4 sm:p-6 space-y-6"
-      variants={pageVariants}
-      initial="hidden"
-      animate="show"
-    >
-      {/* Header */}
-      <motion.div variants={sectionVariants} className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-            Avaliações
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Visualize suas notas por disciplina
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-            {lastUpdatedLabel && (
-              <span className="inline-flex items-center gap-1">
-                Atualizado {lastUpdatedLabel}
-                {isFetching && (
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
-                )}
-              </span>
-            )}
-          </div>
-        </div>
-        <button
-          onClick={handleRefresh}
-          disabled={isFetching}
-          className="hidden sm:flex items-center justify-center w-10 h-10 text-gray-500 border border-gray-200 rounded-lg dark:border-gray-800 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-          aria-label="Atualizar"
-        >
-          <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-        </button>
-      </motion.div>
+    <PageTransition className="app-page">
+      {(error && disciplinasData) || disciplinasData?.__cacheStale || fetchStatus === 'paused' ? (
+        <TotvsOfflineBanner updatedAt={disciplinasData?.__cacheStale ? undefined : dataUpdatedAt} onRetry={() => void refetch()} />
+      ) : null}
+      <PageHeading
+        icon={GraduationCap}
+        title="Avaliações"
+        meta={lastUpdatedLabel ? <span className="inline-flex items-center gap-1.5">Atualizado {lastUpdatedLabel}{isFetching ? <RefreshCw className="size-3.5 animate-spin text-primary" /> : null}</span> : undefined}
+        actions={<Button variant="outline" size="icon" onClick={handleRefresh} disabled={isFetching} aria-label="Atualizar" className="hidden sm:inline-flex"><RefreshCw className={`size-4 ${isFetching ? 'animate-spin' : ''}`} /></Button>}
+        desktopActionsOnly
+      />
 
-      <motion.div variants={sectionVariants} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <Stagger className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
         {metricas.map((metrica) => {
-          const Icon = metrica.icon;
-
           return (
-            <div
-              key={metrica.label}
-              className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-4"
-            >
-              <div className="flex items-start gap-3">
-                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${metrica.bg}`}>
-                  <Icon className={`h-4 w-4 ${metrica.color}`} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs text-gray-500 dark:text-gray-400">{metrica.label}</p>
-                  <p className="mt-0.5 truncate text-lg font-bold text-gray-900 dark:text-white">
-                    {metrica.value}
-                  </p>
-                  <p className="mt-0.5 truncate text-[11px] text-gray-500 dark:text-gray-400">
-                    {metrica.detail}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
-                <motion.div
-                  className={`h-full rounded-full ${metrica.bar}`}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(Math.max(metrica.progress, 0), 100)}%` }}
-                  transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
-                />
-              </div>
-            </div>
+            <StaggerItem key={metrica.label}>
+              <MetricCard compact icon={metrica.icon} label={metrica.label} value={metrica.value} detail={metrica.detail} progress={metrica.progress} progressClassName={metrica.bar} />
+            </StaggerItem>
           );
         })}
-      </motion.div>
+      </Stagger>
 
       {/* Lista de Disciplinas */}
-      <motion.div variants={sectionVariants} className="space-y-3">
+      <section aria-label="Disciplinas" className="academic-stack">
         {disciplinasOrdenadas.map((disciplina) => {
           const resultado = disciplina.resultado;
           const status = resultado
@@ -481,96 +418,61 @@ export default function AvaliacoesPage() {
           const isExpanded = expandedCodigo === disciplina.codigo;
 
           return (
-            <div
+            <AcademicPanel
               key={disciplina.codigo}
-              className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 overflow-hidden shadow-sm"
+              expanded={isExpanded}
             >
               {/* Header da Disciplina */}
               <button
+                type="button"
                 onClick={() => toggleDisciplina(disciplina.codigo)}
-                className="w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                className="w-full min-h-16 p-4 text-left transition-colors motion-reduce:transition-none hover:bg-gray-50/80 dark:hover:bg-white/[0.025] sm:px-5"
+                aria-expanded={isExpanded}
+                aria-controls={`avaliacoes-${disciplina.codigo}`}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg ${currentStatus
-                      ? `${currentStatus.bg} ${currentStatus.border} border`
-                      : 'bg-gradient-to-br from-purple-500 to-pink-600 shadow-purple-500/20'
-                      }`}>
-                      {currentStatus && somatorioDisciplina !== undefined ? (
-                        <span className={`text-sm font-bold leading-none sm:text-base ${currentStatus.color}`}>
-                          {formatNumber(somatorioDisciplina)}
-                        </span>
-                      ) : (
-                        <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                      )}
-                    </div>
-                    <div className="text-left min-w-0">
-                      <h3 className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base truncate">
-                        {disciplina.nome}
-                      </h3>
-                    </div>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-bold leading-snug text-gray-950 dark:text-white sm:text-base">
+                      {disciplina.nome}
+                    </h3>
+                    {status ? (
+                      <p className={`mt-1 text-xs font-semibold ${currentStatus?.color}`}>
+                        {status === 'aprovado' ? 'Na média' : status === 'pendente' ? 'Com notas pendentes' : 'Abaixo da média'}
+                      </p>
+                    ) : null}
                   </div>
-
-                  <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                    <ChevronDown
-                      className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''
-                        }`}
-                    />
+                  <div className="flex shrink-0 items-center gap-3">
+                    {somatorioDisciplina !== undefined ? (
+                      <div className="text-right">
+                        <p className={`text-2xl font-extrabold leading-none tabular-nums ${currentStatus?.color || 'text-gray-900 dark:text-white'}`}>
+                          {formatNumber(somatorioDisciplina)}
+                        </p>
+                        <p className="mt-1 text-[10px] font-medium text-gray-400">pontos</p>
+                      </div>
+                    ) : <GraduationCap className="size-5 text-primary" />}
+                    <ChevronDown className={`size-5 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                   </div>
                 </div>
 
                 {resumoPontos && (
-                  <div className="mt-3 pl-0 sm:pl-[60px]">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
-                      <span className="inline-flex items-center gap-1">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                        Lançado {formatNumber(resumoPontos.lancados)}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <span className="h-2 w-2 rounded-full bg-amber-500" />
-                        Necessário {formatNumber(resumoPontos.necessario)}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <span className="h-2 w-2 rounded-full bg-gray-300 dark:bg-gray-600" />
-                        Pendente {formatNumber(resumoPontos.pendenteTotal)}
-                      </span>
+                  <div className="mt-4">
+                    <div className="mb-2 flex items-center justify-between gap-3 text-[11px] text-gray-500 dark:text-gray-400">
+                      <span><strong className="font-semibold text-emerald-600 dark:text-emerald-400">{formatNumber(resumoPontos.lancados)}</strong> lançados</span>
+                      <span className="text-right"><strong className="font-semibold text-amber-600 dark:text-amber-400">{formatNumber(resumoPontos.necessario)}</strong> necessários · {formatNumber(resumoPontos.pendenteTotal)} pendentes</span>
                     </div>
-                    <div className="mt-2 flex h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
-                      <motion.div
-                        className="h-full bg-emerald-500"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${resumoPontos.lancadosPct}%` }}
-                        transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-                      />
-                      <motion.div
-                        className="h-full bg-amber-500"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${resumoPontos.necessarioPct}%` }}
-                        transition={{ duration: 0.65, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
-                      />
-                      <motion.div
-                        className="h-full bg-gray-300 dark:bg-gray-600"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${resumoPontos.pendenteLivrePct}%` }}
-                        transition={{ duration: 0.65, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
-                      />
+                    <div className="flex h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                      <div className="h-full bg-emerald-500 transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${resumoPontos.lancadosPct}%` }} />
+                      <div className="h-full bg-amber-500 transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${resumoPontos.necessarioPct}%` }} />
+                      <div className="h-full bg-gray-300 transition-[width] duration-300 motion-reduce:transition-none dark:bg-gray-600" style={{ width: `${resumoPontos.pendenteLivrePct}%` }} />
                     </div>
                   </div>
                 )}
               </button>
 
               {/* Conteúdo Expandido */}
-              <AnimatePresence initial={false}>
-                {isExpanded && (
-                  <motion.div
-                    key={`avaliacoes-${disciplina.codigo}`}
-                    initial={{ height: 0, opacity: 0, y: -4 }}
-                    animate={{ height: 'auto', opacity: 1, y: 0 }}
-                    exit={{ height: 0, opacity: 0, y: -4 }}
-                    transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-                    className="overflow-hidden"
-                  >
-                    <div className="border-t border-gray-100 dark:border-gray-700">
+              {isExpanded && (
+                  <div id={`avaliacoes-${disciplina.codigo}`} className="detail-reveal overflow-hidden motion-reduce:transition-none">
+                    <div className="academic-panel-body">
                   {disciplina.error && (!resultado || resultado.categorias.length === 0) ? (
                     <div className="p-4 text-center">
                       <p className="text-sm text-red-600 dark:text-red-400">
@@ -584,43 +486,25 @@ export default function AvaliacoesPage() {
                       </button>
                     </div>
                   ) : resultado && resultado.categorias.length > 0 ? (
-                    <div className="p-4 space-y-4">
-                      {/* Somatorio das notas lancadas */}
+                    <div className="px-4 sm:px-5">
                       {resumoPontos && (
-                        <div className={`flex items-center justify-between p-4 rounded-xl border ${currentStatus ? `${currentStatus.bg} ${currentStatus.border}` : 'bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700'
-                          }`}>
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${currentStatus ? currentStatus.bg : 'bg-gray-100 dark:bg-gray-800'
-                              }`}>
-                              <GraduationCap className={`w-5 h-5 ${currentStatus?.color || 'text-gray-600 dark:text-gray-400'}`} />
-                            </div>
-                            <div>
-                              <p className={`text-sm font-medium ${currentStatus?.color || 'text-gray-900 dark:text-white'}`}>
-                                Somatório das notas lançadas
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                Média para aprovação: {resultado.mediaParaAprovacao} pts
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className={`text-2xl font-bold ${currentStatus?.color || 'text-gray-900 dark:text-white'}`}>
-                              {formatNumber(resumoPontos.lancados)}
-                            </p>
-                          </div>
+                        <div className="grid grid-cols-3 divide-x divide-gray-200/75 border-b border-gray-200/75 py-4 text-center dark:divide-white/[0.065] dark:border-white/[0.065]">
+                          <div className="px-2"><strong className={`block text-xl font-extrabold tabular-nums ${currentStatus?.color || 'text-gray-900 dark:text-white'}`}>{formatNumber(resumoPontos.lancados)}</strong><span className="text-[11px] text-gray-500 dark:text-gray-400">Total lançado</span></div>
+                          <div className="px-2"><strong className="block text-xl font-extrabold tabular-nums text-gray-900 dark:text-white">{resultado.mediaParaAprovacao}</strong><span className="text-[11px] text-gray-500 dark:text-gray-400">Meta</span></div>
+                          <div className="px-2"><strong className="block text-xl font-extrabold tabular-nums text-gray-900 dark:text-white">{formatNumber(resumoPontos.pendenteTotal)}</strong><span className="text-[11px] text-gray-500 dark:text-gray-400">Em aberto</span></div>
                         </div>
                       )}
 
                       {/* Categorias */}
-                      <div className="space-y-4">
+                      <div className="divide-y divide-gray-200/75 dark:divide-white/[0.065]">
                         {resultado.categorias.map((categoria) => {
                           const CatIcon = getCategoriaIcon(categoria.nome);
-                          const catStyle = getCategoriaGradient(categoria.nome);
+                          const catStyle = getCategoriaStyle(categoria.nome);
 
                           return (
-                            <div key={categoria.nome} className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4">
+                            <section key={categoria.nome} className="py-4">
                               {/* Header da Categoria */}
-                              <div className={`flex items-center justify-between px-3 py-2 mb-3 rounded-lg border ${catStyle.border} ${catStyle.bg}`}>
+                              <div className="mb-2 flex items-center justify-between gap-3">
                                 <div className="flex items-center gap-2">
                                   <CatIcon className={`w-4 h-4 ${catStyle.text}`} />
                                   <span className={`text-sm font-semibold ${catStyle.text}`}>{categoria.nome}</span>
@@ -635,11 +519,11 @@ export default function AvaliacoesPage() {
                               </div>
 
                               {/* Avaliações */}
-                              <div className="space-y-2">
+                              <div className="divide-y divide-gray-200/65 dark:divide-white/[0.055]">
                                 {categoria.avaliacoes.map((avaliacao, idx) => (
                                   <div
                                     key={idx}
-                                    className="flex items-center justify-between p-2.5 bg-white dark:bg-gray-800 rounded-lg"
+                                    className="flex items-center justify-between py-3"
                                   >
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
@@ -682,7 +566,7 @@ export default function AvaliacoesPage() {
                                   </div>
                                 ))}
                               </div>
-                            </div>
+                            </section>
                           );
                         })}
                       </div>
@@ -696,7 +580,7 @@ export default function AvaliacoesPage() {
                           : 0;
 
                         return (
-                          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-emerald-200/60 bg-emerald-50/50 px-4 py-3 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200/75 py-4 text-xs text-emerald-700 dark:border-white/[0.065] dark:text-emerald-300">
                             <span className="font-medium">
                               Necessário {formatNumber(pontosNecessarios)} pontos em {formatNumber(pontosRestantes)} restantes ({formatNumber(percentNecessario)}%)
                             </span>
@@ -717,14 +601,13 @@ export default function AvaliacoesPage() {
                     </div>
                   )}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-            </div>
+                  </div>
+                )}
+            </AcademicPanel>
           );
         })}
-      </motion.div>
+      </section>
       <PullToRefresh onRefresh={handleRefresh} />
-    </motion.div>
+    </PageTransition>
   );
 }
