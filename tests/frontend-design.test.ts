@@ -94,6 +94,16 @@ describe("frontend information architecture", () => {
     expect(pullToRefresh).toContain("closest('[data-calendar-scroll]')")
   })
 
+  it("uses an aligned 2x2 tile grid for absence metrics on phones", () => {
+    const absences = read("app/app/faltas/page.tsx")
+    const metricCard = read("components/ui/metric-card.tsx")
+
+    expect(absences).toContain('className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4"')
+    expect(absences.match(/<MetricCard tile/g)).toHaveLength(4)
+    expect(metricCard).toContain('tile ? "p-3 sm:p-4"')
+    expect(metricCard).toContain('min-h-[6.5rem] flex-col justify-between')
+  })
+
   it("uses one Liquid Glass system for mobile navigation and feedback", () => {
     const globals = read("app/globals.css")
     const sidebar = read("components/layout/AppSidebar.tsx")

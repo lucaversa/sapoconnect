@@ -383,11 +383,11 @@ export default function FaltasPage() {
         desktopActionsOnly
       />
 
-      <Stagger className="grid grid-cols-1 gap-2.5 min-[440px]:grid-cols-2 sm:gap-3 lg:grid-cols-4">
-        <StaggerItem><MetricCard compact icon={BookOpen} label="Disciplinas" value={totalDisciplinas} /></StaggerItem>
-        <StaggerItem><MetricCard compact icon={Shield} label="Seguras" value={disciplinasSeguras} /></StaggerItem>
-        <StaggerItem><MetricCard compact icon={AlertTriangle} label="Atenção" value={disciplinasAtencao} /></StaggerItem>
-        <StaggerItem><MetricCard compact icon={XCircle} label="Críticas" value={disciplinasCriticas} /></StaggerItem>
+      <Stagger className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+        <StaggerItem className="h-full"><MetricCard tile icon={BookOpen} label="Disciplinas" value={totalDisciplinas} /></StaggerItem>
+        <StaggerItem className="h-full"><MetricCard tile icon={Shield} label="Seguras" value={disciplinasSeguras} /></StaggerItem>
+        <StaggerItem className="h-full"><MetricCard tile icon={AlertTriangle} label="Atenção" value={disciplinasAtencao} /></StaggerItem>
+        <StaggerItem className="h-full"><MetricCard tile icon={XCircle} label="Críticas" value={disciplinasCriticas} /></StaggerItem>
       </Stagger>
 
       {/* Legenda */}
