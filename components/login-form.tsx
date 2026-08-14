@@ -75,7 +75,7 @@ export function LoginForm() {
             {error && (
               <motion.div initial={reducedMotion ? false : { opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}>
                 <div
-                  className="flex items-start gap-3 p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50"
+                  className="liquid-float liquid-notice liquid-notice-error flex items-start gap-3 p-4"
                   role="alert"
                   aria-live="polite"
                 >

@@ -8,7 +8,6 @@ import {
   hydrate,
   type DehydratedState,
 } from '@tanstack/react-query';
-import { Toaster } from 'sonner';
 import { useSession } from '@/lib/session-provider';
 import { queryClient } from '@/lib/query-client';
 import {
@@ -18,6 +17,7 @@ import {
 } from '@/lib/query-persist';
 import { clearQueryCache, getQueryCache, saveQueryCache } from '@/lib/storage';
 import { BrandMark } from '@/components/brand/BrandMark';
+import { AppToaster } from '@/components/app-toaster';
 import { Button } from '@/components/ui/button';
 
 const CACHE_RESTORE_TIMEOUT_MS = 1_500;
@@ -42,7 +42,7 @@ function CacheBootScreen() {
     >
       <div className="w-full max-w-xs space-y-3">
         <div className="h-3 w-24 animate-pulse rounded-full bg-gray-200 motion-reduce:animate-none dark:bg-gray-800" />
-        <div className="liquid-panel h-20 animate-pulse rounded-3xl motion-reduce:animate-none" />
+        <div className="liquid-float h-20 animate-pulse rounded-3xl motion-reduce:animate-none" />
         <span className="sr-only">Preparando seus dados</span>
       </div>
     </div>
@@ -58,7 +58,7 @@ function SessionUnavailableScreen({
 }) {
   return (
     <main className="app-shell flex min-h-[100dvh] items-center justify-center px-5">
-      <section className="liquid-panel w-full max-w-sm rounded-[1.75rem] p-6 text-center">
+      <section className="liquid-float w-full max-w-sm rounded-[1.75rem] p-6 text-center">
         <BrandMark className="mx-auto size-14" />
         <h1 className="mt-4 text-lg font-extrabold tracking-[-0.03em] text-gray-950 dark:text-white">
           Não foi possível preparar seus dados
@@ -185,7 +185,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       ) : (
         <CacheBootScreen />
       )}
-      <Toaster richColors closeButton position="top-center" />
+      <AppToaster />
     </QueryClientProvider>
   );
 }

@@ -22,7 +22,7 @@ export function EmptyState({ title, description, icon = 'search', retry }: Empty
 
   return (
     <div className="flex items-center justify-center p-8">
-      <div className="academic-panel w-full max-w-md p-6 text-center sm:p-8">
+      <div className="liquid-float w-full max-w-md rounded-[1.75rem] p-6 text-center sm:p-8">
         <div className="icon-orb mx-auto mb-4 size-16">
           <Icon className="size-7" />
         </div>

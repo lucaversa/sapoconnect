@@ -112,7 +112,7 @@ export function EventCalendar({
               <button type="button" onClick={() => setIsViewMenuOpen((open) => !open)} className="native-control flex h-11 items-center gap-1 px-3 text-sm font-bold" aria-expanded={isViewMenuOpen}>
                 {viewNames[view]} <ChevronDown className="h-4 w-4" />
               </button>
-              {isViewMenuOpen && <div className="liquid-panel absolute right-0 z-40 mt-2 w-36 rounded-2xl p-1.5">{views.map((option) => <button key={option} type="button" onClick={() => { setSelectedView(option); setIsViewMenuOpen(false) }} className={cn("flex h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold", view === option ? "bg-gray-950 text-white dark:bg-white dark:text-gray-950" : "text-gray-700 dark:text-gray-200")}>{viewNames[option]}</button>)}</div>}
+              {isViewMenuOpen && <div className="liquid-float absolute right-0 z-40 mt-2 w-36 rounded-2xl p-1.5">{views.map((option) => <button key={option} type="button" onClick={() => { setSelectedView(option); setIsViewMenuOpen(false) }} className={cn("liquid-menu-item flex h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold", view === option ? "border-white/70 bg-gray-950 text-white dark:border-white/10 dark:bg-white dark:text-gray-950" : "text-gray-700 dark:text-gray-200")}>{viewNames[option]}</button>)}</div>}
             </div>
           </div>
           <div className="mt-2 flex items-center justify-between">

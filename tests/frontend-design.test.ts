@@ -78,6 +78,28 @@ describe("frontend information architecture", () => {
     expect(pullToRefresh).toContain("Puxe para baixo para atualizar")
   })
 
+  it("uses one Liquid Glass system for mobile navigation and feedback", () => {
+    const globals = read("app/globals.css")
+    const sidebar = read("components/layout/AppSidebar.tsx")
+    const header = read("components/layout/AppHeader.tsx")
+    const pullToRefresh = read("components/pull-to-refresh.tsx")
+    const offlineBanner = read("components/totvs-offline-banner.tsx")
+    const toaster = read("components/app-toaster.tsx")
+
+    expect(globals).toContain(".liquid-float")
+    expect(globals).toContain("backdrop-filter: blur(28px) saturate(185%) contrast(1.04)")
+    expect(globals).toContain("@media (prefers-reduced-transparency: reduce)")
+    expect(globals).toContain("@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px)))")
+    expect(sidebar).toContain("liquid-float liquid-dock")
+    expect(sidebar).toContain('layoutId="mobile-nav-active"')
+    expect(header).toContain("liquid-float absolute right-4")
+    expect(pullToRefresh).toContain("liquid-float liquid-notice")
+    expect(offlineBanner).toContain("liquid-float liquid-notice liquid-notice-warning")
+    expect(toaster).toContain("toast: 'liquid-float liquid-toast'")
+    expect(toaster).toContain("mobileOffset")
+    expect(toaster).toContain("style={{ zIndex: 35 }}")
+  })
+
   it("hides manual refresh actions below the desktop breakpoint", () => {
     const pages = [
       "app/app/calendario/page.tsx",
