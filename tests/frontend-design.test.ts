@@ -33,11 +33,24 @@ describe("frontend information architecture", () => {
     const month = read("components/event-calendar/month-view.tsx")
     const day = read("components/event-calendar/day-view.tsx")
 
-    expect(week).toContain("touch-auto overflow-x-auto")
-    expect(month).toContain("touch-auto overflow-x-auto")
+    expect(week).toContain('className="calendar-scroll-viewport"')
+    expect(month).toContain('className="calendar-scroll-viewport"')
     expect(week).not.toContain("useMobileHorizontalScroll")
     expect(month).not.toContain("useMobileHorizontalScroll")
-    expect(day).toContain("overflow-visible sm:max-h-[68dvh] sm:overflow-y-auto")
+    expect(day).toContain('className="calendar-scroll-viewport"')
+  })
+
+  it("uses a compact mobile week grid and a bounded two-axis viewport", () => {
+    const globals = read("app/globals.css")
+    const week = read("components/event-calendar/week-view.tsx")
+    const month = read("components/event-calendar/month-view.tsx")
+
+    expect(globals).toContain(".calendar-scroll-viewport")
+    expect(globals).toContain("height: min(55dvh, 32rem)")
+    expect(globals).toContain("touch-action: pan-x pan-y")
+    expect(week).toContain("isCompactWeek ? 48 : WeekCellsHeight")
+    expect(week).toContain("min-w-[720px] sm:min-w-[880px]")
+    expect(month).toContain("min-h-24")
   })
 
   it("keeps agenda cards inside the mobile viewport", () => {
@@ -76,6 +89,9 @@ describe("frontend information architecture", () => {
     expect(evaluations).toContain('grid grid-cols-1 gap-2.5 sm:grid-cols-3')
     expect(evaluations).toContain("<MetricCard compact")
     expect(pullToRefresh).toContain("Puxe para baixo para atualizar")
+    expect(pullToRefresh).toContain("PULL_HINT_SEEN_KEY")
+    expect(pullToRefresh).toContain("PULL_HINT_DURATION_MS = 4_000")
+    expect(pullToRefresh).toContain("closest('[data-calendar-scroll]')")
   })
 
   it("uses one Liquid Glass system for mobile navigation and feedback", () => {

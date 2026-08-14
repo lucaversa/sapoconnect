@@ -43,7 +43,7 @@ export function DayView({ currentDate, events, onEventSelect }: DayViewProps) {
         </span>
       </header>
 
-      <div data-calendar-scroll className="overflow-visible sm:max-h-[68dvh] sm:overflow-y-auto sm:overscroll-contain">
+      <div data-calendar-scroll className="calendar-scroll-viewport">
         <div className="grid grid-cols-[4.25rem_minmax(0,1fr)]">
           <aside data-time-axis className="sticky left-0 z-20 relative border-r border-gray-200/70 bg-white dark:border-white/[0.07] dark:bg-gray-900" style={{ height: GRID_HEIGHT }} aria-label="Horários do dia">
             {hours.map((hour) => (

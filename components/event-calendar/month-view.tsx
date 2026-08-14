@@ -26,9 +26,9 @@ export function MonthView({ currentDate, events, onEventSelect }: MonthViewProps
   const weekdays = useMemo(() => days.slice(0, 7), [days])
 
   return (
-    <div data-calendar-scroll className="touch-auto overflow-x-auto overscroll-x-contain">
-      <div className="min-w-[720px]">
-        <div className="grid grid-cols-7 border-b border-gray-200/70 dark:border-white/[0.07]">
+    <div data-calendar-scroll className="calendar-scroll-viewport">
+      <div className="min-w-[680px] sm:min-w-[720px]">
+        <div className="sticky top-0 z-20 grid grid-cols-7 border-b border-gray-200/70 bg-white/90 backdrop-blur-xl dark:border-white/[0.07] dark:bg-gray-900/90">
           {weekdays.map((day) => (
             <div key={day.toISOString()} className="px-2 py-3 text-center text-[10px] font-bold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
               {format(day, "EEE", { locale: ptBR })}
@@ -41,7 +41,7 @@ export function MonthView({ currentDate, events, onEventSelect }: MonthViewProps
             const dayEvents = allDayEvents.slice(0, 3)
             const remaining = allDayEvents.length - dayEvents.length
             return (
-              <section key={day.toISOString()} className={cn("min-h-32 border-b border-r border-gray-200/65 p-1.5 dark:border-white/[0.055]", !isSameMonth(day, currentDate) && "bg-gray-100/35 text-gray-400 dark:bg-white/[0.012]") }>
+              <section key={day.toISOString()} className={cn("min-h-24 border-b border-r border-gray-200/65 p-1.5 dark:border-white/[0.055] sm:min-h-32", !isSameMonth(day, currentDate) && "bg-gray-100/35 text-gray-400 dark:bg-white/[0.012]") }>
                 <span className={cn("flex size-7 items-center justify-center rounded-xl text-xs font-bold", isToday(day) ? "bg-primary text-white shadow-[0_8px_18px_-10px_rgba(0,172,147,0.9)]" : "text-gray-700 dark:text-gray-200")}>{format(day, "d")}</span>
                 <div className="mt-1 space-y-1">
                   {dayEvents.map((event) => <div key={event.id} className="h-6"><EventItem event={event} view="month" onClick={() => onEventSelect(event)} /></div>)}
