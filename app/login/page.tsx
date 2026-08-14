@@ -1,6 +1,6 @@
 import { ArrowUpRight, CalendarDays, ShieldCheck, Wifi } from "lucide-react"
 
-import { BrandMark } from "@/components/brand/BrandMark"
+import { BrandOrbit } from "@/components/brand/BrandOrbit"
 import { LoginForm } from "@/components/login-form"
 import { PageTransition, Reveal } from "@/components/ui/app-motion"
 
@@ -47,15 +47,13 @@ export default function LoginPage() {
         </section>
 
         <Reveal delay={0.08} className="mx-auto my-auto w-full max-w-md py-4">
-          <header className="mb-6 text-center lg:text-left">
-            <div className="inline-flex items-center gap-3 lg:flex">
-              <BrandMark className="size-[4.5rem] shadow-[0_22px_46px_-24px_rgba(0,172,147,0.82)]" priority />
-              <div className="text-left">
-                <p className="text-2xl font-extrabold tracking-[-0.055em] text-gray-950 dark:text-white">Sapo<span className="text-primary">Connect</span></p>
-                <p className="mt-0.5 text-[11px] font-bold tracking-[0.09em] text-gray-500 dark:text-gray-400">de aluno para aluno</p>
-              </div>
+          <header className="mb-6 text-center">
+            <BrandOrbit compact priority />
+            <div className="-mt-1">
+              <p className="text-2xl font-extrabold tracking-[-0.055em] text-gray-950 dark:text-white">Sapo<span className="text-primary">Connect</span></p>
+              <p className="mt-0.5 text-[11px] font-bold tracking-[0.09em] text-gray-500 dark:text-gray-400">de aluno para aluno</p>
             </div>
-            <h2 className="mt-6 text-2xl font-extrabold tracking-[-0.045em] text-gray-950 dark:text-white">Acesse seu portal otimizado</h2>
+            <h2 className="mt-5 text-2xl font-extrabold tracking-[-0.045em] text-gray-950 dark:text-white">Acesse seu portal otimizado</h2>
             <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">Entre com o mesmo RA e senha do EduConnect.</p>
           </header>
 

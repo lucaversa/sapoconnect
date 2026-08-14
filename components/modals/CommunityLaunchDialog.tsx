@@ -3,17 +3,15 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import {
   Activity,
-  CalendarDays,
-  ClipboardCheck,
-  GraduationCap,
-  History,
   RefreshCw,
+  Share2,
   UsersRound,
 } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 
-import { BrandMark } from "@/components/brand/BrandMark"
+import { BrandOrbit } from "@/components/brand/BrandOrbit"
 
 const ANNOUNCEMENT_STORAGE_KEY = "sapoconnect:announcement:community-pulse-2026-08"
 const ANNOUNCEMENT_COOKIE = "sc_announcement_community_pulse_2026_08"
@@ -41,83 +39,6 @@ function rememberAnnouncement() {
 
   const secure = window.location.protocol === "https:" ? "; Secure" : ""
   document.cookie = `${ANNOUNCEMENT_COOKIE}=seen; Max-Age=${ONE_YEAR_IN_SECONDS}; Path=/; SameSite=Lax${secure}`
-}
-
-function OrbitNode({
-  icon: Icon,
-  radiusX,
-  radiusY,
-  phase,
-  tilt,
-  direction,
-  duration,
-  reducedMotion,
-}: {
-  icon: typeof Activity
-  radiusX: number
-  radiusY: number
-  phase: number
-  tilt: number
-  direction: 1 | -1
-  duration: number
-  reducedMotion: boolean | null
-}) {
-  const steps = 32
-  const tiltInRadians = tilt * (Math.PI / 180)
-  const points = Array.from({ length: steps + 1 }, (_, index) => {
-    const angle = phase + direction * ((Math.PI * 2 * index) / steps)
-    const ellipseX = Math.cos(angle) * radiusX
-    const ellipseY = Math.sin(angle) * radiusY
-
-    return {
-      x: ellipseX * Math.cos(tiltInRadians) - ellipseY * Math.sin(tiltInRadians),
-      y: ellipseX * Math.sin(tiltInRadians) + ellipseY * Math.cos(tiltInRadians),
-    }
-  })
-
-  return (
-    <motion.span
-      animate={reducedMotion
-        ? { x: points[0].x, y: points[0].y }
-        : { x: points.map((point) => point.x), y: points.map((point) => point.y) }}
-      transition={{ duration, ease: "linear", repeat: reducedMotion ? 0 : Infinity }}
-      className="absolute left-1/2 top-1/2 z-10 -ml-3.5 -mt-3.5 flex size-7 items-center justify-center rounded-[0.7rem] border border-white/65 bg-white/70 text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_22px_-12px_rgba(0,172,147,0.8)] backdrop-blur-xl dark:border-white/10 dark:bg-gray-900/75"
-    >
-      <Icon className="size-3.5" strokeWidth={1.8} />
-    </motion.span>
-  )
-}
-
-function CommunityPulseAnimation() {
-  const reducedMotion = useReducedMotion()
-
-  return (
-    <div className="relative mx-auto flex h-44 w-[17.5rem] max-w-full items-center justify-center" aria-hidden="true">
-      <div
-        data-community-orbit="outer"
-        className="absolute h-[6.75rem] w-[12.75rem] -rotate-[8deg] rounded-[50%] border border-primary/25 shadow-[inset_0_0_26px_rgba(0,172,147,0.055)]"
-      />
-      <div
-        data-community-orbit="inner"
-        className="absolute h-24 w-36 rotate-[16deg] rounded-[50%] border border-dashed border-primary/35"
-      />
-
-      <OrbitNode icon={CalendarDays} radiusX={102} radiusY={54} phase={-Math.PI / 2} tilt={-8} direction={1} duration={18} reducedMotion={reducedMotion} />
-      <OrbitNode icon={History} radiusX={102} radiusY={54} phase={Math.PI / 6} tilt={-8} direction={1} duration={18} reducedMotion={reducedMotion} />
-      <OrbitNode icon={ClipboardCheck} radiusX={102} radiusY={54} phase={(Math.PI * 5) / 6} tilt={-8} direction={1} duration={18} reducedMotion={reducedMotion} />
-      <OrbitNode icon={GraduationCap} radiusX={72} radiusY={48} phase={0} tilt={16} direction={-1} duration={12} reducedMotion={reducedMotion} />
-      <OrbitNode icon={UsersRound} radiusX={72} radiusY={48} phase={Math.PI} tilt={16} direction={-1} duration={12} reducedMotion={reducedMotion} />
-
-      <motion.div
-        initial={reducedMotion ? false : { opacity: 0, scale: 0.75, rotate: -8 }}
-        animate={{ opacity: 1, scale: 1, rotate: 0 }}
-        transition={{ type: "spring", stiffness: 260, damping: 19, delay: 0.1 }}
-        className="relative z-20 rounded-[1.35rem] border border-white/70 bg-white/45 p-2 shadow-[0_20px_45px_-18px_rgba(0,172,147,0.75)] backdrop-blur-2xl dark:border-white/10 dark:bg-white/[0.055]"
-      >
-        <BrandMark className="size-16" priority />
-      </motion.div>
-    </div>
-  )
 }
 
 const highlights = [
@@ -164,6 +85,27 @@ export function CommunityLaunchDialog() {
     setOpen(nextOpen)
   }
 
+  async function handleShare() {
+    const shareData = {
+      title: "SapoConnect",
+      text: "Um portal acadêmico otimizado, de aluno para aluno: horários, faltas, avaliações e histórico em uma experiência feita para o celular.",
+      url: window.location.origin,
+    }
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData)
+        return
+      }
+
+      await navigator.clipboard.writeText(shareData.url)
+      toast.success("Link do SapoConnect copiado!")
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return
+      toast.error("Não foi possível compartilhar agora.")
+    }
+  }
+
   return (
     <DialogPrimitive.Root open={open} onOpenChange={handleOpenChange}>
       <DialogPrimitive.Portal>
@@ -174,7 +116,7 @@ export function CommunityLaunchDialog() {
         >
           <div className="relative overflow-hidden border-b border-white/65 px-5 pb-5 pt-3 text-center dark:border-white/[0.08] sm:px-7 sm:pt-5">
             <div className="pointer-events-none absolute inset-x-0 top-0 h-44 bg-[radial-gradient(circle_at_50%_0%,rgba(0,210,178,0.24),transparent_68%)]" />
-            <CommunityPulseAnimation />
+            <BrandOrbit priority />
             <motion.div
               initial={reducedMotion ? false : { opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -217,6 +159,23 @@ export function CommunityLaunchDialog() {
                 </div>
               </motion.div>
             ))}
+
+            <motion.button
+              type="button"
+              data-community-share
+              onClick={() => void handleShare()}
+              variants={{
+                hidden: { opacity: 0, y: 10, scale: 0.985 },
+                visible: { opacity: 1, y: 0, scale: 1 },
+              }}
+              whileHover={reducedMotion ? undefined : { y: -2 }}
+              whileTap={reducedMotion ? undefined : { scale: 0.98 }}
+              transition={{ duration: reducedMotion ? 0 : 0.34, ease: [0.22, 1, 0.36, 1] }}
+              className="flex min-h-12 w-full items-center justify-center gap-2.5 rounded-[1.15rem] border border-primary/30 bg-primary/[0.12] px-4 text-sm font-extrabold text-primary-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_14px_30px_-22px_rgba(0,172,147,0.9)] backdrop-blur-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary dark:bg-primary/[0.13] dark:text-primary-300"
+            >
+              <Share2 className="size-[18px]" aria-hidden="true" />
+              Compartilhar com outros alunos
+            </motion.button>
 
             <DialogPrimitive.Close asChild>
               <motion.button
