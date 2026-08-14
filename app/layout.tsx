@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import { Plus_Jakarta_Sans } from "next/font/google"
+import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { ThemeProvider } from "@/context/ThemeContext"
 import { PwaRuntime } from "@/components/pwa-runtime"
@@ -42,6 +43,7 @@ export default function RootLayout({
           <PwaRuntime />
           {children}
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   )
