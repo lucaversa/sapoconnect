@@ -9,6 +9,7 @@ import { BrandMark } from "@/components/brand/BrandMark"
 
 const ANNOUNCEMENT_STORAGE_KEY = "sapoconnect:announcement:community-pulse-2026-08"
 const ANNOUNCEMENT_COOKIE = "sc_announcement_community_pulse_2026_08"
+const ANNOUNCEMENT_EXPIRES_AT = Date.parse("2026-08-28T18:00:00-03:00")
 const ONE_YEAR_IN_SECONDS = 60 * 60 * 24 * 365
 
 function wasAnnouncementSeen() {
@@ -103,11 +104,20 @@ export function CommunityLaunchDialog() {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
+    let expiryTimer: number | undefined
+
     const frame = window.requestAnimationFrame(() => {
-      if (!wasAnnouncementSeen()) setOpen(true)
+      const remainingTime = ANNOUNCEMENT_EXPIRES_AT - Date.now()
+      if (remainingTime <= 0 || wasAnnouncementSeen()) return
+
+      setOpen(true)
+      expiryTimer = window.setTimeout(() => setOpen(false), remainingTime)
     })
 
-    return () => window.cancelAnimationFrame(frame)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      if (expiryTimer !== undefined) window.clearTimeout(expiryTimer)
+    }
   }, [])
 
   function handleOpenChange(nextOpen: boolean) {
