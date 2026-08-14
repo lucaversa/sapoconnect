@@ -1,0 +1,61 @@
+name: Relatar problema
+description: Informe um erro reproduzível no SapoConnect.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de enviar, tente novamente e confira se o portal oficial da TOTVS está disponível. Não informe RA, senha, notas, nomes de professores ou outros dados acadêmicos pessoais.
+  - type: dropdown
+    id: module
+    attributes:
+      label: Onde aconteceu?
+      options:
+        - Horários
+        - Faltas
+        - Avaliações
+        - Histórico
+        - Login e reconexão
+        - Instalação e PWA
+        - Interface geral
+        - Outra
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para reproduzir
+      description: Liste somente as ações necessárias para o problema aparecer.
+      placeholder: |
+        1. Abri...
+        2. Toquei em...
+        3. O aplicativo mostrou...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: O que deveria acontecer?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Aparelho e navegador
+      description: Exemplo: iPhone 13, iOS 19, aplicativo instalado pela tela inicial.
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Capturas de tela
+      description: Opcional. Apague RA, nomes, notas e outras informações pessoais antes de anexar.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmações
+      options:
+        - label: Tentei novamente e verifiquei se a TOTVS estava disponível.
+          required: true
+        - label: Confirmei que esta Issue não contém RA, senha, notas ou outros dados acadêmicos pessoais.
+          required: true

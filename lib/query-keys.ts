@@ -1,5 +1,6 @@
 export const queryKeys = {
   session: ['session'] as const,
+  communityPulse: ['community', 'pulse'] as const,
   faltas: () => ['faltas'] as const,
   avaliacoesCompleto: () => ['avaliacoes', 'completo'] as const,
   calendario: () => ['calendario'] as const,

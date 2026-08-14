@@ -159,6 +159,26 @@ describe("frontend information architecture", () => {
     expect(layout).toContain("<Analytics />")
   })
 
+  it("exposes an anonymous community pulse and GitHub feedback paths", () => {
+    const about = read("components/modals/AboutDialog.tsx")
+    const pulse = read("components/community/CommunityPulse.tsx")
+    const route = read("app/api/community/pulse/route.ts")
+    const featureTemplate = read(".github/ISSUE_TEMPLATE/feature_request.yml")
+    const bugTemplate = read(".github/ISSUE_TEMPLATE/bug_report.yml")
+
+    expect(about).toContain("<CommunityPulse enabled={open} />")
+    expect(about).toContain("Criado e mantido por")
+    expect(about).toContain("Luca Versiani")
+    expect(about).toContain("feature_request.yml")
+    expect(about).toContain("bug_report.yml")
+    expect(pulse).toContain("grid grid-cols-2")
+    expect(pulse).toContain("Dados anônimos")
+    expect(route).toContain("s-maxage=21600")
+    expect(route).toContain("stale-while-revalidate=86400")
+    expect(featureTemplate).toContain("não contém RA, senha, notas")
+    expect(bugTemplate).toContain("não contém RA, senha, notas")
+  })
+
   it("does not leave a module in an endless loader when offline cache is missing", () => {
     const pages = [
       "app/app/calendario/page.tsx",
