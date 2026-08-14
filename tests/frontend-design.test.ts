@@ -168,7 +168,7 @@ describe("frontend information architecture", () => {
 
     expect(about).toContain("<CommunityPulse enabled={open} />")
     expect(about).toContain("Criado e mantido por")
-    expect(about).toContain("Luca Versiani")
+    expect(about).toContain("Luca Janini")
     expect(about).toContain("feature_request.yml")
     expect(about).toContain("bug_report.yml")
     expect(pulse).toContain("grid grid-cols-2")
@@ -177,6 +177,20 @@ describe("frontend information architecture", () => {
     expect(route).toContain("stale-while-revalidate=86400")
     expect(featureTemplate).toContain("não contém RA, senha, notas")
     expect(bugTemplate).toContain("não contém RA, senha, notas")
+  })
+
+  it("shows the redesigned community announcement only once", () => {
+    const layout = read("app/app/layout.tsx")
+    const announcement = read("components/modals/CommunityLaunchDialog.tsx")
+
+    expect(layout).toContain("<CommunityLaunchDialog />")
+    expect(announcement).toContain("sapoconnect:announcement:community-pulse-2026-08")
+    expect(announcement).toContain("O SapoConnect está sendo muito visitado")
+    expect(announcement).toContain("As funções continuam as mesmas")
+    expect(announcement).toContain("Nova área: Pulso da comunidade")
+    expect(announcement).toContain('aria-label="Fechar aviso"')
+    expect(announcement).toContain("🔝")
+    expect(announcement).not.toContain("XIcon")
   })
 
   it("does not leave a module in an endless loader when offline cache is missing", () => {

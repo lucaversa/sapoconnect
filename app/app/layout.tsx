@@ -2,6 +2,7 @@
 
 import { AppSidebar, MobileNav } from '@/components/layout/AppSidebar';
 import { AppHeader } from '@/components/layout/AppHeader';
+import { CommunityLaunchDialog } from '@/components/modals/CommunityLaunchDialog';
 import { SessionProvider } from '@/lib/session-provider';
 import { Providers } from './providers';
 
@@ -14,6 +15,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <MobileNav />
+      <CommunityLaunchDialog />
     </>
   );
 }

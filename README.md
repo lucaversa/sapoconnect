@@ -10,7 +10,7 @@ Interface alternativa para o sistema acadêmico TOTVS EduConnect, desenvolvida a
 
 ## Comunidade
 
-O SapoConnect é um projeto independente criado e mantido por Luca Versiani. O aplicativo publica somente métricas agregadas e anônimas do Web Analytics, com cache de 6 horas para evitar consumo desnecessário de infraestrutura.
+O SapoConnect é um projeto independente criado e mantido por Luca Janini. O aplicativo publica somente métricas agregadas e anônimas do Web Analytics, com cache de 6 horas para evitar consumo desnecessário de infraestrutura.
 
 - [Sugerir uma melhoria](https://github.com/lucaversa/sapoconnect/issues/new?template=feature_request.yml)
 - [Relatar um problema](https://github.com/lucaversa/sapoconnect/issues/new?template=bug_report.yml)
