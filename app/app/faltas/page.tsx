@@ -13,6 +13,7 @@ import {
   CalendarDays,
   Trash2,
   RotateCcw,
+  ChevronDown,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -241,6 +242,7 @@ function getLinhaTempoRisco(item: FaltasItem, diasRemovidos: Set<string>): Linha
 export default function FaltasPage() {
   const { data, error, isLoading, isFetching, fetchStatus, refetch, dataUpdatedAt } = useFaltas();
   const [expandedAulas, setExpandedAulas] = useState<Set<string>>(new Set());
+  const [expandedDiasSemana, setExpandedDiasSemana] = useState<Set<string>>(new Set());
   const [diasRemovidosPorDisciplina, setDiasRemovidosPorDisciplina] = useState<Record<string, string[]>>({});
 
   const handleRefresh = async () => {
@@ -359,6 +361,19 @@ export default function FaltasPage() {
         retry={() => void refetch()}
       />
     );
+  }
+
+  function toggleGrupoDiaSemana(codigo: string, grupoKey: string) {
+    const disclosureKey = `${codigo}:${grupoKey}`;
+    setExpandedDiasSemana((prev) => {
+      const next = new Set(prev);
+      if (next.has(disclosureKey)) {
+        next.delete(disclosureKey);
+      } else {
+        next.add(disclosureKey);
+      }
+      return next;
+    });
   }
 
   if (isLoading) {
@@ -598,6 +613,9 @@ export default function FaltasPage() {
                         <div className="divide-y divide-gray-200/75 dark:divide-white/[0.065]">
                           {aulasPorDiaSemana.map((grupo) => {
                             const diaKeys = grupo.dias.map((dia) => dia.key);
+                            const disclosureKey = `${item.codigo}:${grupo.key}`;
+                            const grupoExpanded = expandedDiasSemana.has(disclosureKey);
+                            const grupoPanelId = `aulas-${item.codigo}-dia-${grupo.key}`;
                             const diasRemovidosNoGrupo = grupo.dias.filter((dia) => diasRemovidos.has(dia.key)).length;
                             const grupoTodoRemovido = diasRemovidosNoGrupo === grupo.dias.length;
                             const totalHorarios = grupo.dias.reduce((total, dia) => total + dia.horarios.length, 0);
@@ -611,14 +629,26 @@ export default function FaltasPage() {
                                 className={`py-3 ${grupoTodoRemovido ? 'opacity-60' : ''}`}
                               >
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                  <div className="min-w-0">
-                                    <p className={`text-sm font-semibold ${grupoTodoRemovido ? 'text-red-700 dark:text-red-300' : 'text-gray-900 dark:text-white'}`}>
-                                      {grupo.label}
-                                    </p>
-                                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                      {grupo.dias.length} {grupo.dias.length === 1 ? 'dia' : 'dias'} de aula • {horariosAtivosNoGrupo}/{totalHorarios} aulas ativas
-                                    </p>
-                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleGrupoDiaSemana(item.codigo, grupo.key)}
+                                    className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-3 rounded-xl px-2 text-left transition-colors motion-reduce:transition-none hover:bg-gray-950/[0.035] dark:hover:bg-white/[0.035]"
+                                    aria-expanded={grupoExpanded}
+                                    aria-controls={grupoPanelId}
+                                  >
+                                    <span className="min-w-0">
+                                      <span className={`block text-sm font-semibold ${grupoTodoRemovido ? 'text-red-700 dark:text-red-300' : 'text-gray-900 dark:text-white'}`}>
+                                        {grupo.label}
+                                      </span>
+                                      <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                                        {grupo.dias.length} {grupo.dias.length === 1 ? 'dia' : 'dias'} de aula • {horariosAtivosNoGrupo}/{totalHorarios} aulas ativas
+                                      </span>
+                                    </span>
+                                    <ChevronDown
+                                      className={`size-4 shrink-0 text-gray-400 transition-transform duration-200 motion-reduce:transition-none ${grupoExpanded ? 'rotate-180' : ''}`}
+                                      aria-hidden="true"
+                                    />
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => setDiasDoGrupoRemovidos(item.codigo, diaKeys, !grupoTodoRemovido)}
@@ -642,52 +672,54 @@ export default function FaltasPage() {
                                   </button>
                                 </div>
 
-                                <div className="mt-3 divide-y divide-gray-200/65 border-t border-gray-200/65 dark:divide-white/[0.055] dark:border-white/[0.055]">
-                                  {grupo.dias.map((dia) => {
-                                    const removido = diasRemovidos.has(dia.key);
-                                    const horariosLabel = dia.horarios
-                                      .map((horario) => format(horario, 'HH:mm'))
-                                      .join(', ');
+                                {grupoExpanded ? (
+                                  <div id={grupoPanelId} className="detail-reveal mt-3 divide-y divide-gray-200/65 border-t border-gray-200/65 dark:divide-white/[0.055] dark:border-white/[0.055]">
+                                    {grupo.dias.map((dia) => {
+                                      const removido = diasRemovidos.has(dia.key);
+                                      const horariosLabel = dia.horarios
+                                        .map((horario) => format(horario, 'HH:mm'))
+                                        .join(', ');
 
-                                    return (
-                                      <div
-                                        key={dia.key}
-                                        className={`flex items-center justify-between gap-3 py-2.5 ${removido ? 'opacity-60' : ''}`}
-                                      >
-                                        <div className="min-w-0">
-                                          <p className={`text-sm font-semibold ${removido ? 'text-red-700 dark:text-red-300 line-through' : 'text-gray-900 dark:text-white'}`}>
-                                            {format(dia.date, 'dd/MM')}
-                                          </p>
-                                          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                            {dia.horarios.length} {dia.horarios.length === 1 ? 'aula' : 'aulas'}
-                                            {horariosLabel ? `: ${horariosLabel}` : ''}
-                                          </p>
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => toggleDiaRemovido(item.codigo, dia.key)}
-                                          className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition-colors motion-reduce:transition-none ${
-                                            removido
-                                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50'
-                                              : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50'
-                                          }`}
+                                      return (
+                                        <div
+                                          key={dia.key}
+                                          className={`flex items-center justify-between gap-3 py-2.5 ${removido ? 'opacity-60' : ''}`}
                                         >
-                                          {removido ? (
-                                            <>
-                                              <RotateCcw className="h-3.5 w-3.5" />
-                                              Repor dia
-                                            </>
-                                          ) : (
-                                            <>
-                                              <Trash2 className="h-3.5 w-3.5" />
-                                              Remover dia
-                                            </>
-                                          )}
-                                        </button>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
+                                          <div className="min-w-0">
+                                            <p className={`text-sm font-semibold ${removido ? 'text-red-700 dark:text-red-300 line-through' : 'text-gray-900 dark:text-white'}`}>
+                                              {format(dia.date, 'dd/MM')}
+                                            </p>
+                                            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                              {dia.horarios.length} {dia.horarios.length === 1 ? 'aula' : 'aulas'}
+                                              {horariosLabel ? `: ${horariosLabel}` : ''}
+                                            </p>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleDiaRemovido(item.codigo, dia.key)}
+                                            className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition-colors motion-reduce:transition-none ${
+                                              removido
+                                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-950/50'
+                                                : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50'
+                                            }`}
+                                          >
+                                            {removido ? (
+                                              <>
+                                                <RotateCcw className="h-3.5 w-3.5" />
+                                                Repor dia
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                                Remover dia
+                                              </>
+                                            )}
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : null}
                               </div>
                             );
                           })}
