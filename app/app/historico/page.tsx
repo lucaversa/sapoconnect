@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button';
 import { MetricCard } from '@/components/ui/metric-card';
 import { PageHeading } from '@/components/ui/page-heading';
 import { AcademicPanel } from '@/components/ui/academic-panel';
+import { AnimatedProgress } from '@/components/ui/animated-progress';
 
 function isPeriodoLetivo(nome: string): boolean {
   const clean = nome.trim();
@@ -303,12 +304,12 @@ export default function HistoricoPage() {
                   </button>
 
                   <div className="px-4 pb-3 -mt-1 sm:px-5">
-                    <div className="h-1 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
-                      <div
-                        className="h-full rounded-full bg-emerald-500 transition-[width] duration-300 motion-reduce:transition-none"
-                        style={{ width: `${periodoProgress}%` }}
-                      />
-                    </div>
+                    <AnimatedProgress
+                      value={periodoProgress}
+                      ariaLabel={`${periodo.nome}: ${Math.round(periodoProgress)}% concluído`}
+                      className="h-1 bg-gray-100 dark:bg-gray-700"
+                      indicatorClassName="bg-emerald-500"
+                    />
                   </div>
 
                   {isExpanded && (

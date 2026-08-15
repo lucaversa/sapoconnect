@@ -265,4 +265,26 @@ describe("frontend information architecture", () => {
     expect(history).toContain("{totalDisciplinasNoPeriodo} disciplinas")
     expect(history).toContain("concluidasNoPeriodo === totalDisciplinasNoPeriodo")
   })
+
+  it("animates every data progress bar with reduced-motion support", () => {
+    const animatedProgress = read("components/ui/animated-progress.tsx")
+    const metricCard = read("components/ui/metric-card.tsx")
+    const evaluations = read("app/app/avaliacoes/page.tsx")
+    const absences = read("app/app/faltas/page.tsx")
+    const history = read("app/app/historico/page.tsx")
+
+    expect(animatedProgress).toContain("useReducedMotion")
+    expect(animatedProgress).toContain("scaleX")
+    expect(animatedProgress).toContain("origin-left")
+    expect(animatedProgress).toContain('role="progressbar"')
+    expect(metricCard.match(/<AnimatedProgress/g)).toHaveLength(2)
+    expect(evaluations).toContain("<AnimatedSegmentedProgress")
+    expect(absences).toContain("<AnimatedProgress")
+    expect(history).toContain("<AnimatedProgress")
+
+    for (const source of [metricCard, evaluations, absences, history]) {
+      expect(source).not.toContain("transition-[width]")
+      expect(source).not.toContain("animate={{ width")
+    }
+  })
 })

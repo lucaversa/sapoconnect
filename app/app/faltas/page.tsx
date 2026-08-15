@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/button';
 import { MetricCard } from '@/components/ui/metric-card';
 import { PageHeading } from '@/components/ui/page-heading';
 import { AcademicPanel } from '@/components/ui/academic-panel';
+import { AnimatedProgress } from '@/components/ui/animated-progress';
 
 type FaltarRestanteInfo =
   | { status: 'insufficient' }
@@ -740,12 +741,12 @@ export default function FaltasPage() {
                             <span className="text-xs text-gray-500 dark:text-gray-400">Faltas / Limite</span>
                             <span className={`text-xs font-medium ${statusConfig.color}`}>{item.porcentagem} / {item.limiteFaltas}</span>
                           </div>
-                          <div className="h-2.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${statusConfig.barColor} transition-[width] duration-300 motion-reduce:transition-none`}
-                              style={{ width: `${progressWidth}%` }}
-                            />
-                          </div>
+                          <AnimatedProgress
+                            value={progressWidth}
+                            ariaLabel={`${item.disciplina}: ${item.porcentagem} de ${item.limiteFaltas}`}
+                            className="h-2.5 bg-gray-100 dark:bg-gray-700"
+                            indicatorClassName={statusConfig.barColor}
+                          />
                           <div className="flex justify-between mt-1">
                             <span className="text-[10px] text-gray-400">0%</span>
                             <span className="text-[10px] text-gray-400">{item.limiteFaltas}</span>

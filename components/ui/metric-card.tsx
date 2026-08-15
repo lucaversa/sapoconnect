@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from "motion/react"
 import type { LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
+import { AnimatedProgress } from "@/components/ui/animated-progress"
 import { cn } from "@/lib/utils"
 
 type MetricCardProps = {
@@ -76,14 +77,13 @@ export function MetricCard({
             </div>
             {detail ? <div className="mt-1 min-w-0 break-words text-xs leading-5 text-gray-500 [overflow-wrap:anywhere] dark:text-gray-400">{detail}</div> : null}
             {typeof progress === "number" ? (
-              <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-gray-200/70 dark:bg-white/[0.08]">
-                <motion.div
-                  initial={reduced ? false : { width: 0 }}
-                  animate={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-                  transition={{ duration: reduced ? 0 : 0.7, delay: reduced ? 0 : 0.12, ease: [0.22, 1, 0.36, 1] }}
-                  className={cn("h-full rounded-full bg-primary", progressClassName)}
-                />
-              </div>
+              <AnimatedProgress
+                value={progress}
+                ariaLabel={`${label}: ${Math.round(Math.min(100, Math.max(0, progress)))}%`}
+                className="mt-2.5 h-1.5"
+                indicatorClassName={progressClassName}
+                delay={0.12}
+              />
             ) : null}
           </div>
         </div>
@@ -110,14 +110,13 @@ export function MetricCard({
               compact ? "col-start-1 row-start-2" : "mt-1",
             )}>{detail}</div> : null}
             {typeof progress === "number" ? (
-              <div className={cn("mt-3 h-1.5 overflow-hidden rounded-full bg-gray-200/70 dark:bg-white/[0.08]", compact && "col-span-2 w-full")}>
-                <motion.div
-                  initial={reduced ? false : { width: 0 }}
-                  animate={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-                  transition={{ duration: reduced ? 0 : 0.7, delay: reduced ? 0 : 0.12, ease: [0.22, 1, 0.36, 1] }}
-                  className={cn("h-full rounded-full bg-primary", progressClassName)}
-                />
-              </div>
+              <AnimatedProgress
+                value={progress}
+                ariaLabel={`${label}: ${Math.round(Math.min(100, Math.max(0, progress)))}%`}
+                className={cn("mt-3 h-1.5", compact && "col-span-2 w-full")}
+                indicatorClassName={progressClassName}
+                delay={0.12}
+              />
             ) : null}
           </div>
         </div>
