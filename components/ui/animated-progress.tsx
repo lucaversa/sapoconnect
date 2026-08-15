@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from "motion/react"
 import { cn } from "@/lib/utils"
 
 const clampProgress = (value: number) => Math.min(100, Math.max(0, value))
+const PROGRESS_VIEWPORT = { once: true, amount: 0.6 } as const
 
 type AnimatedProgressProps = {
   value: number
@@ -38,7 +39,9 @@ export function AnimatedProgress({
     >
       <motion.div
         initial={reduced ? false : { scaleX: 0 }}
-        animate={{ scaleX: normalized / 100 }}
+        animate={reduced ? { scaleX: normalized / 100 } : undefined}
+        whileInView={reduced ? undefined : { scaleX: normalized / 100 }}
+        viewport={PROGRESS_VIEWPORT}
         transition={
           reduced
             ? { duration: 0 }
@@ -98,7 +101,9 @@ export function AnimatedSegmentedProgress({
           >
             <motion.div
               initial={reduced ? false : { scaleX: 0 }}
-              animate={{ scaleX: 1 }}
+              animate={reduced ? { scaleX: 1 } : undefined}
+              whileInView={reduced ? undefined : { scaleX: 1 }}
+              viewport={PROGRESS_VIEWPORT}
               transition={
                 reduced
                   ? { duration: 0 }
