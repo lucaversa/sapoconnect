@@ -539,7 +539,7 @@ export default function FaltasPage() {
                     <div className="mt-3">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">
-                          Risco por dia
+                          Projeção por data
                         </p>
                         {primeiroDiaCritico ? (
                           <span className="shrink-0 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-300">
@@ -553,27 +553,39 @@ export default function FaltasPage() {
                       </div>
 
                       <div className="-mx-1 overflow-x-auto px-1 pb-1">
-                        <div className="flex min-w-max gap-1.5">
+                        <ol
+                          aria-label="Linha do tempo da projeção de faltas"
+                          className="flex min-w-max items-start"
+                        >
                         {linhaTempoRisco.map((marco) => {
-                          const colorClass = marco.removido
-                            ? 'border-gray-300 text-gray-400 opacity-70 dark:border-gray-700 dark:text-gray-500'
+                          const textClass = marco.removido
+                            ? 'text-gray-400 opacity-70 dark:text-gray-500'
                             : marco.acimaLimite
-                              ? 'border-red-500 text-red-700 dark:border-red-500/80 dark:text-red-300'
-                              : 'border-emerald-500 text-emerald-700 dark:border-emerald-500/80 dark:text-emerald-300';
+                              ? 'text-red-700 dark:text-red-300'
+                              : 'text-emerald-700 dark:text-emerald-300';
+                          const railClass = marco.removido
+                            ? 'bg-gray-300 dark:bg-gray-700'
+                            : marco.acimaLimite
+                              ? 'bg-red-500 dark:bg-red-500/80'
+                              : 'bg-emerald-500 dark:bg-emerald-500/80';
 
                           return (
-                            <div
+                            <li
                               key={marco.dia.key}
-                              className={`w-[64px] shrink-0 border-t-2 px-1 py-2 text-center ${colorClass}`}
+                              className={`relative w-[68px] shrink-0 px-1 pb-2 pt-3 text-center tabular-nums ${textClass}`}
                             >
-                              <p className="text-[10px] font-bold">{format(marco.dia.date, 'dd/MM')}</p>
-                              <p className="mt-0.5 text-[9px] leading-tight">
+                              <span
+                                aria-hidden="true"
+                                className={`absolute inset-x-1 top-0 h-0.5 rounded-full ${railClass}`}
+                              />
+                              <p className="text-[10px] font-bold leading-4">{format(marco.dia.date, 'dd/MM')}</p>
+                              <p className="text-[9px] leading-4">
                                 {marco.removido ? 'removido' : formatPercent(marco.totalPercent)}
                               </p>
-                            </div>
+                            </li>
                           );
                         })}
-                        </div>
+                        </ol>
                       </div>
                     </div>
                   )}
