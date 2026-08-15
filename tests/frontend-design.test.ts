@@ -287,4 +287,13 @@ describe("frontend information architecture", () => {
       expect(source).not.toContain("animate={{ width")
     }
   })
+
+  it("renders the absence risk projection as an aligned timeline", () => {
+    const absences = read("app/app/faltas/page.tsx")
+
+    expect(absences).toContain("Projeção por data")
+    expect(absences).toContain('aria-label="Linha do tempo da projeção de faltas"')
+    expect(absences).toContain("absolute inset-x-1 top-0 h-0.5 rounded-full")
+    expect(absences).not.toContain("shrink-0 border-t-2")
+  })
 })
