@@ -93,6 +93,12 @@ describe("frontend information architecture", () => {
     expect(pullToRefresh).toContain("PULL_HINT_DURATION_MS = 4_000")
     expect(pullToRefresh).toContain("closest('[data-calendar-scroll]')")
     expect(pullToRefresh).toContain("pullDistance > 0 && !isRefreshing")
+    expect(pullToRefresh).toContain("DEFAULT_PULL_DISTANCE = 96")
+    expect(pullToRefresh).toContain("PULL_ACTIVATION_DISTANCE = 18")
+    expect(pullToRefresh).toContain("PULL_RESISTANCE = 0.72")
+    expect(pullToRefresh).toContain("VERTICAL_INTENT_RATIO = 1.35")
+    expect(pullToRefresh).toContain("'touchcancel', onTouchCancel")
+    expect(pullToRefresh).not.toContain("'touchcancel', onTouchEnd")
     expect(pullToRefresh).not.toContain("isRefreshing\n    ? 'Atualizando...'")
   })
 

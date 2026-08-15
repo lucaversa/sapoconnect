@@ -14,9 +14,13 @@ interface PullToRefreshProps {
 const PULL_HINT_SEEN_KEY = 'sapoconnect_pull_hint_seen_v1';
 const PULL_HINT_DELAY_MS = 700;
 const PULL_HINT_DURATION_MS = 4_000;
+const DEFAULT_PULL_DISTANCE = 96;
+const PULL_ACTIVATION_DISTANCE = 18;
+const PULL_RESISTANCE = 0.72;
+const VERTICAL_INTENT_RATIO = 1.35;
 let pullHintShownInMemory = false;
 
-export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefreshProps) {
+export function PullToRefresh({ minPullDistance = DEFAULT_PULL_DISTANCE, onRefresh }: PullToRefreshProps) {
   const queryClient = useQueryClient();
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -59,6 +63,12 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
       return document.documentElement.scrollTop || document.body.scrollTop || 0;
     };
 
+    const resetPullGesture = () => {
+      isPullingRef.current = false;
+      readyRef.current = false;
+      setPullDistance(0);
+    };
+
     const onTouchStart = (event: TouchEvent) => {
       if (refreshingRef.current) return;
       if (event.touches.length !== 1) return;
@@ -73,26 +83,36 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
 
     const onTouchMove = (event: TouchEvent) => {
       if (!isPullingRef.current || refreshingRef.current) return;
-      if (event.touches.length !== 1) return;
+      if (event.touches.length !== 1) {
+        resetPullGesture();
+        return;
+      }
       const currentY = event.touches[0].clientY;
       const currentX = event.touches[0].clientX;
       const deltaY = currentY - startYRef.current;
       const deltaX = currentX - startXRef.current;
+      const absoluteDeltaX = Math.abs(deltaX);
 
-      if (Math.abs(deltaX) > Math.abs(deltaY)) return;
       if (deltaY <= 0) {
-        setPullDistance(0);
+        resetPullGesture();
+        return;
+      }
+
+      if (deltaY < PULL_ACTIVATION_DISTANCE) return;
+
+      if (absoluteDeltaX > 10 && deltaY < absoluteDeltaX * VERTICAL_INTENT_RATIO) {
+        resetPullGesture();
         return;
       }
 
       if (getScrollTop() > 0) {
-        isPullingRef.current = false;
-        setPullDistance(0);
+        resetPullGesture();
         return;
       }
 
       event.preventDefault();
-      const distance = Math.min(deltaY, minPullDistance + 40);
+      const resistedDistance = (deltaY - PULL_ACTIVATION_DISTANCE) * PULL_RESISTANCE;
+      const distance = Math.min(resistedDistance, minPullDistance + 40);
       setPullDistance(distance);
       readyRef.current = distance >= minPullDistance;
     };
@@ -130,16 +150,20 @@ export function PullToRefresh({ minPullDistance = 70, onRefresh }: PullToRefresh
       setPullDistance(0);
     };
 
+    const onTouchCancel = () => {
+      resetPullGesture();
+    };
+
     window.addEventListener('touchstart', onTouchStart, { passive: true });
     window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('touchend', onTouchEnd);
-    window.addEventListener('touchcancel', onTouchEnd);
+    window.addEventListener('touchcancel', onTouchCancel);
 
     return () => {
       window.removeEventListener('touchstart', onTouchStart);
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('touchend', onTouchEnd);
-      window.removeEventListener('touchcancel', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchCancel);
       window.clearTimeout(detectionTimer);
       if (hintTimer) window.clearTimeout(hintTimer);
       if (hideHintTimer) window.clearTimeout(hideHintTimer);
