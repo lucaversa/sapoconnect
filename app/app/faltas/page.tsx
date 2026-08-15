@@ -215,7 +215,7 @@ function getLinhaTempoRisco(item: FaltasItem, diasRemovidos: Set<string>): Linha
   if (limite === null || porEvento === null) return [];
 
   let aulasAcumuladas = 0;
-  return getAulasDiasRestantes(item).map((dia) => {
+  const linhaTempo = getAulasDiasRestantes(item).map((dia) => {
     const removido = diasRemovidos.has(dia.key);
     if (!removido) {
       aulasAcumuladas += dia.horarios.length;
@@ -231,6 +231,11 @@ function getLinhaTempoRisco(item: FaltasItem, diasRemovidos: Set<string>): Linha
       acimaLimite: totalPercent > limite + 0.0001,
     };
   });
+
+  const primeiroRiscoIndex = linhaTempo.findIndex((dia) => dia.acimaLimite && !dia.removido);
+  return primeiroRiscoIndex >= 0
+    ? linhaTempo.slice(0, primeiroRiscoIndex + 1)
+    : linhaTempo;
 }
 
 export default function FaltasPage() {

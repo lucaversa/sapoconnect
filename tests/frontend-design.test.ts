@@ -112,6 +112,14 @@ describe("frontend information architecture", () => {
     expect(metricCard).toContain('min-h-[6.5rem] flex-col justify-between')
   })
 
+  it("ends each absence risk timeline at its first red day", () => {
+    const absences = read("app/app/faltas/page.tsx")
+
+    expect(absences).toContain("findIndex((dia) => dia.acimaLimite && !dia.removido)")
+    expect(absences).toContain("linhaTempo.slice(0, primeiroRiscoIndex + 1)")
+    expect(absences).toContain("Risco em {format(primeiroDiaCritico.dia.date, 'dd/MM')}")
+  })
+
   it("uses one Liquid Glass system for mobile navigation and feedback", () => {
     const globals = read("app/globals.css")
     const sidebar = read("components/layout/AppSidebar.tsx")
