@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { MetricCard } from '@/components/ui/metric-card';
 import { PageHeading } from '@/components/ui/page-heading';
 import { AcademicPanel } from '@/components/ui/academic-panel';
+import { AnimatedSegmentedProgress } from '@/components/ui/animated-progress';
 import { calculateEvaluationLaunchProgress, isSpecialEvaluation } from '@/lib/evaluation-progress';
 
 const TOTAL_PONTOS = 100;
@@ -460,11 +461,15 @@ function getCategoriaStyle(categoria: string) {
                       <span><strong className="font-semibold text-emerald-600 dark:text-emerald-400">{formatNumber(resumoPontos.lancados)}</strong> lançados</span>
                       <span className="text-right"><strong className="font-semibold text-amber-600 dark:text-amber-400">{formatNumber(resumoPontos.necessario)}</strong> necessários · {formatNumber(resumoPontos.pendenteTotal)} pendentes</span>
                     </div>
-                    <div className="flex h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
-                      <div className="h-full bg-emerald-500 transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${resumoPontos.lancadosPct}%` }} />
-                      <div className="h-full bg-amber-500 transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${resumoPontos.necessarioPct}%` }} />
-                      <div className="h-full bg-gray-300 transition-[width] duration-300 motion-reduce:transition-none dark:bg-gray-600" style={{ width: `${resumoPontos.pendenteLivrePct}%` }} />
-                    </div>
+                    <AnimatedSegmentedProgress
+                      ariaLabel={`${formatNumber(resumoPontos.lancadosPct)}% lançado, ${formatNumber(resumoPontos.necessarioPct)}% necessário e ${formatNumber(resumoPontos.pendenteLivrePct)}% pendente`}
+                      className="h-1.5 bg-gray-100 dark:bg-gray-700"
+                      segments={[
+                        { label: 'Lançado', value: resumoPontos.lancadosPct, className: 'bg-emerald-500' },
+                        { label: 'Necessário', value: resumoPontos.necessarioPct, className: 'bg-amber-500' },
+                        { label: 'Pendente', value: resumoPontos.pendenteLivrePct, className: 'bg-gray-300 dark:bg-gray-600' },
+                      ]}
+                    />
                   </div>
                 )}
               </button>
