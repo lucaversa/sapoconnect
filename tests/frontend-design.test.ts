@@ -120,6 +120,17 @@ describe("frontend information architecture", () => {
     expect(absences).toContain("Risco em {format(primeiroDiaCritico.dia.date, 'dd/MM')}")
   })
 
+  it("makes weekday absence groups independently collapsible", () => {
+    const absences = read("app/app/faltas/page.tsx")
+
+    expect(absences).toContain("expandedDiasSemana")
+    expect(absences).toContain("toggleGrupoDiaSemana(item.codigo, grupo.key)")
+    expect(absences).toContain("aria-expanded={grupoExpanded}")
+    expect(absences).toContain("aria-controls={grupoPanelId}")
+    expect(absences).toContain("{grupoExpanded ? (")
+    expect(absences).toContain("detail-reveal mt-3")
+  })
+
   it("uses one Liquid Glass system for mobile navigation and feedback", () => {
     const globals = read("app/globals.css")
     const sidebar = read("components/layout/AppSidebar.tsx")
