@@ -6,6 +6,7 @@ import {
   BookOpenCheck,
   CalendarClock,
   CheckCheck,
+  ChevronDown,
   ClipboardCheck,
   History,
   RefreshCw,
@@ -37,6 +38,8 @@ const MODULE_ICONS = {
 } satisfies Record<AcademicModule, typeof BellRing>
 
 type FeedFilter = 'all' | 'unread'
+
+const UPDATES_PAGE_SIZE = 20
 
 function dayStart(timestamp: number): number {
   const date = new Date(timestamp)
@@ -80,13 +83,24 @@ export default function AtualizacoesPage() {
     markAllRead,
   } = useAcademicUpdates()
   const [filter, setFilter] = useState<FeedFilter>('all')
+  const [visibleLimit, setVisibleLimit] = useState(UPDATES_PAGE_SIZE)
   const [selectedUpdate, setSelectedUpdate] = useState<AcademicUpdate | null>(null)
   const reducedMotion = useReducedMotion()
-  const visibleUpdates = useMemo(
+  const filteredUpdates = useMemo(
     () => filter === 'unread' ? updates.filter((update) => update.readAt === null) : updates,
     [filter, updates],
   )
+  const visibleUpdates = useMemo(
+    () => filteredUpdates.slice(0, visibleLimit),
+    [filteredUpdates, visibleLimit],
+  )
   const groups = useMemo(() => groupUpdates(visibleUpdates), [visibleUpdates])
+  const remainingUpdates = Math.max(0, filteredUpdates.length - visibleLimit)
+
+  const changeFilter = (nextFilter: FeedFilter) => {
+    setFilter(nextFilter)
+    setVisibleLimit(UPDATES_PAGE_SIZE)
+  }
 
   const handleSync = async () => {
     const toastId = toast.loading('Verificando atualizações...', { id: 'academic-updates-sync' })
@@ -130,7 +144,7 @@ export default function AtualizacoesPage() {
             <button
               key={value}
               type="button"
-              onClick={() => setFilter(value)}
+              onClick={() => changeFilter(value)}
               aria-pressed={filter === value}
               className={cn(
                 'relative min-h-10 rounded-xl px-3 text-xs font-bold transition-colors',
@@ -151,18 +165,21 @@ export default function AtualizacoesPage() {
             </button>
           ))}
         </div>
-        <div className="mt-2 grid grid-cols-[1fr_auto] gap-2 sm:mt-0 sm:flex">
+        <div className="mt-2 flex items-center justify-end gap-2 sm:mt-0">
           <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={() => void handleSync()}
             disabled={syncProgress.isSyncing}
-            className="gap-2"
+            aria-label="Verificar atualizações agora"
+            className="h-9 gap-1.5 rounded-xl px-2.5 text-xs sm:h-10 sm:px-3"
           >
-            <RefreshCw className={cn('size-4', syncProgress.isSyncing && 'animate-spin motion-reduce:animate-none')} aria-hidden="true" />
-            {syncProgress.isSyncing ? 'Verificando' : 'Verificar agora'}
+            <RefreshCw className={cn('size-3.5', syncProgress.isSyncing && 'animate-spin motion-reduce:animate-none')} aria-hidden="true" />
+            {syncProgress.isSyncing ? 'Verificando' : 'Verificar'}
           </Button>
           {unreadCount > 0 ? (
-            <Button type="button" variant="outline" size="icon" onClick={markAllRead} aria-label="Marcar todas como lidas">
+            <Button type="button" variant="outline" size="icon" onClick={markAllRead} aria-label="Marcar todas como lidas" className="size-9 rounded-xl sm:size-10">
               <CheckCheck className="size-4" aria-hidden="true" />
             </Button>
           ) : null}
@@ -255,6 +272,23 @@ export default function AtualizacoesPage() {
               </div>
             </section>
           ))}
+          {remainingUpdates > 0 ? (
+            <div className="flex flex-col items-center gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setVisibleLimit((current) => current + UPDATES_PAGE_SIZE)}
+                className="gap-1.5 rounded-xl px-3 text-xs"
+              >
+                <ChevronDown className="size-3.5" aria-hidden="true" />
+                Mostrar mais {Math.min(UPDATES_PAGE_SIZE, remainingUpdates)}
+              </Button>
+              <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500">
+                {visibleUpdates.length} de {filteredUpdates.length} atualizações
+              </p>
+            </div>
+          ) : null}
         </div>
       )}
 
