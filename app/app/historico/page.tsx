@@ -30,6 +30,7 @@ import { MetricCard } from '@/components/ui/metric-card';
 import { PageHeading } from '@/components/ui/page-heading';
 import { AcademicPanel } from '@/components/ui/academic-panel';
 import { AnimatedProgress } from '@/components/ui/animated-progress';
+import { calculateHistoryCounts, getCountedHistorySubjects } from '@/lib/history-counts';
 
 function isPeriodoLetivo(nome: string): boolean {
   const clean = nome.trim();
@@ -194,10 +195,11 @@ export default function HistoricoPage() {
   const periodosLetivos = periodos.filter(p => isPeriodoLetivo(p.nome));
   const outrosBlocos = periodos.filter(p => !isPeriodoLetivo(p.nome));
 
-  const totalDisciplinas = periodos.reduce((acc, p) =>
-    acc + p.disciplinas.filter(d => d.status !== 'equivalente').length, 0);
-  const totalConcluidas = periodosLetivos.reduce((acc, p) =>
-    acc + p.disciplinas.filter(d => d.status === 'concluida').length, 0);
+  const {
+    total: totalDisciplinas,
+    completed: totalConcluidas,
+    remaining: totalRestantes,
+  } = calculateHistoryCounts(periodos);
 
   return (
     <PageTransition className="app-page">
@@ -215,7 +217,7 @@ export default function HistoricoPage() {
       <Stagger className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
         <StaggerItem><MetricCard compact icon={BookOpen} label="Disciplinas" value={totalDisciplinas} /></StaggerItem>
         <StaggerItem><MetricCard compact icon={CheckCircle2} label="Concluídas" value={totalConcluidas} /></StaggerItem>
-        <StaggerItem><MetricCard compact icon={XCircle} label="Restantes" value={totalDisciplinas - totalConcluidas} /></StaggerItem>
+        <StaggerItem><MetricCard compact icon={XCircle} label="Restantes" value={totalRestantes} /></StaggerItem>
       </Stagger>
 
       <div className="flex flex-wrap gap-x-5 gap-y-2 px-1">
@@ -242,9 +244,7 @@ export default function HistoricoPage() {
             {periodosLetivos.map((periodo) => {
               const isExpanded = expandedPeriods.has(periodo.nome);
               const panelId = `periodo-${periodo.nome.replace(/\s+/g, '-')}`;
-              const disciplinasContabilizadasNoPeriodo = periodo.disciplinas.filter(d =>
-                d.status !== 'equivalente'
-              );
+              const disciplinasContabilizadasNoPeriodo = getCountedHistorySubjects(periodo.disciplinas);
               const concluidasNoPeriodo = disciplinasContabilizadasNoPeriodo.filter(d =>
                 d.status === 'concluida'
               ).length;
@@ -391,6 +391,7 @@ export default function HistoricoPage() {
               const isExpanded = expandedPeriods.has(bloco.nome);
               const panelId = `bloco-${bloco.nome.replace(/\s+/g, '-')}`;
               const mediaBloco = calcularMediaBloco(bloco);
+              const disciplinasContabilizadasNoBloco = getCountedHistorySubjects(bloco.disciplinas);
 
               return (
                 <AcademicPanel
@@ -411,7 +412,7 @@ export default function HistoricoPage() {
                           {bloco.nome}
                         </h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {bloco.disciplinas.length} disciplinas
+                          {disciplinasContabilizadasNoBloco.length} disciplinas
                         </p>
                       </div>
                     </div>

@@ -251,15 +251,14 @@ describe("frontend information architecture", () => {
     }
   })
 
-  it("excludes equivalent subjects only from history summary counts", () => {
+  it("excludes equivalent subjects from every history count", () => {
     const history = read("app/app/historico/page.tsx")
-    const summaryStart = history.indexOf("const totalDisciplinas")
-    const summaryEnd = history.indexOf("return (", summaryStart)
-    const summary = history.slice(summaryStart, summaryEnd)
 
-    expect(summary).toContain("d.status !== 'equivalente'")
-    expect(summary).toContain("d.status === 'concluida'")
-    expect(summary).not.toContain("d.status === 'concluida' || d.status === 'equivalente'")
+    expect(history).toContain("calculateHistoryCounts(periodos)")
+    expect(history).toContain("getCountedHistorySubjects(periodo.disciplinas)")
+    expect(history).toContain("getCountedHistorySubjects(bloco.disciplinas)")
+    expect(history).toContain("{disciplinasContabilizadasNoBloco.length} disciplinas")
+    expect(history).not.toContain("{bloco.disciplinas.length} disciplinas")
     expect(history).toContain("label: 'Equivalente'")
     expect(history).toContain("const disciplinasContabilizadasNoPeriodo")
     expect(history).toContain("{totalDisciplinasNoPeriodo} disciplinas")
