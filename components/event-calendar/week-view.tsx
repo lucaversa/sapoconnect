@@ -55,7 +55,7 @@ export function WeekView({ currentDate, events, onEventSelect }: WeekViewProps) 
         </div>
 
         <div className="grid grid-cols-[3.25rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[3.75rem_repeat(7,minmax(0,1fr))]">
-          <div data-time-axis className="sticky left-0 z-20 relative border-r border-gray-200/70 bg-white dark:border-white/[0.07] dark:bg-gray-900" style={{ height: gridHeight }}>
+          <div data-time-axis className="sticky left-0 z-30 relative border-r border-gray-200/70 bg-white dark:border-white/[0.07] dark:bg-gray-900" style={{ height: gridHeight }}>
             {hours.map((hour) => (
               <time key={hour} className="absolute right-1.5 z-10 -translate-y-1/2 bg-white px-0.5 text-[9px] font-semibold tabular-nums text-gray-500 dark:bg-gray-900 dark:text-gray-400 sm:right-2 sm:px-1 sm:text-[10px]" style={{ top: hour === StartHour ? 8 : hour === EndHour ? gridHeight - 8 : (hour - StartHour) * hourHeight }}>
                 {hour.toString().padStart(2, "0")}:00
