@@ -181,7 +181,8 @@ describe("frontend information architecture", () => {
     expect(page).toContain('title="Atualizações"')
     expect(page).toContain("liquid-float")
     expect(page).toContain("Não lidas")
-    expect(page).toContain('aria-label="Verificar atualizações agora"')
+    expect(page).not.toContain('Verificar atualizações agora')
+    expect(page).not.toContain('handleSync')
     expect(page).toContain("const UPDATES_PAGE_SIZE = 20")
     expect(page).toContain("filteredUpdates.slice(0, visibleLimit)")
     expect(page).toContain("Mostrar mais")
@@ -202,9 +203,10 @@ describe("frontend information architecture", () => {
     expect(storage).toContain("store.put(payload, cacheScope)")
     expect(provider).toContain("BACKGROUND_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1_000")
     expect(provider).toContain("HISTORY_BACKGROUND_INTERVAL_MS = 24 * 60 * 60 * 1_000")
-    expect(provider).toContain("await syncModule('calendario', false)")
-    expect(provider).toContain("await syncModule(candidate, false)")
-    expect(provider).toContain("for (const academicModule of modules)")
+    expect(provider).toContain("await syncModule('calendario')")
+    expect(provider).toContain("await syncModule(candidate)")
+    expect(provider).not.toContain('syncAll')
+    expect(provider).not.toContain("mode: 'manual'")
   })
 
   it("hides manual refresh actions below the desktop breakpoint", () => {

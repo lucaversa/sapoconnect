@@ -65,17 +65,10 @@ const RESOURCES: Record<AcademicModule, AcademicResource> = {
 
 export interface AcademicSyncProgress {
   isSyncing: boolean
-  mode: 'background' | 'manual' | null
+  mode: 'background' | null
   currentModule: AcademicModule | null
   completed: number
   total: number
-}
-
-export interface AcademicSyncResult {
-  completed: number
-  failed: AcademicModule[]
-  stale: AcademicModule[]
-  newUpdates: number
 }
 
 interface AcademicUpdatesContextValue {
@@ -84,7 +77,6 @@ interface AcademicUpdatesContextValue {
   unreadCount: number
   lastSuccessfulSyncAt: Partial<Record<AcademicModule, number>>
   syncProgress: AcademicSyncProgress
-  syncAll: () => Promise<AcademicSyncResult>
   markRead: (id: string) => void
   markAllRead: () => void
 }
@@ -210,12 +202,12 @@ export function AcademicUpdatesProvider({
     }
   }, [cacheScope, processQuery])
 
-  const syncModule = useCallback(async (academicModule: AcademicModule, force: boolean) => {
+  const syncModule = useCallback(async (academicModule: AcademicModule) => {
     const resource = RESOURCES[academicModule]
     const data = await queryClient.fetchQuery({
       queryKey: resource.queryKey,
       queryFn: () => fetchAcademicResource(academicModule),
-      staleTime: force ? 0 : resource.staleTime,
+      staleTime: resource.staleTime,
     })
     const capturedAt = queryClient.getQueryState(resource.queryKey)?.dataUpdatedAt ?? Date.now()
     await processSnapshot(academicModule, data, capturedAt)
@@ -243,7 +235,7 @@ export function AcademicUpdatesProvider({
         })
 
         try {
-          await syncModule('calendario', false).catch(() => undefined)
+          await syncModule('calendario').catch(() => undefined)
           const now = Date.now()
           const current = stateRef.current
           if (now - current.lastBackgroundSweepAt < BACKGROUND_SWEEP_INTERVAL_MS) return
@@ -264,7 +256,7 @@ export function AcademicUpdatesProvider({
             completed: 1,
             total: 2,
           })
-          await syncModule(candidate, false).catch(() => undefined)
+          await syncModule(candidate).catch(() => undefined)
         } finally {
           syncInFlightRef.current = false
           setSyncProgress(EMPTY_PROGRESS)
@@ -276,49 +268,6 @@ export function AcademicUpdatesProvider({
 
     return () => window.clearTimeout(timeoutId)
   }, [commitState, isReady, syncModule])
-
-  const syncAll = useCallback(async (): Promise<AcademicSyncResult> => {
-    if (syncInFlightRef.current) {
-      return { completed: 0, failed: [], stale: [], newUpdates: 0 }
-    }
-
-    const modules: AcademicModule[] = ['calendario', 'faltas', 'avaliacoes', 'historico']
-    const unreadBefore = stateRef.current.updates.filter((update) => update.readAt === null).length
-    const failed: AcademicModule[] = []
-    const stale: AcademicModule[] = []
-    let completed = 0
-    syncInFlightRef.current = true
-
-    try {
-      for (const academicModule of modules) {
-        setSyncProgress({
-          isSyncing: true,
-          mode: 'manual',
-          currentModule: academicModule,
-          completed,
-          total: modules.length,
-        })
-        try {
-          const data = await syncModule(academicModule, true)
-          if (data && typeof data === 'object' && '__cacheStale' in data) stale.push(academicModule)
-          completed += 1
-        } catch {
-          failed.push(academicModule)
-        }
-      }
-      await processingRef.current
-      const unreadAfter = stateRef.current.updates.filter((update) => update.readAt === null).length
-      return {
-        completed,
-        failed,
-        stale,
-        newUpdates: Math.max(0, unreadAfter - unreadBefore),
-      }
-    } finally {
-      syncInFlightRef.current = false
-      setSyncProgress(EMPTY_PROGRESS)
-    }
-  }, [syncModule])
 
   const markRead = useCallback((id: string) => {
     commitState(markAcademicUpdateRead(stateRef.current, id))
@@ -334,10 +283,9 @@ export function AcademicUpdatesProvider({
     unreadCount: state.updates.filter((update) => update.readAt === null).length,
     lastSuccessfulSyncAt: state.lastSuccessfulSyncAt,
     syncProgress,
-    syncAll,
     markRead,
     markAllRead,
-  }), [isReady, markAllRead, markRead, state, syncAll, syncProgress])
+  }), [isReady, markAllRead, markRead, state, syncProgress])
 
   return (
     <AcademicUpdatesContext.Provider value={value}>

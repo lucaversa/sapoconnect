@@ -9,11 +9,9 @@ import {
   ChevronDown,
   ClipboardCheck,
   History,
-  RefreshCw,
   Sparkles,
 } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { toast } from 'sonner'
 
 import { UpdateDetailDialog } from '@/components/updates/UpdateDetailDialog'
 import { Button } from '@/components/ui/button'
@@ -78,7 +76,6 @@ export default function AtualizacoesPage() {
     updates,
     unreadCount,
     syncProgress,
-    syncAll,
     markRead,
     markAllRead,
   } = useAcademicUpdates()
@@ -100,24 +97,6 @@ export default function AtualizacoesPage() {
   const changeFilter = (nextFilter: FeedFilter) => {
     setFilter(nextFilter)
     setVisibleLimit(UPDATES_PAGE_SIZE)
-  }
-
-  const handleSync = async () => {
-    const toastId = toast.loading('Verificando atualizações...', { id: 'academic-updates-sync' })
-    const result = await syncAll()
-    if (result.failed.length === 4) {
-      toast.error('Não foi possível consultar a TOTVS. Seus dados salvos foram mantidos.', { id: toastId })
-      return
-    }
-    if (result.newUpdates > 0) {
-      toast.success(`${result.newUpdates} ${result.newUpdates === 1 ? 'alteração encontrada' : 'alterações encontradas'}.`, { id: toastId })
-      return
-    }
-    if (result.stale.length > 0 || result.failed.length > 0) {
-      toast.warning('Parte dos módulos usou dados salvos. Tente novamente mais tarde.', { id: toastId })
-      return
-    }
-    toast.success('Tudo está em dia.', { id: toastId })
   }
 
   const openUpdate = (update: AcademicUpdate) => {
@@ -165,25 +144,13 @@ export default function AtualizacoesPage() {
             </button>
           ))}
         </div>
-        <div className="mt-2 flex items-center justify-end gap-2 sm:mt-0">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void handleSync()}
-            disabled={syncProgress.isSyncing}
-            aria-label="Verificar atualizações agora"
-            className="h-9 gap-1.5 rounded-xl px-2.5 text-xs sm:h-10 sm:px-3"
-          >
-            <RefreshCw className={cn('size-3.5', syncProgress.isSyncing && 'animate-spin motion-reduce:animate-none')} aria-hidden="true" />
-            {syncProgress.isSyncing ? 'Verificando' : 'Verificar'}
-          </Button>
-          {unreadCount > 0 ? (
+        {unreadCount > 0 ? (
+          <div className="mt-2 flex items-center justify-end sm:mt-0">
             <Button type="button" variant="outline" size="icon" onClick={markAllRead} aria-label="Marcar todas como lidas" className="size-9 rounded-xl sm:size-10">
               <CheckCheck className="size-4" aria-hidden="true" />
             </Button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </section>
 
       {!isReady ? (

@@ -78,7 +78,7 @@ O aplicativo oficial EduConnect sofre com problemas de performance e estabilidad
 - Respostas servidas do cache antigo, vazias ou parcialmente falhas não geram alertas; dados válidos anteriores são preservados.
 - Os snapshots e o estado de leitura ficam somente no IndexedDB do próprio dispositivo, isolados por `cacheScope`, e são removidos no logout explícito.
 - Na abertura do app, horários têm prioridade. No máximo um módulo acadêmico adicional é verificado a cada janela de 6 horas; histórico só entra nessa rotação após 24 horas.
-- **Verificar** consulta os quatro módulos em sequência. O badge do cabeçalho mostra o total de alterações ainda não lidas.
+- Não existe verificação manual em massa. O app sincroniza automaticamente dentro das janelas acima, e o badge do cabeçalho mostra o total de alterações ainda não lidas.
 - O feed exibe 20 alterações por lote e permite carregar mais. O aparelho conserva no máximo 200 alterações dos últimos 90 dias.
 - O detalhe informa o antes e o agora e leva ao módulo correspondente. O app não força links para um card específico porque os identificadores fornecidos pela TOTVS não são estáveis em todos os módulos.
 
