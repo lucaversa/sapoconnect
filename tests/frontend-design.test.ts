@@ -24,8 +24,15 @@ describe("frontend information architecture", () => {
   })
 
   it("keeps an explicit time axis in week and day schedules", () => {
-    expect(read("components/event-calendar/week-view.tsx")).toContain("data-time-axis")
-    expect(read("components/event-calendar/day-view.tsx")).toContain("data-time-axis")
+    const week = read("components/event-calendar/week-view.tsx")
+    const day = read("components/event-calendar/day-view.tsx")
+
+    expect(week).toContain("data-time-axis")
+    expect(day).toContain("data-time-axis")
+    expect(week).toContain('data-time-axis className="sticky left-0 z-30 relative')
+    expect(day).toContain('data-time-axis className="sticky left-0 z-30 relative')
+    expect(week).toContain('className="pointer-events-none absolute inset-x-0 z-20 border-t border-primary"')
+    expect(day).toContain('className="pointer-events-none absolute inset-x-0 z-20 border-t border-primary"')
   })
 
   it("lets mobile pages scroll vertically from every calendar view", () => {
