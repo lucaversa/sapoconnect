@@ -114,8 +114,8 @@ export default function AtualizacoesPage() {
         meta={syncProgress.isSyncing ? `Verificando ${currentSyncLabel}` : unreadCount > 0 ? `${unreadCount} não ${unreadCount === 1 ? 'lida' : 'lidas'}` : 'Nenhuma pendência'}
       />
 
-      <section className="liquid-float rounded-[1.5rem] p-2.5 sm:flex sm:items-center sm:justify-between sm:gap-3 sm:p-3">
-        <div className="grid grid-cols-2 gap-1 rounded-[1.1rem] bg-gray-950/[0.035] p-1 dark:bg-white/[0.035] sm:w-auto sm:min-w-64">
+      <section className="liquid-float flex items-center gap-2 rounded-[1.5rem] p-2.5 sm:gap-3 sm:p-3">
+        <div className="grid min-w-0 flex-1 grid-cols-2 gap-1 rounded-[1.1rem] bg-gray-950/[0.035] p-1 dark:bg-white/[0.035] sm:min-w-64 sm:flex-none">
           {([
             ['all', 'Todas'],
             ['unread', `Não lidas${unreadCount > 0 ? ` (${unreadCount})` : ''}`],
@@ -145,11 +145,17 @@ export default function AtualizacoesPage() {
           ))}
         </div>
         {unreadCount > 0 ? (
-          <div className="mt-2 flex items-center justify-end sm:mt-0">
-            <Button type="button" variant="outline" size="icon" onClick={markAllRead} aria-label="Marcar todas como lidas" className="size-9 rounded-xl sm:size-10">
-              <CheckCheck className="size-4" aria-hidden="true" />
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={markAllRead}
+            aria-label="Marcar todas as atualizações como lidas"
+            className="ml-auto h-10 shrink-0 gap-1.5 rounded-xl px-2.5 text-xs sm:px-3"
+          >
+            <CheckCheck className="size-3.5" aria-hidden="true" />
+            Ler tudo
+          </Button>
         ) : null}
       </section>
 
