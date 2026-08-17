@@ -1,11 +1,13 @@
 import { decrypt, getDeviceId, setDeviceId } from './crypto';
+import { ACADEMIC_UPDATES_SCHEMA_VERSION } from './academic-updates';
 import { QUERY_PERSIST_SCHEMA_VERSION } from './query-persist';
 
 const DB_NAME = 'sapoconnect_db';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const CREDENTIAL_STORE = 'credentials';
 const CACHE_STORE = 'query_cache';
 const SESSION_STORE = 'session_state';
+const ACADEMIC_UPDATES_STORE = 'academic_updates';
 const LEGACY_CREDENTIAL_KEY = 'user_credentials';
 const MIGRATION_MARKER_KEY = 'reconnect_cookie_migration';
 const LEGACY_ROLLBACK_WINDOW_MS = 7 * 24 * 60 * 60 * 1_000;
@@ -35,6 +37,13 @@ interface StoredQueryCache<T> {
   data: T;
   timestamp: number;
   expiresAt: number;
+}
+
+interface StoredAcademicUpdates<T> {
+  version: number;
+  cacheScope: string;
+  data: T;
+  timestamp: number;
 }
 
 export interface OfflineSessionHint {
@@ -82,6 +91,9 @@ function openDatabase(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(SESSION_STORE)) {
         db.createObjectStore(SESSION_STORE);
+      }
+      if (!db.objectStoreNames.contains(ACADEMIC_UPDATES_STORE)) {
+        db.createObjectStore(ACADEMIC_UPDATES_STORE);
       }
     };
   });
@@ -306,5 +318,54 @@ export async function clearQueryCache(key?: string): Promise<void> {
     );
   } catch {
     // Cache removal is best-effort.
+  }
+}
+
+export async function saveAcademicUpdatesState(
+  cacheScope: string,
+  data: unknown
+): Promise<void> {
+  const payload: StoredAcademicUpdates<unknown> = {
+    version: ACADEMIC_UPDATES_SCHEMA_VERSION,
+    cacheScope,
+    data,
+    timestamp: Date.now(),
+  };
+  await idbRequest(ACADEMIC_UPDATES_STORE, 'readwrite', (store) =>
+    store.put(payload, cacheScope)
+  );
+}
+
+export async function getAcademicUpdatesState<T>(
+  expectedScope: string
+): Promise<T | null> {
+  try {
+    const stored = await idbRequest<StoredAcademicUpdates<T> | undefined>(
+      ACADEMIC_UPDATES_STORE,
+      'readonly',
+      (store) => store.get(expectedScope)
+    );
+    if (!stored) return null;
+
+    const isValid =
+      stored.version === ACADEMIC_UPDATES_SCHEMA_VERSION &&
+      stored.cacheScope === expectedScope;
+    if (!isValid) {
+      await clearAcademicUpdatesState(expectedScope);
+      return null;
+    }
+    return stored.data;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearAcademicUpdatesState(cacheScope?: string): Promise<void> {
+  try {
+    await idbRequest(ACADEMIC_UPDATES_STORE, 'readwrite', (store) =>
+      cacheScope ? store.delete(cacheScope) : store.clear()
+    );
+  } catch {
+    // Academic update cleanup is best-effort when IndexedDB is unavailable.
   }
 }

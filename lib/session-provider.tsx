@@ -19,7 +19,11 @@ import {
 } from './session-manager';
 import { queryClient } from './query-client';
 import { getPersistKeyForScope } from './query-persist';
-import { clearQueryCache, hasStoredCredentials } from './storage';
+import {
+  clearAcademicUpdatesState,
+  clearQueryCache,
+  hasStoredCredentials,
+} from './storage';
 
 interface SessionContextValue {
   user: SessionUserData | null;
@@ -126,7 +130,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       queryClient.clear();
-      if (scopeToClear) await clearQueryCache(getPersistKeyForScope(scopeToClear));
+      if (scopeToClear) {
+        await Promise.all([
+          clearQueryCache(getPersistKeyForScope(scopeToClear)),
+          clearAcademicUpdatesState(scopeToClear),
+        ]);
+      }
       currentScopeRef.current = null;
       setReconnectFailed(false);
 

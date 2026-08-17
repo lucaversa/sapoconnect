@@ -44,7 +44,7 @@ O aplicativo oficial EduConnect sofre com problemas de performance e estabilidad
 | Reconnect ao voltar | Não | Sim (visibility + check) |
 | TTL de sessão | Opaco | 20 min (server) |
 | Refresh preventivo | Não | Sim (5 min antes do TTL) |
-| Retry adaptativo | Não | Sim (até 3 tentativas) |
+| Retry adaptativo | Não | Sim (no máximo 1 repetição idempotente) |
 | Cache de sessão | Não | Sim (10s para checks) |
 | Cache de dados | Não | Sim (React Query + persistência local) |
 | Offline TOTVS | Não | Sim (mantém login + banner + cache) |
@@ -55,7 +55,7 @@ O aplicativo oficial EduConnect sofre com problemas de performance e estabilidad
 2. **Recebe 401** -> SessionManager inicia refresh em background
 3. **Em paralelo** -> Outras requisições 401 aguardam (dedupe)
 4. **Refresh completo** -> Cookies propagados (delay adaptativo)
-5. **Retry automático** -> Requisição original é repetida (até 3x)
+5. **Retry automático** -> Requisição original é repetida uma única vez após o refresh
 6. **Em 5xx/TOTVS_OFFLINE** -> Mantém usuário logado e exibe dados em cache
 
 ### Cache de Dados e Resiliência
@@ -71,6 +71,16 @@ O aplicativo oficial EduConnect sofre com problemas de performance e estabilidad
 - Safari e o Web App instalado no iOS podem usar contêineres de armazenamento separados. Cada contexto mantém o próprio snapshot depois de ser aberto online; sincronização entre navegadores ou dispositivos exigiria armazenamento no servidor.
 - Se a resposta vier vazia onde deveria ter conteúdo (ex.: horários), tratamos como `SESSION_EXPIRED` para forçar reautenticação.
 
+### Atualizações acadêmicas
+
+- A área **Atualizações** compara snapshots semânticos de horários, faltas, avaliações e histórico e destaca somente mudanças relevantes.
+- A primeira resposta válida de cada módulo estabelece a referência e não gera notificações retroativas.
+- Respostas servidas do cache antigo, vazias ou parcialmente falhas não geram alertas; dados válidos anteriores são preservados.
+- Os snapshots e o estado de leitura ficam somente no IndexedDB do próprio dispositivo, isolados por `cacheScope`, e são removidos no logout explícito.
+- Na abertura do app, horários têm prioridade. No máximo um módulo acadêmico adicional é verificado a cada janela de 6 horas; histórico só entra nessa rotação após 24 horas.
+- **Verificar agora** consulta os quatro módulos em sequência. O badge do cabeçalho mostra o total de alterações ainda não lidas.
+- O detalhe informa o antes e o agora e leva ao módulo correspondente. O app não força links para um card específico porque os identificadores fornecidos pela TOTVS não são estáveis em todos os módulos.
+
 ## Engenharia Reversa
 
 O aplicativo foi desenvolvido analisando o tráfego de rede do aplicativo móvel EduConnect para identificar:
@@ -82,9 +92,10 @@ O aplicativo foi desenvolvido analisando o tráfego de rede do aplicativo móvel
 ## Segurança
 
 ### Criptografia
-- Credenciais de login (RA e senha) são criptografadas usando AES-256-GCM antes de serem armazenadas
-- Chave de criptografia derivada de `SESSION_ENCRYPTION_KEY` ou do keyring `SESSION_ENCRYPTION_KEYS`
-- O servidor falha de forma segura quando nenhuma chave válida está configurada; não existe chave padrão em produção
+- A reconexão usa um cookie criptografado, `httpOnly`, `sameSite=lax` e restrito às rotas de autenticação; o JavaScript do aplicativo não lê a senha persistida.
+- Uma cópia antiga no IndexedDB só é aceita durante a janela explícita de migração e é removida após a confirmação do novo cookie ou o fim da janela de compatibilidade.
+- A chave de criptografia vem de `SESSION_ENCRYPTION_KEY` ou do keyring `SESSION_ENCRYPTION_KEYS`.
+- O servidor falha de forma segura quando nenhuma chave válida está configurada; não existe chave padrão em produção.
 
 ### Sem Banco de Dados
 - Nenhum dado persistido em servidor
@@ -93,18 +104,16 @@ O aplicativo foi desenvolvido analisando o tráfego de rede do aplicativo móvel
 
 ### Arquitetura de Sessão
 ```
-Login → Credenciais criptografadas (IndexedDB)
-      ↓
-LoginExternoApp → Recebe cookies TOTVS
-      ↓
-Sessão criptografada (httpOnly cookie)
-      ↓
-Requisições usam cookies TOTVS armazenados
+Login → LoginExternoApp → Recebe cookies TOTVS
+                         ↓
+       Sessão + reconexão em cookies criptografados e httpOnly
+                         ↓
+       Requisições reutilizam a sessão externa
 ```
 
 ## Arquitetura
 
-### Frontend (Next.js 14)
+### Frontend (Next.js 16)
 - App Router
 - React Client Components
 - React Query (cache + persistencia local)
@@ -130,18 +139,20 @@ Requisições usam cookies TOTVS armazenados
 - `lib/fetch-client.ts` - Fetch com retry e refresh automático
 - `lib/api-response-error.ts` - Normalização de erros e códigos
 - `lib/query-client.ts` - Políticas de cache e retry
+- `lib/academic-updates.ts` - Normalização e comparação semântica dos snapshots
+- `lib/academic-updates-provider.tsx` - Sincronização progressiva e feed local de mudanças
 - `lib/auth-client.ts` - Cliente de autenticação
 - `lib/crypto.ts` - Criptografia AES-GCM
-- `lib/storage.ts` - IndexedDB para credenciais
+- `lib/storage.ts` - IndexedDB para cache acadêmico e migração legada
 
 ## Fluxo de Dados
 
 ### Autenticação
 1. Usuário insere RA e senha
-2. Credenciais criptografadas e salvas no IndexedDB
-3. POST para `LoginExternoApp` com credenciais
-4. Cookies da resposta extraídos (`ASP.NET_SessionId`, `.ASPXAUTH`, etc.)
-5. Cookies armazenados em sessão criptografada
+2. O backend envia as credenciais ao `LoginExternoApp` por HTTPS
+3. Cookies da resposta são extraídos (`ASP.NET_SessionId`, `.ASPXAUTH`, etc.)
+4. Sessão externa e dados de reconexão ficam em cookies criptografados e `httpOnly`
+5. O IndexedDB mantém apenas caches acadêmicos e, durante a migração, pode conter a cópia legada já criptografada
 
 ### Requisições de Dados
 1. Cliente faz request via `apiFetch`
