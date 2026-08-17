@@ -1,0 +1,122 @@
+'use client'
+
+import Link from 'next/link'
+import {
+  BellRing,
+  BookOpenCheck,
+  CalendarClock,
+  ClipboardCheck,
+  History,
+  MoveRight,
+} from 'lucide-react'
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import {
+  ACADEMIC_MODULE_META,
+  type AcademicModule,
+  type AcademicUpdate,
+} from '@/lib/academic-updates'
+
+const MODULE_ICONS = {
+  calendario: CalendarClock,
+  faltas: ClipboardCheck,
+  avaliacoes: BookOpenCheck,
+  historico: History,
+} satisfies Record<AcademicModule, typeof BellRing>
+
+function formatDetectedAt(timestamp: number): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'long',
+    timeStyle: 'short',
+  }).format(timestamp)
+}
+
+export function UpdateDetailDialog({
+  update,
+  open,
+  onOpenChange,
+}: {
+  update: AcademicUpdate | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  if (!update) return null
+  const moduleMeta = ACADEMIC_MODULE_META[update.module]
+  const Icon = MODULE_ICONS[update.module]
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <div className="mb-2 flex items-center gap-3">
+            <span className="icon-orb size-11">
+              <Icon className="size-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-primary-700 dark:text-primary-300">
+                {moduleMeta.label}
+              </p>
+              <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                Detectado em {formatDetectedAt(update.detectedAt)}
+              </p>
+            </div>
+          </div>
+          <DialogTitle>{update.title}</DialogTitle>
+          <DialogDescription className="text-sm leading-6">
+            <span className="font-bold text-gray-800 dark:text-gray-100">{update.entityLabel}</span>
+            {update.context ? <span className="block">{update.context}</span> : null}
+          </DialogDescription>
+        </DialogHeader>
+
+        {update.changes.length > 0 ? (
+          <div className="max-h-[46dvh] space-y-3 overflow-y-auto pr-1">
+            {update.changes.map((change) => (
+              <section
+                key={change.label}
+                className="liquid-float rounded-[1.25rem] p-4"
+                aria-label={`Alteração em ${change.label}`}
+              >
+                <p className="mb-3 text-xs font-bold text-gray-500 dark:text-gray-400">
+                  {change.label}
+                </p>
+                <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+                  <div className="min-w-0 rounded-xl border border-white/60 bg-white/32 p-3 dark:border-white/[0.07] dark:bg-white/[0.035]">
+                    <span className="block text-[10px] font-bold text-gray-400">Antes</span>
+                    <span className="mt-1 block break-words text-sm font-semibold text-gray-600 line-through decoration-gray-400/50 dark:text-gray-300">
+                      {change.before}
+                    </span>
+                  </div>
+                  <MoveRight className="size-4 rotate-90 justify-self-center text-primary sm:rotate-0" aria-hidden="true" />
+                  <div className="min-w-0 rounded-xl border border-primary/20 bg-primary/[0.07] p-3">
+                    <span className="block text-[10px] font-bold text-primary-700 dark:text-primary-300">Agora</span>
+                    <span className="mt-1 block break-words text-sm font-extrabold text-gray-950 dark:text-white">
+                      {change.after}
+                    </span>
+                  </div>
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <div className="liquid-float rounded-[1.25rem] p-4 text-sm leading-6 text-gray-700 dark:text-gray-200">
+            {update.summary}
+          </div>
+        )}
+
+        <Button asChild className="w-full gap-2">
+          <Link href={moduleMeta.href} prefetch={false} onClick={() => onOpenChange(false)}>
+            Abrir {moduleMeta.label}
+            <MoveRight className="size-4" aria-hidden="true" />
+          </Link>
+        </Button>
+      </DialogContent>
+    </Dialog>
+  )
+}

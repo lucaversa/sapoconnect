@@ -19,6 +19,7 @@ import { clearQueryCache, getQueryCache, saveQueryCache } from '@/lib/storage';
 import { BrandMark } from '@/components/brand/BrandMark';
 import { AppToaster } from '@/components/app-toaster';
 import { Button } from '@/components/ui/button';
+import { AcademicUpdatesProvider } from '@/lib/academic-updates-provider';
 
 const CACHE_RESTORE_TIMEOUT_MS = 1_500;
 const LEGACY_CACHE_PURGED_KEY = 'sapoconnect_query_cache_v2_ready';
@@ -178,8 +179,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {isReady ? (
-        children
+      {isReady && cacheScope ? (
+        <AcademicUpdatesProvider key={cacheScope} cacheScope={cacheScope}>
+          {children}
+        </AcademicUpdatesProvider>
       ) : !isSessionLoading && !cacheScope ? (
         <SessionUnavailableScreen onRetry={() => void retrySession()} isRetrying={isRetrying} />
       ) : (

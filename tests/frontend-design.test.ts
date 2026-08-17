@@ -160,6 +160,50 @@ describe("frontend information architecture", () => {
     expect(toaster).toContain("style={{ zIndex: 35 }}")
   })
 
+  it("places academic updates in the header and moves theme controls into the utility menu", () => {
+    const header = read("components/layout/AppHeader.tsx")
+    const mobileNav = read("components/layout/AppSidebar.tsx")
+
+    expect(header).toContain('href="/app/atualizacoes"')
+    expect(header).toContain("unreadCount > 99 ? \"99+\" : unreadCount")
+    expect(header).toContain('aria-controls="utility-menu"')
+    expect(header).toContain('theme === "dark" ? "Usar tema claro" : "Usar tema escuro"')
+    expect(header).toContain("toggleTheme(); closeUtilityMenu()")
+    expect(mobileNav).toContain('className="grid grid-cols-4 gap-0.5"')
+    expect(mobileNav).not.toContain('/app/atualizacoes')
+  })
+
+  it("shows a Liquid Glass update feed with detail and safe module navigation", () => {
+    const page = read("app/app/atualizacoes/page.tsx")
+    const detail = read("components/updates/UpdateDetailDialog.tsx")
+    const providers = read("app/app/providers.tsx")
+
+    expect(page).toContain('title="Atualizações"')
+    expect(page).toContain("liquid-float")
+    expect(page).toContain("Não lidas")
+    expect(page).toContain("Verificar agora")
+    expect(page).toContain("markRead(update.id)")
+    expect(detail).toContain("Antes")
+    expect(detail).toContain("Agora")
+    expect(detail).toContain("prefetch={false}")
+    expect(detail).toContain("Abrir {moduleMeta.label}")
+    expect(providers).toContain("<AcademicUpdatesProvider key={cacheScope}")
+  })
+
+  it("persists scoped update snapshots and limits background synchronization", () => {
+    const provider = read("lib/academic-updates-provider.tsx")
+    const storage = read("lib/storage.ts")
+
+    expect(storage).toContain("const DB_VERSION = 5")
+    expect(storage).toContain("const ACADEMIC_UPDATES_STORE = 'academic_updates'")
+    expect(storage).toContain("store.put(payload, cacheScope)")
+    expect(provider).toContain("BACKGROUND_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1_000")
+    expect(provider).toContain("HISTORY_BACKGROUND_INTERVAL_MS = 24 * 60 * 60 * 1_000")
+    expect(provider).toContain("await syncModule('calendario', false)")
+    expect(provider).toContain("await syncModule(candidate, false)")
+    expect(provider).toContain("for (const academicModule of modules)")
+  })
+
   it("hides manual refresh actions below the desktop breakpoint", () => {
     const pages = [
       "app/app/calendario/page.tsx",

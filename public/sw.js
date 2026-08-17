@@ -1,7 +1,7 @@
 /* global self, caches, fetch, URL, Request, Response */
 
-const SHELL_CACHE = 'sapoconnect-shell-v1';
-const STATIC_CACHE = 'sapoconnect-static-v1';
+const SHELL_CACHE = 'sapoconnect-shell-v2';
+const STATIC_CACHE = 'sapoconnect-static-v2';
 const CACHE_PREFIX = 'sapoconnect-';
 const SHELL_ROUTES = [
   '/',
@@ -11,6 +11,7 @@ const SHELL_ROUTES = [
   '/app/avaliacoes',
   '/app/faltas',
   '/app/historico',
+  '/app/atualizacoes',
 ];
 const CORE_ASSETS = [
   '/manifest.webmanifest',
