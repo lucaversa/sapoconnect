@@ -329,6 +329,14 @@ describe("frontend information architecture", () => {
     expect(history).toContain("concluidasNoPeriodo === totalDisciplinasNoPeriodo")
   })
 
+  it("uses distinct module icons in evaluation and history headings", () => {
+    const evaluations = read("app/app/avaliacoes/page.tsx")
+    const history = read("app/app/historico/page.tsx")
+
+    expect(evaluations).toContain('icon={Star}')
+    expect(history).toContain('icon={History}')
+  })
+
   it("animates every data progress bar with reduced-motion support", () => {
     const animatedProgress = read("components/ui/animated-progress.tsx")
     const metricCard = read("components/ui/metric-card.tsx")
