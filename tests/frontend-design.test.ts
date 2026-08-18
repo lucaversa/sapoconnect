@@ -171,6 +171,8 @@ describe("frontend information architecture", () => {
     expect(header).toContain("toggleTheme(); closeUtilityMenu()")
     expect(mobileNav).toContain('className="grid grid-cols-4 gap-0.5"')
     expect(mobileNav).not.toContain('/app/atualizacoes')
+    expect(mobileNav).toContain('mobile-dock-viewport')
+    expect(mobileNav).toContain('data-mobile-dock')
   })
 
   it("shows a Liquid Glass update feed with detail and safe module navigation", () => {
@@ -197,6 +199,7 @@ describe("frontend information architecture", () => {
     expect(page).toContain("markRead(update.id)")
     expect(detail).toContain("Antes")
     expect(detail).toContain("Agora")
+    expect(detail).toContain("Informações completas")
     expect(detail).toContain("prefetch={false}")
     expect(detail).toContain("Abrir {moduleMeta.label}")
     expect(providers).toContain("<AcademicUpdatesProvider key={cacheScope}")

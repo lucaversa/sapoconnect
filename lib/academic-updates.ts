@@ -15,6 +15,11 @@ export interface AcademicUpdateChange {
   after: string
 }
 
+export interface AcademicUpdateDetail {
+  label: string
+  value: string
+}
+
 export interface AcademicUpdate {
   id: string
   signature: string
@@ -25,6 +30,7 @@ export interface AcademicUpdate {
   context?: string
   summary: string
   changes: AcademicUpdateChange[]
+  details?: AcademicUpdateDetail[]
   detectedAt: number
   readAt: number | null
 }
@@ -41,6 +47,7 @@ export interface AcademicSnapshotRecord {
   entityLabel: string
   context?: string
   fields: Record<string, AcademicSnapshotField>
+  details?: AcademicUpdateDetail[]
 }
 
 export interface AcademicModuleSnapshot {
@@ -72,6 +79,7 @@ interface NormalizedSnapshot {
 
 const MAX_UPDATES = 200
 const UPDATE_RETENTION_MS = 90 * 24 * 60 * 60 * 1_000
+const MAX_CONSECUTIVE_GAP_MINUTES = 15
 const EMPTY_VALUE = 'Não informada'
 
 export const ACADEMIC_MODULE_META: Record<
@@ -130,51 +138,150 @@ function datePart(value: unknown): string {
   return displayed.includes('T') ? displayed.split('T')[0] : displayed
 }
 
+function uniqueText(values: unknown[]): string {
+  return Array.from(new Set(values.map(displayText).filter(Boolean))).join(', ')
+}
+
+function timeInMinutes(value: unknown): number | null {
+  const match = displayText(value).match(/^(\d{1,2}):(\d{2})$/)
+  if (!match) return null
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  if (hours > 23 || minutes > 59) return null
+  return hours * 60 + minutes
+}
+
+function formatLocalDateTime(value: unknown): string {
+  const displayed = displayText(value)
+  const match = displayed.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
+  if (!match) return displayed
+  const [, year, month, day, hours, minutes] = match
+  return `${day}/${month}/${year} às ${hours}:${minutes}`
+}
+
+function detail(label: string, value: unknown): AcademicUpdateDetail | null {
+  const displayed = displayText(value)
+  return displayed ? { label, value: displayed } : null
+}
+
+function detailsFrom(values: Array<AcademicUpdateDetail | null>): AcademicUpdateDetail[] {
+  return values.filter((value): value is AcademicUpdateDetail => value !== null)
+}
+
+interface CalendarSession {
+  lessons: Record<string, unknown>[]
+  namespace: string
+  date: string
+}
+
 function normalizeCalendar(data: Record<string, unknown>): NormalizedSnapshot {
   const lessons = arrayFrom(data.aulas)
-  const groups = new Map<string, Record<string, unknown>[]>()
+  const groups = new Map<string, { namespace: string; date: string; lessons: Record<string, unknown>[] }>()
 
   for (const lesson of lessons) {
     const date = datePart(lesson.data_inicial_iso) || displayText(lesson.data_inicial)
-    const stableDetailId = keyText(lesson.detalhe_id)
-    const base = stableDetailId !== 'sem-id'
-      ? `id:${stableDetailId}`
-      : [lesson.disciplina, date, lesson.turma, lesson.subturma].map(keyText).join('|')
-    const group = groups.get(base) ?? []
-    group.push(lesson)
-    groups.set(base, group)
+    const identity = keyText(lesson.disciplina)
+    const namespace = `aula:${identity}|`
+    const dayKey = [lesson.disciplina, date, lesson.turma, lesson.subturma, lesson.tipo_turma]
+      .map(keyText)
+      .join('|')
+    const group = groups.get(dayKey) ?? { namespace, date, lessons: [] }
+    group.lessons.push(lesson)
+    groups.set(dayKey, group)
+  }
+
+  const sessions: CalendarSession[] = []
+  for (const group of Array.from(groups.values())) {
+    const sortedLessons = [...group.lessons].sort((left, right) => {
+      const leftTime = `${displayText(left.inicio)}|${displayText(left.fim)}|${displayText(left.sala)}`
+      const rightTime = `${displayText(right.inicio)}|${displayText(right.fim)}|${displayText(right.sala)}`
+      return leftTime.localeCompare(rightTime, 'pt-BR')
+    })
+
+    let current: CalendarSession | null = null
+    for (const lesson of sortedLessons) {
+      if (!current) {
+        current = { lessons: [lesson], namespace: group.namespace, date: group.date }
+        continue
+      }
+
+      const previousLesson = current.lessons[current.lessons.length - 1]
+      const previousEnd = timeInMinutes(previousLesson.fim)
+      const nextStart = timeInMinutes(lesson.inicio)
+      const isConsecutive = previousEnd !== null && nextStart !== null
+        && nextStart >= previousEnd
+        && nextStart - previousEnd <= MAX_CONSECUTIVE_GAP_MINUTES
+
+      if (isConsecutive) current.lessons.push(lesson)
+      else {
+        sessions.push(current)
+        current = { lessons: [lesson], namespace: group.namespace, date: group.date }
+      }
+    }
+    if (current) sessions.push(current)
   }
 
   const records: AcademicSnapshotRecord[] = []
-  for (const [base, group] of Array.from(groups.entries())) {
-    group
-      .sort((left, right) => {
-        const leftTime = `${displayText(left.inicio)}|${displayText(left.fim)}|${displayText(left.sala)}`
-        const rightTime = `${displayText(right.inicio)}|${displayText(right.fim)}|${displayText(right.sala)}`
-        return leftTime.localeCompare(rightTime, 'pt-BR')
-      })
-      .forEach((lesson, index) => {
-        const entityLabel = displayText(lesson.disciplina) || 'Aula'
-        const date = displayText(lesson.data_inicial) || datePart(lesson.data_inicial_iso)
-        const schedule = [displayText(lesson.inicio), displayText(lesson.fim)].filter(Boolean).join(' - ')
-        const location = [lesson.predio, lesson.bloco, lesson.sala]
-          .map(displayText)
-          .filter(Boolean)
-          .join(' / ')
-        const namespace = `aula:${base}|`
+  const duplicateCounts = new Map<string, number>()
+  for (const session of sessions.sort((left, right) => {
+    const leftKey = `${left.namespace}${left.date}|${displayText(left.lessons[0]?.inicio)}`
+    const rightKey = `${right.namespace}${right.date}|${displayText(right.lessons[0]?.inicio)}`
+    return leftKey.localeCompare(rightKey, 'pt-BR')
+  })) {
+    const firstLesson = session.lessons[0]
+    const lastLesson = session.lessons[session.lessons.length - 1]
+    const entityLabel = displayText(firstLesson.disciplina) || 'Aula'
+    const date = displayText(firstLesson.data_inicial) || session.date
+    const day = uniqueText(session.lessons.map((lesson) => lesson.dia))
+    const start = displayText(firstLesson.inicio)
+    const end = displayText(lastLesson.fim)
+    const schedule = [start, end].filter(Boolean).join(' - ')
+    const buildings = uniqueText(session.lessons.map((lesson) => lesson.predio))
+    const blocks = uniqueText(session.lessons.map((lesson) => lesson.bloco))
+    const rooms = uniqueText(session.lessons.map((lesson) => lesson.sala))
+    const location = [buildings, blocks, rooms].filter(Boolean).join(' / ')
+    const endDate = uniqueText(session.lessons.map((lesson) => lesson.data_final))
+    const baseId = [
+      `${session.namespace}${keyText(session.date)}`,
+      keyText(start),
+      keyText(end),
+      keyText(firstLesson.turma),
+      keyText(firstLesson.subturma),
+      keyText(firstLesson.tipo_turma),
+    ].join('|')
+    const duplicateIndex = duplicateCounts.get(baseId) ?? 0
+    duplicateCounts.set(baseId, duplicateIndex + 1)
 
-        records.push({
-          id: `${namespace}${index}`,
-          namespace,
-          entityLabel,
-          context: date || undefined,
-          fields: {
-            schedule: field('Horário', schedule),
-            location: field('Local', location),
-            group: field('Turma', lesson.turma),
-          },
-        })
-      })
+    records.push({
+      id: `${baseId}|${duplicateIndex}`,
+      namespace: session.namespace,
+      entityLabel,
+      context: [day, date].filter(Boolean).join(', ') || undefined,
+      fields: {
+        date: field('Data', date),
+        day: field('Dia da semana', day),
+        schedule: field('Horário', schedule),
+        periods: field('Períodos seguidos', session.lessons.length, true),
+        location: field('Local', location),
+        group: field('Turma', firstLesson.turma),
+        subgroup: field('Subturma', firstLesson.subturma),
+        classType: field('Tipo de turma', firstLesson.tipo_turma),
+      },
+      details: detailsFrom([
+        detail('Data', date),
+        detail('Dia da semana', day),
+        detail('Horário completo', schedule),
+        detail('Períodos seguidos', session.lessons.length),
+        detail('Local completo', location),
+        detail('Prédio', buildings),
+        detail('Bloco', blocks),
+        detail('Sala', rooms),
+        detail('Turma', firstLesson.turma),
+        detail('Subturma', firstLesson.subturma),
+        detail('Tipo de turma', firstLesson.tipo_turma),
+        endDate && endDate !== date ? detail('Data final', endDate) : null,
+      ]),
+    })
   }
 
   return { records, protectedNamespaces: [] }
@@ -184,6 +291,9 @@ function normalizeAbsences(data: Record<string, unknown>): NormalizedSnapshot {
   const records = arrayFrom(data.faltas).map((absence) => {
     const entityLabel = displayText(absence.disciplina) || 'Disciplina'
     const namespace = `disc:${keyText(absence.codigo || entityLabel)}|`
+    const futureEvents = Array.isArray(absence.eventosFuturos)
+      ? absence.eventosFuturos.map(formatLocalDateTime).filter(Boolean)
+      : []
     return {
       id: `${namespace}frequencia`,
       namespace,
@@ -193,6 +303,20 @@ function normalizeAbsences(data: Record<string, unknown>): NormalizedSnapshot {
         limit: field('Limite', absence.limiteFaltas, true),
         situation: field('Situação', absence.situacao),
       },
+      details: detailsFrom([
+        detail('Código', absence.codigo),
+        detail('Turma', absence.turma),
+        detail('Situação', absence.situacao),
+        detail('Faltas', absence.porcentagem),
+        detail('Limite de faltas', absence.limiteFaltas),
+        detail('Carga horária', absence.ch),
+        detail('Impacto de uma falta', absence.umaFaltaPct),
+        detail('Aulas no calendário', absence.aulasTotal),
+        detail('Aulas já realizadas', absence.aulasRealizadas),
+        detail('Dias restantes', absence.diasRestantes),
+        detail('Próxima aula', futureEvents[0]),
+        futureEvents.length > 0 ? detail('Aulas futuras', futureEvents.length) : null,
+      ]),
     } satisfies AcademicSnapshotRecord
   })
 
@@ -229,6 +353,15 @@ function normalizeEvaluations(data: Record<string, unknown>): NormalizedSnapshot
             value: field('Valor', evaluation.valor, true),
             date: field('Data', evaluation.data),
           },
+          details: detailsFrom([
+            detail('Disciplina', subjectLabel),
+            detail('Categoria', categoryLabel),
+            detail('Avaliação', entityLabel),
+            detail('Data', evaluation.data),
+            detail('Nota', evaluation.nota),
+            detail('Valor da avaliação', evaluation.valor),
+            detail('Média para aprovação', subject.resultado.mediaParaAprovacao),
+          ]),
         })
       }
     }
@@ -259,6 +392,18 @@ function normalizeHistory(data: Record<string, unknown>): NormalizedSnapshot {
           grade: field('Nota final', subject.nota, true),
           absences: field('Faltas', subject.faltas, true),
         },
+        details: detailsFrom([
+          detail('Período letivo', periodLabel),
+          detail('Código', subject.codigo),
+          detail('Situação', subject.situacao || subject.status),
+          detail('Créditos', subject.creditos),
+          detail('Carga horária', subject.ch),
+          detail('Carga horária integralizada', subject.chIntegralizada),
+          detail('Conceito', subject.conceito),
+          detail('Nota final', subject.nota),
+          detail('Faltas', subject.faltas),
+          detail('Período de referência', subject.periodo),
+        ]),
       })
     }
   }
@@ -332,6 +477,8 @@ function titleFor(
 
   const labels = new Set(changes.map((change) => change.label))
   if (module === 'calendario') {
+    if (labels.has('Data') && labels.has('Horário')) return 'Data e horário alterados'
+    if (labels.has('Data')) return 'Data da aula alterada'
     if (labels.has('Horário') && labels.has('Local')) return 'Horário e local alterados'
     if (labels.has('Horário')) return 'Horário da aula alterado'
     if (labels.has('Local')) return 'Local da aula alterado'
@@ -351,13 +498,30 @@ function titleFor(
 function summaryFor(
   module: AcademicModule,
   kind: AcademicUpdateKind,
-  entityLabel: string,
+  record: AcademicSnapshotRecord,
   changes: AcademicUpdateChange[],
 ): string {
-  if (kind === 'added') return `${entityLabel} foi incluída em ${ACADEMIC_MODULE_META[module].label}.`
-  if (kind === 'removed') return `${entityLabel} não aparece mais nos dados atuais.`
-  const first = changes[0]
-  return first ? `${first.label}: ${first.before} para ${first.after}.` : `${entityLabel} foi atualizada.`
+  if (module === 'calendario') {
+    const date = record.fields.date?.value
+    const schedule = record.fields.schedule?.value
+    const location = record.fields.location?.value
+    const descriptor = [
+      date,
+      schedule ? `das ${schedule.replace(' - ', ' às ')}` : '',
+      location ? `em ${location}` : '',
+    ].filter(Boolean).join(', ')
+    if (kind === 'added') return descriptor ? `Incluída em ${descriptor}.` : 'Aula incluída nos horários.'
+    if (kind === 'removed') return descriptor ? `Não aparece mais em ${descriptor}.` : 'Aula removida dos horários atuais.'
+    const changedLabels = changes.map((change) => change.label.toLocaleLowerCase('pt-BR')).join(', ')
+    if (changedLabels && descriptor) return `Mudanças em ${changedLabels}. Agora: ${descriptor}.`
+  }
+
+  if (kind === 'added') return `${record.entityLabel} foi incluída em ${ACADEMIC_MODULE_META[module].label}.`
+  if (kind === 'removed') return `${record.entityLabel} não aparece mais nos dados atuais.`
+  const relevant = changes.slice(0, 2).map(
+    (change) => `${change.label}: ${change.before} para ${change.after}`,
+  )
+  return relevant.length > 0 ? `${relevant.join('. ')}.` : `${record.entityLabel} foi atualizada.`
 }
 
 function createUpdate(
@@ -380,8 +544,11 @@ function createUpdate(
     title: titleFor(module, kind, changes),
     entityLabel: record.entityLabel,
     context: record.context,
-    summary: summaryFor(module, kind, record.entityLabel, changes),
+    summary: summaryFor(module, kind, record, changes),
     changes,
+    details: record.details ?? Object.values(record.fields)
+      .filter((item) => item.value)
+      .map((item) => ({ label: item.label, value: item.value })),
     detectedAt,
     readAt: null,
   }
@@ -400,6 +567,62 @@ function mergeProtectedRecords(
       !currentIds.has(record.id),
   )
   return [...current, ...protectedPrevious]
+}
+
+function isLegacyCalendarSnapshot(snapshot: AcademicModuleSnapshot): boolean {
+  return snapshot.records.some(
+    (record) => !record.fields.date || !record.fields.periods,
+  )
+}
+
+function calendarRecordPairs(
+  previousRecords: AcademicSnapshotRecord[],
+  currentRecords: AcademicSnapshotRecord[],
+): Array<[AcademicSnapshotRecord, AcademicSnapshotRecord]> {
+  const pairs: Array<[AcademicSnapshotRecord, AcademicSnapshotRecord]> = []
+  const matchedPrevious = new Set<string>()
+  const matchedCurrent = new Set<string>()
+  const previousById = new Map(previousRecords.map((record) => [record.id, record]))
+
+  for (const current of currentRecords) {
+    const previous = previousById.get(current.id)
+    if (!previous) continue
+    pairs.push([previous, current])
+    matchedPrevious.add(previous.id)
+    matchedCurrent.add(current.id)
+  }
+
+  const previousByNamespace = new Map<string, AcademicSnapshotRecord[]>()
+  const currentByNamespace = new Map<string, AcademicSnapshotRecord[]>()
+  for (const previous of previousRecords) {
+    if (matchedPrevious.has(previous.id)) continue
+    const group = previousByNamespace.get(previous.namespace) ?? []
+    group.push(previous)
+    previousByNamespace.set(previous.namespace, group)
+  }
+  for (const current of currentRecords) {
+    if (matchedCurrent.has(current.id)) continue
+    const group = currentByNamespace.get(current.namespace) ?? []
+    group.push(current)
+    currentByNamespace.set(current.namespace, group)
+  }
+
+  for (const [namespace, previousGroup] of Array.from(previousByNamespace.entries())) {
+    const currentGroup = currentByNamespace.get(namespace)
+    if (!currentGroup) continue
+    const sortedPrevious = [...previousGroup].sort((left, right) => left.id.localeCompare(right.id, 'pt-BR'))
+    const sortedCurrent = [...currentGroup].sort((left, right) => left.id.localeCompare(right.id, 'pt-BR'))
+    const pairCount = Math.min(sortedPrevious.length, sortedCurrent.length)
+    for (let index = 0; index < pairCount; index += 1) {
+      const previous = sortedPrevious[index]
+      const current = sortedCurrent[index]
+      pairs.push([previous, current])
+      matchedPrevious.add(previous.id)
+      matchedCurrent.add(current.id)
+    }
+  }
+
+  return pairs
 }
 
 function withModuleSnapshot(
@@ -493,6 +716,25 @@ export function applyAcademicSnapshot(
     }
   }
 
+  if (module === 'calendario' && isLegacyCalendarSnapshot(previousSnapshot)) {
+    const stateWithoutLegacyCalendarUpdates = {
+      ...state,
+      updates: state.updates.filter((update) => update.module !== 'calendario'),
+    }
+    return {
+      state: withModuleSnapshot(
+        stateWithoutLegacyCalendarUpdates,
+        module,
+        normalized.records,
+        capturedAt,
+        [],
+        normalized.protectedNamespaces,
+      ),
+      added: [],
+      status: 'baseline',
+    }
+  }
+
   if (
     previousSnapshot.records.length > 0 &&
     normalized.records.length === 0 &&
@@ -506,27 +748,36 @@ export function applyAcademicSnapshot(
     normalized.records,
     normalized.protectedNamespaces,
   )
-  const previousById = new Map(previousSnapshot.records.map((record) => [record.id, record]))
-  const currentById = new Map(currentRecords.map((record) => [record.id, record]))
   const pendingNamespaces = new Set(previousSnapshot.pendingNamespaces ?? [])
   const added: AcademicUpdate[] = []
+  const matchedPrevious = new Set<string>()
+  const matchedCurrent = new Set<string>()
+  const previousById = new Map(previousSnapshot.records.map((record) => [record.id, record]))
+  const pairs = module === 'calendario'
+    ? calendarRecordPairs(previousSnapshot.records, currentRecords)
+    : currentRecords.flatMap((current) => {
+      const previous = previousById.get(current.id)
+      return previous ? [[previous, current] as [AcademicSnapshotRecord, AcademicSnapshotRecord]] : []
+    })
 
-  for (const current of currentRecords) {
-    const previous = previousById.get(current.id)
-    if (!previous) {
-      if (!pendingNamespaces.has(current.namespace)) {
-        added.push(createUpdate(module, 'added', undefined, current, [], capturedAt))
-      }
-      continue
-    }
+  for (const [previous, current] of pairs) {
+    matchedPrevious.add(previous.id)
+    matchedCurrent.add(current.id)
     const changes = changesBetween(previous, current)
     if (changes.length > 0) {
       added.push(createUpdate(module, 'changed', previous, current, changes, capturedAt))
     }
   }
 
+  for (const current of currentRecords) {
+    if (matchedCurrent.has(current.id)) continue
+    if (!pendingNamespaces.has(current.namespace)) {
+      added.push(createUpdate(module, 'added', undefined, current, [], capturedAt))
+    }
+  }
+
   for (const previous of previousSnapshot.records) {
-    if (!currentById.has(previous.id)) {
+    if (!matchedPrevious.has(previous.id)) {
       added.push(createUpdate(module, 'removed', previous, undefined, [], capturedAt))
     }
   }

@@ -84,8 +84,8 @@ function MobileNavLinks() {
 
 export function MobileNav() {
   return (
-    <div className="mobile-safe-bottom fixed inset-x-3 bottom-2 z-40 lg:hidden">
-      <div className="liquid-float liquid-dock mx-auto max-w-md">
+    <div className="mobile-dock-viewport pointer-events-none lg:hidden" data-mobile-dock>
+      <div className="liquid-float liquid-dock pointer-events-auto mx-auto max-w-md">
         <MobileNavLinks />
       </div>
     </div>
