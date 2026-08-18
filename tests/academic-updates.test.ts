@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  ACADEMIC_UPDATES_SCHEMA_VERSION,
   applyAcademicSnapshot,
   createAcademicUpdatesState,
+  isAcademicUpdatesState,
   type AcademicUpdatesState,
 } from '@/lib/academic-updates'
 
@@ -16,6 +18,16 @@ function apply(
 }
 
 describe('academic updates', () => {
+  it('invalidates every stored feed from before the grouped-session redesign', () => {
+    const current = createAcademicUpdatesState('scope-fixture')
+    const legacy = { ...current, version: 1 }
+
+    expect(ACADEMIC_UPDATES_SCHEMA_VERSION).toBe(2)
+    expect(isAcademicUpdatesState(legacy, 'scope-fixture')).toBe(false)
+    expect(current.updates).toEqual([])
+    expect(current.snapshots).toEqual({})
+  })
+
   it('uses the first valid response as a baseline without inventing updates', () => {
     const state = createAcademicUpdatesState('scope-fixture')
     const result = apply(state, 'faltas', {

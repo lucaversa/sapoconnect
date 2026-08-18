@@ -1,4 +1,5 @@
-export const ACADEMIC_UPDATES_SCHEMA_VERSION = 1
+// Version 2 intentionally starts a clean update feed after the grouped-session redesign.
+export const ACADEMIC_UPDATES_SCHEMA_VERSION = 2
 
 export type AcademicModule = 'calendario' | 'faltas' | 'avaliacoes' | 'historico'
 export type AcademicUpdateKind = 'added' | 'changed' | 'removed'
