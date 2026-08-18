@@ -55,17 +55,17 @@ export function UpdateDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
+      <DialogContent className="gap-0 p-0 sm:max-w-xl sm:p-0">
+        <DialogHeader className="pb-4 pl-5 pr-20 pt-5 sm:pb-5 sm:pl-6 sm:pr-20 sm:pt-6">
           <div className="mb-2 flex items-center gap-3">
             <span className="icon-orb size-11">
               <Icon className="size-5" aria-hidden="true" />
             </span>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-primary-700 dark:text-primary-300">
                 {moduleMeta.label}
               </p>
-              <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-[11px] leading-4 text-gray-500 dark:text-gray-400 sm:text-xs">
                 Detectado em {formatDetectedAt(update.detectedAt)}
               </p>
             </div>
@@ -77,8 +77,14 @@ export function UpdateDetailDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[52dvh] space-y-5 overflow-y-auto overscroll-contain pr-1">
-          <div className="liquid-float rounded-[1.25rem] p-4 text-sm leading-6 text-gray-700 dark:text-gray-200">
+        <div
+          data-update-scroll
+          className="min-h-0 max-h-[52dvh] space-y-5 overflow-y-auto overscroll-contain px-5 sm:px-6"
+        >
+          <div
+            data-update-summary
+            className="liquid-float rounded-[1.25rem] p-4 text-sm leading-6 text-gray-700 dark:text-gray-200"
+          >
             {update.summary}
           </div>
 
@@ -145,12 +151,14 @@ export function UpdateDetailDialog({
           ) : null}
         </div>
 
-        <Button asChild className="w-full gap-2">
-          <Link href={moduleMeta.href} prefetch={false} onClick={() => onOpenChange(false)}>
-            Abrir {moduleMeta.label}
-            <MoveRight className="size-4" aria-hidden="true" />
-          </Link>
-        </Button>
+        <div data-update-action className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6 sm:pt-5">
+          <Button asChild className="w-full gap-2">
+            <Link href={moduleMeta.href} prefetch={false} onClick={() => onOpenChange(false)}>
+              Abrir {moduleMeta.label}
+              <MoveRight className="size-4" aria-hidden="true" />
+            </Link>
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   )
