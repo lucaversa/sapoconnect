@@ -8,6 +8,7 @@ import {
   Award,
   TrendingUp,
   GraduationCap,
+  Star,
   CheckCircle,
   Layers,
   RefreshCw
@@ -370,7 +371,7 @@ function getCategoriaStyle(categoria: string) {
         <TotvsOfflineBanner updatedAt={disciplinasData?.__cacheStale ? undefined : dataUpdatedAt} onRetry={() => void refetch()} />
       ) : null}
       <PageHeading
-        icon={GraduationCap}
+        icon={Star}
         title="Avaliações"
         meta={lastUpdatedLabel ? <span className="inline-flex items-center gap-1.5">Atualizado {lastUpdatedLabel}{isFetching ? <RefreshCw className="size-3.5 animate-spin text-primary" /> : null}</span> : undefined}
         actions={<Button variant="outline" size="icon" onClick={handleRefresh} disabled={isFetching} aria-label="Atualizar" className="hidden sm:inline-flex"><RefreshCw className={`size-4 ${isFetching ? 'animate-spin' : ''}`} /></Button>}
