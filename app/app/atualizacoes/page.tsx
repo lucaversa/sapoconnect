@@ -111,7 +111,7 @@ export default function AtualizacoesPage() {
       <PageHeading
         icon={BellRing}
         title="Atualizações"
-        meta={syncProgress.isSyncing ? `Verificando ${currentSyncLabel}` : unreadCount > 0 ? `${unreadCount} não ${unreadCount === 1 ? 'lida' : 'lidas'}` : 'Nenhuma pendência'}
+        meta={syncProgress.isSyncing ? `Verificando ${currentSyncLabel}` : unreadCount > 0 ? `${unreadCount} não ${unreadCount === 1 ? 'lida' : 'lidas'}` : undefined}
       />
 
       <section className="liquid-float flex items-center gap-2 rounded-[1.5rem] p-2.5 sm:gap-3 sm:p-3">
@@ -176,12 +176,12 @@ export default function AtualizacoesPage() {
             <Sparkles className="size-7" aria-hidden="true" />
           </motion.div>
           <h2 className="mt-4 text-lg font-extrabold tracking-[-0.03em] text-gray-950 dark:text-white">
-            {filter === 'unread' ? 'Nenhuma atualização pendente' : 'Nenhuma alteração detectada'}
+            {updates.length > 0 ? 'Tudo lido' : 'Nenhuma atualização por enquanto'}
           </h2>
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600 dark:text-gray-300">
             {updates.length > 0
-              ? 'As atualizações anteriores já foram lidas.'
-              : 'O primeiro retrato de cada módulo serve como referência. As próximas mudanças aparecerão aqui.'}
+              ? 'Você já viu todas as atualizações.'
+              : 'Quando seus dados acadêmicos mudarem, os detalhes aparecerão aqui.'}
           </p>
         </section>
       ) : (
