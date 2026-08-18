@@ -329,12 +329,14 @@ describe("frontend information architecture", () => {
     expect(history).toContain("concluidasNoPeriodo === totalDisciplinasNoPeriodo")
   })
 
-  it("uses distinct module icons in evaluation and history headings", () => {
+  it("matches module heading icons to navigation", () => {
     const evaluations = read("app/app/avaliacoes/page.tsx")
     const history = read("app/app/historico/page.tsx")
+    const absences = read("app/app/faltas/page.tsx")
 
     expect(evaluations).toContain('icon={Star}')
     expect(history).toContain('icon={History}')
+    expect(absences).toContain('icon={ClipboardList}')
   })
 
   it("animates every data progress bar with reduced-motion support", () => {
