@@ -98,7 +98,10 @@ describe("frontend information architecture", () => {
     expect(pullToRefresh).toContain("Puxe para baixo para atualizar")
     expect(pullToRefresh).toContain("PULL_HINT_SEEN_KEY")
     expect(pullToRefresh).toContain("PULL_HINT_DURATION_MS = 4_000")
-    expect(pullToRefresh).toContain("closest('[data-calendar-scroll]')")
+    expect(pullToRefresh).toContain("PULL_GESTURE_BLOCK_SELECTOR")
+    expect(pullToRefresh).toContain("'[data-pull-to-refresh-ignore], [data-calendar-scroll], [data-slot=\"dialog-content\"], [role=\"dialog\"]'")
+    expect(pullToRefresh).toContain("document.querySelector(OPEN_DIALOG_SELECTOR)")
+    expect(pullToRefresh).toContain("isPullGestureBlocked(event.target)")
     expect(pullToRefresh).toContain("pullDistance > 0 && !isRefreshing")
     expect(pullToRefresh).toContain("DEFAULT_PULL_DISTANCE = 96")
     expect(pullToRefresh).toContain("PULL_ACTIVATION_DISTANCE = 18")
@@ -117,6 +120,15 @@ describe("frontend information architecture", () => {
     expect(absences.match(/<MetricCard tile/g)).toHaveLength(4)
     expect(metricCard).toContain('tile ? "p-3 sm:p-4"')
     expect(metricCard).toContain('min-h-[6.5rem] flex-col justify-between')
+  })
+
+  it("keeps pull-to-refresh behind the scrollable about dialog", () => {
+    const aboutDialog = read("components/modals/AboutDialog.tsx")
+    const pullToRefresh = read("components/pull-to-refresh.tsx")
+
+    expect(aboutDialog).toContain("<DialogContent data-pull-to-refresh-ignore")
+    expect(pullToRefresh).toContain("OPEN_DIALOG_SELECTOR")
+    expect(pullToRefresh).toContain("resetPullGesture()")
   })
 
   it("ends each absence risk timeline at its first red day", () => {
