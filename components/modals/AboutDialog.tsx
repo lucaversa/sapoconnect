@@ -40,7 +40,7 @@ function InstallGuide({ platform, steps }: { platform: string; steps: string[] }
 export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-0 p-0 sm:max-w-xl sm:p-0">
+      <DialogContent data-pull-to-refresh-ignore className="gap-0 p-0 sm:max-w-xl sm:p-0">
         <DialogHeader className="relative overflow-hidden border-b border-white/10 bg-gray-950 px-5 pb-5 pt-5 text-left text-white sm:px-6 sm:pb-6 sm:pt-6">
           <div aria-hidden="true" className="absolute -right-16 -top-20 size-52 rounded-full bg-primary/25 blur-3xl" />
           <div className="relative flex items-center gap-3 pr-12">

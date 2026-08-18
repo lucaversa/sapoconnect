@@ -18,6 +18,8 @@ const DEFAULT_PULL_DISTANCE = 96;
 const PULL_ACTIVATION_DISTANCE = 18;
 const PULL_RESISTANCE = 0.72;
 const VERTICAL_INTENT_RATIO = 1.35;
+const OPEN_DIALOG_SELECTOR = '[data-slot="dialog-content"][data-state="open"], [role="dialog"][data-state="open"]';
+const PULL_GESTURE_BLOCK_SELECTOR = '[data-pull-to-refresh-ignore], [data-calendar-scroll], [data-slot="dialog-content"], [role="dialog"]';
 let pullHintShownInMemory = false;
 
 export function PullToRefresh({ minPullDistance = DEFAULT_PULL_DISTANCE, onRefresh }: PullToRefreshProps) {
@@ -69,11 +71,19 @@ export function PullToRefresh({ minPullDistance = DEFAULT_PULL_DISTANCE, onRefre
       setPullDistance(0);
     };
 
+    const isPullGestureBlocked = (target: EventTarget | null) => {
+      if (document.querySelector(OPEN_DIALOG_SELECTOR)) return true;
+      return target instanceof Element && Boolean(target.closest(PULL_GESTURE_BLOCK_SELECTOR));
+    };
+
     const onTouchStart = (event: TouchEvent) => {
       if (refreshingRef.current) return;
       if (event.touches.length !== 1) return;
       if (getScrollTop() > 0) return;
-      if (event.target instanceof Element && event.target.closest('[data-calendar-scroll]')) return;
+      if (isPullGestureBlocked(event.target)) {
+        resetPullGesture();
+        return;
+      }
       startYRef.current = event.touches[0].clientY;
       startXRef.current = event.touches[0].clientX;
       isPullingRef.current = true;
@@ -83,6 +93,10 @@ export function PullToRefresh({ minPullDistance = DEFAULT_PULL_DISTANCE, onRefre
 
     const onTouchMove = (event: TouchEvent) => {
       if (!isPullingRef.current || refreshingRef.current) return;
+      if (isPullGestureBlocked(event.target)) {
+        resetPullGesture();
+        return;
+      }
       if (event.touches.length !== 1) {
         resetPullGesture();
         return;
