@@ -30,7 +30,7 @@ export function DayView({ currentDate, events, onEventSelect }: DayViewProps) {
   const { currentTimePosition, currentTimeVisible } = useCurrentTimeIndicator(currentDate, "day")
 
   return (
-    <div>
+    <div className="calendar-day-view">
       <header className="flex items-end justify-between border-b border-gray-200/70 px-4 py-4 dark:border-white/[0.065] sm:px-5">
         <div>
           <p className="text-sm font-semibold text-primary first-letter:uppercase">{format(currentDate, "EEEE", { locale: ptBR })}</p>

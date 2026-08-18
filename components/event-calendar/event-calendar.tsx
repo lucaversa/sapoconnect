@@ -142,7 +142,7 @@ export function EventCalendar({
           animate={{ opacity: 1, x: 0 }}
           exit={reducedMotion ? undefined : { opacity: 0, x: -8 }}
           transition={{ duration: reducedMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
-          className="min-h-[22rem]"
+          className="calendar-view-frame"
         >
           {view === "agenda" && <AgendaView currentDate={currentDate} events={events} onEventSelect={selectEvent} />}
           {view === "day" && <DayView currentDate={currentDate} events={events} onEventSelect={selectEvent} />}

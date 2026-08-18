@@ -35,16 +35,21 @@ describe("frontend information architecture", () => {
     expect(day).toContain('className="pointer-events-none absolute inset-x-0 z-20 border-t border-primary"')
   })
 
-  it("lets mobile pages scroll vertically from every calendar view", () => {
+  it("keeps every calendar view inside the same scrollable frame", () => {
+    const calendar = read("components/event-calendar/event-calendar.tsx")
+    const agenda = read("components/event-calendar/agenda-view.tsx")
     const week = read("components/event-calendar/week-view.tsx")
     const month = read("components/event-calendar/month-view.tsx")
     const day = read("components/event-calendar/day-view.tsx")
 
+    expect(calendar).toContain('className="calendar-view-frame"')
+    expect(agenda).toContain("calendar-scroll-viewport")
     expect(week).toContain('className="calendar-scroll-viewport"')
     expect(month).toContain('className="calendar-scroll-viewport"')
     expect(week).not.toContain("useMobileHorizontalScroll")
     expect(month).not.toContain("useMobileHorizontalScroll")
     expect(day).toContain('className="calendar-scroll-viewport"')
+    expect(day).toContain('className="calendar-day-view"')
   })
 
   it("uses a compact mobile week grid and a bounded two-axis viewport", () => {
@@ -52,8 +57,11 @@ describe("frontend information architecture", () => {
     const week = read("components/event-calendar/week-view.tsx")
     const month = read("components/event-calendar/month-view.tsx")
 
+    expect(globals).toContain(".calendar-view-frame")
     expect(globals).toContain(".calendar-scroll-viewport")
     expect(globals).toContain("height: min(55dvh, 32rem)")
+    expect(globals).toContain("height: min(68dvh, 50rem)")
+    expect(globals).toContain(".calendar-day-view > .calendar-scroll-viewport")
     expect(globals).toContain("touch-action: pan-x pan-y")
     expect(week).toContain("isCompactWeek ? 48 : WeekCellsHeight")
     expect(week).toContain("min-w-[720px] sm:min-w-[880px]")

@@ -556,14 +556,35 @@
     display: none;
   }
 
-  .calendar-scroll-viewport {
+  .calendar-view-frame {
     height: min(55dvh, 32rem);
+    overflow: hidden;
+  }
+
+  .calendar-view-frame > * {
+    height: 100%;
+  }
+
+  .calendar-scroll-viewport {
+    height: 100%;
     overflow: auto;
     overscroll-behavior: contain;
     touch-action: pan-x pan-y;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, hsl(var(--primary)) 38%, transparent) transparent;
+  }
+
+  .calendar-day-view {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .calendar-day-view > .calendar-scroll-viewport {
+    min-height: 0;
+    height: auto;
+    flex: 1 1 0%;
   }
 
   .calendar-scroll-viewport::-webkit-scrollbar {
@@ -577,9 +598,8 @@
   }
 
   @media (min-width: 640px) {
-    .calendar-scroll-viewport {
-      height: auto;
-      max-height: 68dvh;
+    .calendar-view-frame {
+      height: min(68dvh, 50rem);
     }
   }
 
