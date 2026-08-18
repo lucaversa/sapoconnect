@@ -44,9 +44,9 @@ describe('weekly schedule PDF layout', () => {
 
   it('merges consecutive class periods into one weekly block', () => {
     const aulas = Array.from({ length: 5 }, (_, week) => [
-      classFixture({ detalhe_id: `week-${week}-1`, inicio: '07:00', fim: '07:50' }),
-      classFixture({ detalhe_id: `week-${week}-2`, inicio: '08:00', fim: '08:50' }),
-      classFixture({ detalhe_id: `week-${week}-3`, inicio: '09:00', fim: '09:50' }),
+      classFixture({ detalhe_id: `week-${week}-1`, inicio: '07:00', fim: '07:50', predio: 'UNIDADE I', bloco: 'A', sala: `101-${week}` }),
+      classFixture({ detalhe_id: `week-${week}-2`, inicio: '08:00', fim: '08:50', predio: 'UNIDADE II', bloco: 'B', sala: `202-${week}` }),
+      classFixture({ detalhe_id: `week-${week}-3`, inicio: '09:00', fim: '09:50', predio: 'UNIDADE III', bloco: 'C', sala: `303-${week}` }),
     ]).flat()
 
     const blocks = prepareWeeklyBlocksForExport(aulas)
@@ -64,12 +64,14 @@ describe('weekly schedule PDF layout', () => {
     expect(prepareWeeklyBlocksForExport(aulas)).toHaveLength(2)
   })
 
-  it('keeps class, group, time and location in the subject index', () => {
+  it('keeps class, group and time without volatile location in the subject index', () => {
     const schedule = prepareWeeklyBlocksForExport(Array.from({ length: 5 }, (_, week) =>
-      classFixture({ detalhe_id: `weekly-${week}`, sala: 'CONS. 802' }),
+      classFixture({ detalhe_id: `weekly-${week}`, sala: `CONS. ${802 + week}` }),
     ))
 
-    expect(summarizeSubjectsForExport(schedule)).toEqual([
+    const subjects = summarizeSubjectsForExport(schedule)
+
+    expect(subjects).toEqual([
       expect.objectContaining({
         disciplina: 'CLÍNICA MÉDICA II',
         turma: '7M80D',
@@ -78,10 +80,10 @@ describe('weekly schedule PDF layout', () => {
           dayIndex: 0,
           startHour: 7,
           endHour: 7 + 50 / 60,
-          location: expect.stringContaining('CONS. 802'),
         })],
       }),
     ])
+    expect(subjects[0].sessions[0]).not.toHaveProperty('location')
   })
 
   it('builds the editorial schedule and subject index as two landscape pages', async () => {
