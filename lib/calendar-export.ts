@@ -59,7 +59,6 @@ export interface SubjectExportSummary {
     dayIndex: number
     startHour: number
     endHour: number
-    location: string
   }>
 }
 
@@ -102,9 +101,6 @@ function getClassKey(aula: Aula): string {
     aula.dia_num.toString(),
     aula.inicio,
     aula.fim,
-    aula.predio,
-    aula.bloco,
-    aula.sala,
   ].map(normalizeKeyPart).join('|')
 }
 
@@ -152,9 +148,6 @@ function hasSameClassIdentity(current: WeeklyExportBlock, next: WeeklyExportBloc
     && normalizeKeyPart(currentClass.disciplina) === normalizeKeyPart(nextClass.disciplina)
     && normalizeKeyPart(currentClass.turma) === normalizeKeyPart(nextClass.turma)
     && normalizeKeyPart(currentClass.subturma) === normalizeKeyPart(nextClass.subturma)
-    && normalizeKeyPart(currentClass.predio) === normalizeKeyPart(nextClass.predio)
-    && normalizeKeyPart(currentClass.bloco) === normalizeKeyPart(nextClass.bloco)
-    && normalizeKeyPart(currentClass.sala) === normalizeKeyPart(nextClass.sala)
 }
 
 function mergeConsecutivePeriods(schedule: WeeklyExportBlock[]): WeeklyExportBlock[] {
@@ -184,13 +177,6 @@ function mergeConsecutivePeriods(schedule: WeeklyExportBlock[]): WeeklyExportBlo
   return merged
 }
 
-function getLocation(aula: Aula): string {
-  return [aula.sala, aula.bloco, aula.predio]
-    .map((part) => part?.trim())
-    .filter((part, index, all): part is string => Boolean(part) && all.indexOf(part) === index)
-    .join(' · ')
-}
-
 export function prepareWeeklyBlocksForExport(aulas: Aula[]): WeeklyExportBlock[] {
   return mergeConsecutivePeriods(prepareSchedule(selectRecurringClasses(aulas)))
 }
@@ -211,7 +197,6 @@ export function summarizeSubjectsForExport(schedule: WeeklyExportBlock[]): Subje
       dayIndex: block.dayIndex,
       startHour: block.startHour,
       endHour: block.endHour,
-      location: getLocation(block.aula),
     })
     subjects.set(key, subject)
   }
@@ -406,7 +391,7 @@ function drawScheduleGrid(doc: JsPdfDocument, schedule: WeeklyExportBlock[], sta
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(4.65)
       setText(doc, COLORS.muted)
-      const detail = `${formatTime(startHour)} - ${formatTime(endHour)}${getLocation(aula) ? ` · ${getLocation(aula)}` : ''}`
+      const detail = `${formatTime(startHour)} - ${formatTime(endHour)}`
       doc.text(truncateToWidth(doc, detail, width - 5), left + 3, top + height - 1.8)
     }
   }
@@ -440,8 +425,7 @@ function formatSessions(doc: JsPdfDocument, subject: SubjectExportSummary, width
   doc.setFontSize(5.1)
   const value = subject.sessions.map((session) => {
     const day = WEEK_DAYS[session.dayIndex]?.short ?? ''
-    const location = session.location ? ` · ${session.location}` : ''
-    return `${day} ${formatTime(session.startHour)}-${formatTime(session.endHour)}${location}`
+    return `${day} ${formatTime(session.startHour)}-${formatTime(session.endHour)}`
   }).join('  |  ')
   return truncateToWidth(doc, value, width)
 }
