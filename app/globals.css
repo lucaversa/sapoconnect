@@ -536,6 +536,18 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 
+  .mobile-dock-viewport {
+    position: fixed !important;
+    inset-inline: 0.75rem;
+    bottom: max(0.5rem, env(safe-area-inset-bottom));
+    z-index: 40;
+    isolation: isolate;
+    transform: translate3d(0, 0, 0);
+    -webkit-transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
   .no-scrollbar {
     scrollbar-width: none;
   }
