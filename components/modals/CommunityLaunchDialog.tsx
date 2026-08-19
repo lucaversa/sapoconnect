@@ -55,7 +55,7 @@ const highlights = [
   {
     icon: UsersRound,
     title: "Nova área: Pulso da comunidade",
-    description: "Em Sobre e instalar, veja a movimentação anônima e agregada da plataforma.",
+    description: "No menu de três pontos, veja a movimentação anônima e agregada da plataforma.",
   },
 ]
 

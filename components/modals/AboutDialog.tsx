@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 
 import { BrandMark } from '@/components/brand/BrandMark';
-import { CommunityPulse } from '@/components/community/CommunityPulse';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const GITHUB_REPOSITORY = 'https://github.com/lucaversa/sapoconnect';
@@ -62,8 +61,6 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
               </div>
             </div>
           </section>
-
-          <CommunityPulse enabled={open} />
 
           <section className="border-t border-gray-200/70 py-5 dark:border-white/[0.065]">
             <div className="mb-3 flex items-start gap-3">

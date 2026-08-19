@@ -1,12 +1,13 @@
 "use client"
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { BellRing, ExternalLink, GraduationCap, Info, LogOut, Moon, MoreHorizontal, Sun } from "lucide-react"
+import { Activity, BellRing, ExternalLink, GraduationCap, Info, LogOut, Moon, MoreHorizontal, Sun } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 
 import { BrandMark } from "@/components/brand/BrandMark"
 import { AboutDialog } from "@/components/modals/AboutDialog"
+import { CommunityPulseDialog } from "@/components/modals/CommunityPulseDialog"
 import { useTheme } from "@/context/ThemeContext"
 import { useUserInfo } from "@/hooks/use-user-info"
 import { useAcademicUpdates } from "@/lib/academic-updates-provider"
@@ -25,6 +26,7 @@ export function AppHeaderView({ theme, toggleTheme, logout, greeting, ra, unread
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isUtilityMenuOpen, setIsUtilityMenuOpen] = useState(false)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
+  const [isCommunityPulseOpen, setIsCommunityPulseOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const reducedMotion = useReducedMotion()
@@ -139,6 +141,10 @@ export function AppHeaderView({ theme, toggleTheme, logout, greeting, ra, unread
                   </span>
                   {theme === "dark" ? "Usar tema claro" : "Usar tema escuro"}
                 </button>
+                <button type="button" role="menuitem" onClick={() => { closeUtilityMenu(false); setIsCommunityPulseOpen(true) }} className="liquid-menu-item flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-sm font-bold text-gray-700 hover:text-primary-700 dark:text-gray-200 dark:hover:text-primary-300">
+                  <span className="icon-orb size-9"><Activity className="size-4" aria-hidden="true" /></span>
+                  Pulso da comunidade
+                </button>
                 <a href="https://fundacaoeducacional132827.rm.cloudtotvs.com.br/" target="_blank" rel="noopener noreferrer" role="menuitem" onClick={() => closeUtilityMenu(false)} className="liquid-menu-item flex min-h-12 items-center gap-3 rounded-2xl px-3 text-sm font-bold text-gray-700 hover:text-primary-700 dark:text-gray-200 dark:hover:text-primary-300">
                   <span className="icon-orb size-9"><GraduationCap className="size-4" /></span>
                   Portal oficial
@@ -153,12 +159,16 @@ export function AppHeaderView({ theme, toggleTheme, logout, greeting, ra, unread
                   <span className="flex size-9 items-center justify-center rounded-2xl bg-red-500/10"><LogOut className="size-4" /></span>
                   {isLoggingOut ? "Saindo..." : "Sair da conta"}
                 </button>
+                <p className="px-3 pb-1 pt-2 text-center text-[10px] font-medium text-gray-400 dark:text-gray-500">
+                  Criado e mantido por <span className="font-bold text-gray-500 dark:text-gray-400">Luca Janini</span>
+                </p>
               </motion.div>
             ) : null}
           </AnimatePresence>
         </div>
       </header>
       <AboutDialog open={isAboutOpen} onOpenChange={(open) => { setIsAboutOpen(open); if (!open) window.requestAnimationFrame(() => triggerRef.current?.focus()) }} />
+      <CommunityPulseDialog open={isCommunityPulseOpen} onOpenChange={(open) => { setIsCommunityPulseOpen(open); if (!open) window.requestAnimationFrame(() => triggerRef.current?.focus()) }} />
     </>
   )
 }
