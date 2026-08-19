@@ -11,6 +11,12 @@ import {
 } from 'react'
 import type { Query } from '@tanstack/react-query'
 
+import {
+  BACKGROUND_LOCK_TTL_MS,
+  BACKGROUND_RECHECK_INTERVAL_MS,
+  getAcademicBackgroundPlan,
+  getBackgroundStartJitter,
+} from '@/lib/academic-update-schedule'
 import { parseApiError, isSessionExpiredApiError } from '@/lib/api-response-error'
 import {
   ACADEMIC_MODULE_META,
@@ -19,20 +25,24 @@ import {
   isAcademicUpdatesState,
   markAcademicUpdateRead,
   markAllAcademicUpdatesRead,
+  migrateAcademicUpdatesState,
   recordBackgroundSweep,
   type AcademicModule,
   type AcademicUpdate,
   type AcademicUpdatesState,
 } from '@/lib/academic-updates'
+import { calculateEvaluationLaunchProgress } from '@/lib/evaluation-progress'
 import { apiFetch, SessionExpiredError } from '@/lib/fetch-client'
 import { queryClient } from '@/lib/query-client'
 import { queryKeys } from '@/lib/query-keys'
 import { QUERY_STALE_TIME } from '@/lib/query-policy'
 import { getAcademicUpdatesState, saveAcademicUpdatesState } from '@/lib/storage'
 
-const BACKGROUND_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1_000
-const HISTORY_BACKGROUND_INTERVAL_MS = 24 * 60 * 60 * 1_000
 const BACKGROUND_START_DELAY_MS = 2_400
+const CALENDAR_BACKGROUND_INTERVAL_MS = 6 * 60 * 60 * 1_000
+const LOCK_RETRY_INTERVAL_MS = 5 * 60 * 1_000
+const FAILED_SWEEP_RETRY_INTERVAL_MS = 60 * 60 * 1_000
+const LOCK_KEY_PREFIX = 'sapoconnect:academic-sync-lock:'
 
 interface AcademicResource {
   queryKey: readonly unknown[]
@@ -81,6 +91,32 @@ interface AcademicUpdatesContextValue {
   markAllRead: () => void
 }
 
+interface EvaluationResultLike {
+  categorias?: Array<{
+    nome: string
+    avaliacoes: Array<{ nome: string; nota?: string }>
+  }>
+}
+
+interface EvaluationDisciplineLike {
+  codigo?: string
+  resultado?: EvaluationResultLike
+}
+
+interface EvaluationResponseLike {
+  disciplinas?: EvaluationDisciplineLike[]
+}
+
+interface BackgroundLock {
+  owner: string
+  expiresAt: number
+}
+
+interface BackgroundTask {
+  module: AcademicModule
+  run: () => Promise<unknown>
+}
+
 const EMPTY_PROGRESS: AcademicSyncProgress = {
   isSyncing: false,
   mode: null,
@@ -100,23 +136,76 @@ function moduleFromQuery(query: Query): AcademicModule | null {
   return null
 }
 
-async function fetchAcademicResource(academicModule: AcademicModule): Promise<unknown> {
-  const response = await apiFetch(RESOURCES[academicModule].url)
+function markStaleResponse(response: Response, data: unknown): unknown {
+  if (
+    response.headers.get('x-sapoconnect-cache') === 'stale'
+    && data
+    && typeof data === 'object'
+  ) {
+    Object.assign(data, { __cacheStale: true })
+  }
+  return data
+}
+
+async function readAcademicResponse(response: Response): Promise<unknown> {
   if (!response.ok) {
     const apiError = await parseApiError(response)
     if (isSessionExpiredApiError(apiError)) throw new SessionExpiredError()
     throw apiError
   }
+  return markStaleResponse(response, await response.json() as unknown)
+}
 
-  const data = await response.json() as unknown
-  if (
-    response.headers.get('x-sapoconnect-cache') === 'stale' &&
-    data &&
-    typeof data === 'object'
-  ) {
-    Object.assign(data, { __cacheStale: true })
+async function fetchAcademicResource(academicModule: AcademicModule): Promise<unknown> {
+  return readAcademicResponse(await apiFetch(RESOURCES[academicModule].url))
+}
+
+function preferredEvaluationCodes(): string[] {
+  const cached = queryClient.getQueryData<EvaluationResponseLike>(queryKeys.avaliacoesCompleto())
+  if (!cached?.disciplinas) return []
+  return cached.disciplinas.flatMap((disciplina) => {
+    if (!disciplina.codigo || !disciplina.resultado?.categorias) return []
+    const progress = calculateEvaluationLaunchProgress(disciplina.resultado.categorias)
+    return progress.total > progress.launched ? [disciplina.codigo] : []
+  })
+}
+
+function parseBackgroundLock(value: string | null): BackgroundLock | null {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(value) as Partial<BackgroundLock>
+    if (typeof parsed.owner !== 'string' || typeof parsed.expiresAt !== 'number') return null
+    return { owner: parsed.owner, expiresAt: parsed.expiresAt }
+  } catch {
+    return null
   }
-  return data
+}
+
+function acquireBackgroundLock(cacheScope: string, owner: string, now: number): boolean {
+  try {
+    const key = `${LOCK_KEY_PREFIX}${cacheScope}`
+    const current = parseBackgroundLock(window.localStorage.getItem(key))
+    if (current && current.expiresAt > now && current.owner !== owner) return false
+    window.localStorage.setItem(key, JSON.stringify({
+      owner,
+      expiresAt: now + BACKGROUND_LOCK_TTL_MS,
+    } satisfies BackgroundLock))
+    return parseBackgroundLock(window.localStorage.getItem(key))?.owner === owner
+  } catch {
+    // Safari private mode can deny localStorage. The in-tab single-flight still applies.
+    return true
+  }
+}
+
+function releaseBackgroundLock(cacheScope: string, owner: string): void {
+  try {
+    const key = `${LOCK_KEY_PREFIX}${cacheScope}`
+    if (parseBackgroundLock(window.localStorage.getItem(key))?.owner === owner) {
+      window.localStorage.removeItem(key)
+    }
+  } catch {
+    // Best effort only.
+  }
 }
 
 export function AcademicUpdatesProvider({
@@ -183,12 +272,13 @@ export function AcademicUpdatesProvider({
       setState(emptyState)
       const stored = await getAcademicUpdatesState<AcademicUpdatesState>(cacheScope)
       const initial = isAcademicUpdatesState(stored, cacheScope)
-        ? stored
+        ? migrateAcademicUpdatesState(stored)
         : createAcademicUpdatesState(cacheScope)
       if (cancelled) return
 
       stateRef.current = initial
       setState(initial)
+      if (initial !== stored) void saveAcademicUpdatesState(cacheScope, initial).catch(() => {})
       unsubscribe = queryClient.getQueryCache().subscribe((event) => processQuery(event.query))
       for (const query of queryClient.getQueryCache().getAll()) processQuery(query)
       await processingRef.current
@@ -214,60 +304,120 @@ export function AcademicUpdatesProvider({
     return data
   }, [processSnapshot])
 
+  const syncLightAbsences = useCallback(async () => {
+    const data = await readAcademicResponse(await apiFetch('/api/faltas'))
+    await processSnapshot('faltas', data, Date.now())
+    return data
+  }, [processSnapshot])
+
+  const syncEvaluationBatch = useCallback(async () => {
+    const data = await readAcademicResponse(await apiFetch('/api/avaliacoes/atualizacoes', {
+      method: 'POST',
+      body: JSON.stringify({ preferredCodes: preferredEvaluationCodes() }),
+      maxRetries: 1,
+    }))
+    await processSnapshot('avaliacoes', data, Date.now())
+    return data
+  }, [processSnapshot])
+
   useEffect(() => {
     if (!isReady) return
 
-    const timeoutId = window.setTimeout(() => {
+    let cancelled = false
+    let timeoutId: number | null = null
+    const lockOwner = globalThis.crypto?.randomUUID?.()
+      ?? `academic-sync-${Date.now()}-${Math.random()}`
+
+    const schedule = (delay: number) => {
+      if (cancelled) return
+      if (timeoutId !== null) window.clearTimeout(timeoutId)
+      timeoutId = window.setTimeout(run, delay)
+    }
+
+    const run = async () => {
+      timeoutId = null
       if (
-        syncInFlightRef.current ||
-        !navigator.onLine ||
-        document.visibilityState !== 'visible'
-      ) return
+        cancelled
+        || syncInFlightRef.current
+        || !navigator.onLine
+        || document.visibilityState !== 'visible'
+      ) {
+        schedule(BACKGROUND_RECHECK_INTERVAL_MS)
+        return
+      }
 
-      const run = async () => {
-        syncInFlightRef.current = true
-        setSyncProgress({
-          isSyncing: true,
-          mode: 'background',
-          currentModule: 'calendario',
-          completed: 0,
-          total: 1,
-        })
+      const now = Date.now()
+      const current = stateRef.current
+      if (now - current.lastBackgroundSweepAt < FAILED_SWEEP_RETRY_INTERVAL_MS) {
+        schedule(BACKGROUND_RECHECK_INTERVAL_MS)
+        return
+      }
+      const plan = getAcademicBackgroundPlan(current, now)
+      const tasks: BackgroundTask[] = []
+      if (now - (current.lastSuccessfulSyncAt.calendario ?? 0) >= CALENDAR_BACKGROUND_INTERVAL_MS) {
+        tasks.push({ module: 'calendario', run: () => syncModule('calendario') })
+      }
+      if (plan.absencesDue) {
+        tasks.push({ module: 'faltas', run: syncLightAbsences })
+      }
+      if (plan.evaluationsMode === 'full') {
+        tasks.push({ module: 'avaliacoes', run: () => syncModule('avaliacoes') })
+      } else if (plan.evaluationsMode === 'batch') {
+        tasks.push({ module: 'avaliacoes', run: syncEvaluationBatch })
+      } else if (plan.historyDue) {
+        tasks.push({ module: 'historico', run: () => syncModule('historico') })
+      }
 
-        try {
-          await syncModule('calendario').catch(() => undefined)
-          const now = Date.now()
-          const current = stateRef.current
-          if (now - current.lastBackgroundSweepAt < BACKGROUND_SWEEP_INTERVAL_MS) return
+      if (tasks.length === 0) {
+        schedule(BACKGROUND_RECHECK_INTERVAL_MS)
+        return
+      }
+      if (!acquireBackgroundLock(cacheScope, lockOwner, now)) {
+        schedule(LOCK_RETRY_INTERVAL_MS)
+        return
+      }
 
-          commitState(recordBackgroundSweep(current, now))
-          const candidates: AcademicModule[] = ['faltas', 'avaliacoes']
-          const historyLastSync = current.lastSuccessfulSyncAt.historico ?? 0
-          if (now - historyLastSync >= HISTORY_BACKGROUND_INTERVAL_MS) candidates.push('historico')
-          candidates.sort((left, right) =>
-            (current.lastSuccessfulSyncAt[left] ?? 0) -
-            (current.lastSuccessfulSyncAt[right] ?? 0)
-          )
-          const candidate = candidates[0]
+      syncInFlightRef.current = true
+      commitState(recordBackgroundSweep(stateRef.current, now))
+      try {
+        for (let index = 0; index < tasks.length; index += 1) {
+          if (cancelled || !navigator.onLine || document.visibilityState !== 'visible') break
+          const task = tasks[index]
           setSyncProgress({
             isSyncing: true,
             mode: 'background',
-            currentModule: candidate,
-            completed: 1,
-            total: 2,
+            currentModule: task.module,
+            completed: index,
+            total: tasks.length,
           })
-          await syncModule(candidate).catch(() => undefined)
-        } finally {
-          syncInFlightRef.current = false
+          await task.run().catch(() => undefined)
+        }
+      } finally {
+        syncInFlightRef.current = false
+        releaseBackgroundLock(cacheScope, lockOwner)
+        if (!cancelled) {
           setSyncProgress(EMPTY_PROGRESS)
+          schedule(BACKGROUND_RECHECK_INTERVAL_MS)
         }
       }
+    }
 
-      void run()
-    }, BACKGROUND_START_DELAY_MS)
+    const triggerSoon = () => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return
+      schedule(BACKGROUND_START_DELAY_MS + getBackgroundStartJitter(cacheScope, Date.now()))
+    }
 
-    return () => window.clearTimeout(timeoutId)
-  }, [commitState, isReady, syncModule])
+    triggerSoon()
+    document.addEventListener('visibilitychange', triggerSoon)
+    window.addEventListener('online', triggerSoon)
+    return () => {
+      cancelled = true
+      if (timeoutId !== null) window.clearTimeout(timeoutId)
+      document.removeEventListener('visibilitychange', triggerSoon)
+      window.removeEventListener('online', triggerSoon)
+      releaseBackgroundLock(cacheScope, lockOwner)
+    }
+  }, [cacheScope, commitState, isReady, syncEvaluationBatch, syncLightAbsences, syncModule])
 
   const markRead = useCallback((id: string) => {
     commitState(markAcademicUpdateRead(stateRef.current, id))

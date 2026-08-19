@@ -1,256 +1,95 @@
 /**
  * GET /api/avaliacoes/completo
- * Lista disciplinas e pre-carrega as avaliacoes de cada uma.
+ * Lista disciplinas e carrega todas as avaliações de cada uma.
  */
 
-import { getSession } from '@/lib/session';
-import { formatCookiesForRequest } from '@/lib/external-auth';
+import { getSession } from '@/lib/session'
+import { formatCookiesForRequest } from '@/lib/external-auth'
+import type { DisciplinaOpcao, ResultadoAvaliacoes } from '@/lib/avaliacoes-parser'
+import { ensureTotvsContext, TotvsContextError } from '@/lib/totvs-context'
+import { privateJson } from '@/lib/server/http'
 import {
-  DisciplinaOpcao,
-  ResultadoAvaliacoes,
-  parseAvaliacoesHTML,
-  parseDisciplinasHTML,
-} from '@/lib/avaliacoes-parser';
-import { ensureTotvsContext, TotvsContextError } from '@/lib/totvs-context';
-import { privateJson } from '@/lib/server/http';
-import { fetchTotvs, isTransientUpstreamError } from '@/lib/server/upstream';
-import { getOrLoad } from '@/lib/server/cache';
+  AvaliacoesFetchError,
+  fetchAvaliacoesDisciplinas,
+  fetchAvaliacoesNotas,
+  mapWithConcurrency,
+} from '@/lib/server/avaliacoes-source'
 
-const BASE_URL = 'https://fundacaoeducacional132827.rm.cloudtotvs.com.br';
-const AVALIACOES_URL = `${BASE_URL}/EducaMobile/Educacional/EduAluno/EduNotasAvaliacao?tp=A`;
-const GET_NOTAS_URL = `${BASE_URL}/EducaMobile/Educacional/EduAluno/GetNotasAvaliacao`;
-const CONCURRENCY_LIMIT = 3;
+const CONCURRENCY_LIMIT = 3
 
 interface DisciplinaCompleta extends DisciplinaOpcao {
-  resultado?: ResultadoAvaliacoes;
-  error?: string;
-  code?: string;
-}
-
-type Cached<T> = { value: T; cache: 'hit' | 'miss' | 'stale' };
-
-class AvaliacoesFetchError extends Error {
-  constructor(message: string, public status: number, public code: string) {
-    super(message);
-    this.name = 'AvaliacoesFetchError';
-  }
-}
-
-function isLoginResponse(response: Response): boolean {
-  const url = response.url.toLowerCase();
-  return url.includes('loginexternoapp') ||
-    url.includes('account/login') ||
-    url.includes('loginexterno');
-}
-
-async function fetchDisciplinasHTML(cookieHeader: string, cacheScope?: string): Promise<Cached<string>> {
-  if (cacheScope) return getOrLoad(cacheScope, 'source:avaliacoes-disciplinas', () => fetchDisciplinasHTMLUncached(cookieHeader), { ttlMs: 45_000, staleMs: 120_000, canServeStale: isTransientUpstreamError });
-  return { value: await fetchDisciplinasHTMLUncached(cookieHeader), cache: 'miss' };
-}
-async function fetchDisciplinasHTMLUncached(cookieHeader: string): Promise<string> {
-  let response: Response;
-  try {
-    response = await fetchTotvs(AVALIACOES_URL, {
-      method: 'GET',
-      redirect: 'follow',
-      headers: {
-        Cookie: cookieHeader,
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9',
-        'User-Agent':
-          'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
-        Referer: `${BASE_URL}/EducaMobile/Home/Index`,
-      },
-    }, { idempotentRead: true });
-  } catch {
-    throw new AvaliacoesFetchError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
-  }
-
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      throw new AvaliacoesFetchError('Sessao expirada no sistema TOTVS.', 401, 'SESSION_EXPIRED');
-    }
-    if (response.status >= 500) {
-      throw new AvaliacoesFetchError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
-    }
-    throw new AvaliacoesFetchError(`Erro HTTP ${response.status}`, 502, 'UPSTREAM_ERROR');
-  }
-
-  const html = await response.text();
-
-  if (isLoginResponse(response)) {
-    throw new AvaliacoesFetchError('Sessao externa expirada. Tente novamente.', 401, 'SESSION_EXPIRED');
-  }
-
-  return html;
-}
-
-async function fetchNotas(codigo: string, cookieHeader: string, cacheScope?: string): Promise<Cached<ResultadoAvaliacoes>> {
-  if (cacheScope) return getOrLoad(cacheScope, `source:avaliacoes-notas:${codigo}`, () => fetchNotasUncached(codigo, cookieHeader), { ttlMs: 45_000, staleMs: 120_000, canServeStale: isTransientUpstreamError });
-  return { value: await fetchNotasUncached(codigo, cookieHeader), cache: 'miss' };
-}
-async function fetchNotasUncached(codigo: string, cookieHeader: string): Promise<ResultadoAvaliacoes> {
-  let response: Response;
-  try {
-    response = await fetchTotvs(GET_NOTAS_URL, {
-      method: 'POST',
-      headers: {
-        Cookie: cookieHeader,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Sec-Fetch-Site': 'same-origin',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Dest': 'document',
-        'User-Agent':
-          'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
-        Referer: GET_NOTAS_URL,
-        Origin: BASE_URL,
-        Connection: 'keep-alive',
-      },
-      body: `ddlTurmaDisc=${encodeURIComponent(codigo)}`,
-    }, { idempotentRead: true });
-  } catch {
-    throw new AvaliacoesFetchError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
-  }
-
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      throw new AvaliacoesFetchError('Sessao expirada no sistema TOTVS.', 401, 'SESSION_EXPIRED');
-    }
-    if (response.status >= 500) {
-      throw new AvaliacoesFetchError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
-    }
-    throw new AvaliacoesFetchError(`Erro HTTP ${response.status}`, 502, 'UPSTREAM_ERROR');
-  }
-
-  const html = await response.text();
-
-  if (isLoginResponse(response)) {
-    throw new AvaliacoesFetchError('Sessao externa expirada. Tente novamente.', 401, 'SESSION_EXPIRED');
-  }
-
-  const resultado = parseAvaliacoesHTML(html);
-  if (!resultado.categorias || resultado.categorias.length === 0) {
-    throw new AvaliacoesFetchError('Falha ao validar sessao. Tente novamente.', 401, 'SESSION_EXPIRED');
-  }
-
-  return resultado;
-}
-
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  mapper: (item: T) => Promise<R>
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let nextIndex = 0;
-  let aborted = false;
-
-  async function worker() {
-    while (!aborted && nextIndex < items.length) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-      try {
-        results[currentIndex] = await mapper(items[currentIndex]);
-      } catch (error) {
-        aborted = true;
-        throw error;
-      }
-    }
-  }
-
-  const workers = Array.from(
-    { length: Math.min(limit, items.length) },
-    () => worker()
-  );
-
-  await Promise.all(workers);
-  return results;
+  resultado?: ResultadoAvaliacoes
+  error?: string
+  code?: string
 }
 
 export async function GET() {
   try {
-    const session = await getSession();
-    const externalCookies = session?.externalCookies;
+    const session = await getSession()
+    const externalCookies = session?.externalCookies
 
-    if (!externalCookies) {
+    if (!session || !externalCookies) {
       return privateJson(
-        { error: 'Sessao nao encontrada. Faca login novamente.', code: 'SESSION_MISSING' },
-        { status: 401 }
-      );
+        { error: 'Sessão não encontrada. Faça login novamente.', code: 'SESSION_MISSING' },
+        { status: 401 },
+      )
     }
 
-    const cookieHeader = formatCookiesForRequest(externalCookies);
-
+    const cookieHeader = formatCookiesForRequest(externalCookies)
     try {
-      await ensureTotvsContext(cookieHeader, session.cacheScope);
+      await ensureTotvsContext(cookieHeader, session.cacheScope)
     } catch (error) {
       if (error instanceof TotvsContextError) {
-        return privateJson(
-          { error: error.message, code: error.code },
-          { status: error.status }
-        );
+        return privateJson({ error: error.message, code: error.code }, { status: error.status })
       }
       return privateJson(
         { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
-        { status: 503 }
-      );
+        { status: 503 },
+      )
     }
 
-    const disciplinasSource = await fetchDisciplinasHTML(cookieHeader, session.cacheScope);
-    const { disciplinas } = parseDisciplinasHTML(disciplinasSource.value);
-    let servedStale = disciplinasSource.cache === 'stale';
-
-    if (!disciplinas.length) {
-      return privateJson(
-        { error: 'Falha ao validar sessao. Tente novamente.', code: 'SESSION_EXPIRED' },
-        { status: 401 }
-      );
-    }
-
+    const disciplinasSource = await fetchAvaliacoesDisciplinas(
+      cookieHeader,
+      session.cacheScope,
+    )
+    let servedStale = disciplinasSource.cache === 'stale'
     const disciplinasCompletas = await mapWithConcurrency(
-      disciplinas,
+      disciplinasSource.value,
       CONCURRENCY_LIMIT,
       async (disciplina): Promise<DisciplinaCompleta> => {
         try {
-          const loaded = await fetchNotas(disciplina.codigo, cookieHeader, session.cacheScope);
-          if (loaded.cache === 'stale') servedStale = true;
-          return { ...disciplina, resultado: loaded.value };
+          const loaded = await fetchAvaliacoesNotas(
+            disciplina.codigo,
+            cookieHeader,
+            session.cacheScope,
+          )
+          if (loaded.cache === 'stale') servedStale = true
+          return { ...disciplina, resultado: loaded.value }
         } catch (error) {
           if (error instanceof AvaliacoesFetchError) {
-            if (error.status === 401) throw error;
-            return {
-              ...disciplina,
-              error: error.message,
-              code: error.code,
-            };
+            if (error.status === 401) throw error
+            return { ...disciplina, error: error.message, code: error.code }
           }
           return {
             ...disciplina,
-            error: 'Erro ao buscar avaliacoes',
+            error: 'Erro ao buscar avaliações',
             code: 'INTERNAL_ERROR',
-          };
+          }
         }
-      }
-    );
+      },
+    )
 
     return privateJson(
       { disciplinas: disciplinasCompletas },
-      servedStale ? { headers: { 'X-SapoConnect-Cache': 'stale' } } : undefined
-    );
+      servedStale ? { headers: { 'X-SapoConnect-Cache': 'stale' } } : undefined,
+    )
   } catch (error) {
     if (error instanceof AvaliacoesFetchError) {
-      return privateJson(
-        { error: error.message, code: error.code },
-        { status: error.status }
-      );
+      return privateJson({ error: error.message, code: error.code }, { status: error.status })
     }
-
     return privateJson(
-      { error: 'Erro ao buscar avaliacoes completas', code: 'INTERNAL_ERROR' },
-      { status: 500 }
-    );
+      { error: 'Erro ao buscar avaliações completas', code: 'INTERNAL_ERROR' },
+      { status: 500 },
+    )
   }
 }

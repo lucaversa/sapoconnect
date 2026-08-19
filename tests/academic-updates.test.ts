@@ -358,7 +358,7 @@ describe('academic updates', () => {
       periodos: [{ nome: '1º Período', disciplinas: [{ codigo: 'MED101', nome: 'Clínica Médica', status: 'concluida', situacao: 'Concluída', nota: '74,0' }] }],
     }, 4_000)
 
-    expect(absences.added[0].title).toBe('Frequência atualizada')
+    expect(absences.added[0].title).toBe('Faltas atualizadas')
     expect(absences.added[0].details).toEqual(expect.arrayContaining([
       { label: 'Código', value: 'MED101' },
       { label: 'Faltas', value: '7,50%' },
@@ -446,7 +446,7 @@ describe('academic updates', () => {
     }, 2_000)
 
     expect(recovered.added).toEqual([])
-    expect(recovered.state.snapshots.avaliacoes?.records).toHaveLength(2)
+    expect(recovered.state.snapshots.avaliacoes?.records).toHaveLength(4)
   })
 
   it('does not create an empty evaluations baseline when every discipline failed', () => {
@@ -457,6 +457,138 @@ describe('academic updates', () => {
 
     expect(result.status).toBe('ignored-incomplete')
     expect(result.state).toBe(state)
+  })
+
+  it('keeps unselected disciplines protected during an economical evaluation batch', () => {
+    const original = {
+      disciplinas: [
+        {
+          codigo: 'MED101',
+          nome: 'Clínica Médica',
+          resultado: {
+            mediaParaAprovacao: 60,
+            categorias: [{ nome: 'Parcial', avaliacoes: [{ nome: 'Prova 1', nota: '', valor: '30,0' }] }],
+          },
+        },
+        {
+          codigo: 'MED102',
+          nome: 'Clínica Cirúrgica',
+          resultado: {
+            mediaParaAprovacao: 60,
+            categorias: [{ nome: 'Parcial', avaliacoes: [{ nome: 'Prova 1', nota: '20,0', valor: '30,0' }] }],
+          },
+        },
+      ],
+    }
+    const baseline = apply(createAcademicUpdatesState('scope-fixture'), 'avaliacoes', original, 1_000).state
+    const batch = apply(baseline, 'avaliacoes', {
+      __partial: true,
+      disciplinas: [
+        {
+          ...original.disciplinas[0],
+          resultado: {
+            ...original.disciplinas[0].resultado,
+            categorias: [{ nome: 'Parcial', avaliacoes: [{ nome: 'Prova 1', nota: '24,0', valor: '30,0' }] }],
+          },
+        },
+        {
+          codigo: 'MED102',
+          nome: 'Clínica Cirúrgica',
+          error: 'Preservada',
+          code: 'BACKGROUND_SKIPPED',
+        },
+      ],
+    }, 2_000)
+
+    expect(batch.added).toHaveLength(1)
+    expect(batch.added[0].title).toBe('Nota lançada')
+    expect(batch.state.snapshots.avaliacoes?.records).toHaveLength(4)
+    expect(batch.state.lastFullSyncAt?.avaliacoes).toBe(1_000)
+    expect(batch.state.lastSuccessfulSyncAt.avaliacoes).toBe(2_000)
+  })
+
+  it('refuses a partial evaluation response as the first baseline', () => {
+    const state = createAcademicUpdatesState('scope-fixture')
+    const result = apply(state, 'avaliacoes', {
+      __partial: true,
+      disciplinas: [{
+        codigo: 'MED101',
+        nome: 'Clínica Médica',
+        resultado: {
+          mediaParaAprovacao: 60,
+          categorias: [{ nome: 'Parcial', avaliacoes: [{ nome: 'Prova 1', nota: '20,0', valor: '30,0' }] }],
+        },
+      }],
+    }, 1_000)
+
+    expect(result.status).toBe('ignored-incomplete')
+    expect(result.state).toBe(state)
+  })
+
+  it('migrates evaluation summaries per discipline without false notifications', () => {
+    const disciplinas = [
+      {
+        codigo: 'MED101', nome: 'Clínica Médica',
+        resultado: { mediaParaAprovacao: 60, categorias: [{ nome: 'Parcial', avaliacoes: [{ nome: 'P1', nota: '20,0', valor: '30,0' }] }] },
+      },
+      {
+        codigo: 'MED102', nome: 'Clínica Cirúrgica',
+        resultado: { mediaParaAprovacao: 60, categorias: [{ nome: 'Parcial', avaliacoes: [{ nome: 'P1', nota: '18,0', valor: '30,0' }] }] },
+      },
+    ]
+    let state = apply(createAcademicUpdatesState('scope-fixture'), 'avaliacoes', { disciplinas }, 1_000).state
+    state = {
+      ...state,
+      snapshots: {
+        ...state.snapshots,
+        avaliacoes: {
+          ...state.snapshots.avaliacoes!,
+          records: state.snapshots.avaliacoes!.records.filter((record) => !record.id.endsWith('|resumo')),
+        },
+      },
+    }
+
+    const first = apply(state, 'avaliacoes', {
+      __partial: true,
+      disciplinas: [
+        disciplinas[0],
+        { codigo: 'MED102', nome: 'Clínica Cirúrgica', error: 'Preservada', code: 'BACKGROUND_SKIPPED' },
+      ],
+    }, 2_000)
+    const second = apply(first.state, 'avaliacoes', {
+      __partial: true,
+      disciplinas: [
+        { codigo: 'MED101', nome: 'Clínica Médica', error: 'Preservada', code: 'BACKGROUND_SKIPPED' },
+        disciplinas[1],
+      ],
+    }, 3_000)
+
+    expect(first.added).toEqual([])
+    expect(second.added).toEqual([])
+    expect(second.state.snapshots.avaliacoes?.records.filter((record) => record.id.endsWith('|resumo'))).toHaveLength(2)
+  })
+
+  it('highlights an absence risk-band transition', () => {
+    const baseline = apply(createAcademicUpdatesState('scope-fixture'), 'faltas', {
+      faltas: [{
+        codigo: 'MED101', disciplina: 'Clínica Médica', porcentagem: '10,00%',
+        limiteFaltas: '25,00%', status: 'abaixo',
+      }],
+    }, 1_000).state
+    const changed = apply(baseline, 'faltas', {
+      faltas: [{
+        codigo: 'MED101', disciplina: 'Clínica Médica', porcentagem: '20,00%',
+        limiteFaltas: '25,00%', status: 'acima',
+      }],
+    }, 2_000)
+
+    expect(changed.added).toHaveLength(1)
+    expect(changed.added[0].title).toBe('Limite de faltas ultrapassado')
+    expect(changed.added[0].changes).toContainEqual({
+      label: 'Nível de atenção',
+      before: 'Seguro',
+      after: 'Acima do limite',
+    })
   })
 
   it('does not duplicate events when the same snapshot is processed again', () => {
