@@ -13,10 +13,9 @@ interface MonthViewProps {
   currentDate: Date
   events: CalendarEvent[]
   onEventSelect: (event: CalendarEvent) => void
-  immersive?: boolean
 }
 
-export function MonthView({ currentDate, events, onEventSelect, immersive = false }: MonthViewProps) {
+export function MonthView({ currentDate, events, onEventSelect }: MonthViewProps) {
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentDate)
     return eachDayOfInterval({
@@ -42,7 +41,7 @@ export function MonthView({ currentDate, events, onEventSelect, immersive = fals
             const dayEvents = allDayEvents.slice(0, 3)
             const remaining = allDayEvents.length - dayEvents.length
             return (
-              <section key={day.toISOString()} className={cn("min-h-24 border-b border-r border-gray-200/65 p-1.5 dark:border-white/[0.055]", !immersive && "sm:min-h-32", !isSameMonth(day, currentDate) && "bg-gray-100/35 text-gray-400 dark:bg-white/[0.012]") }>
+              <section key={day.toISOString()} className={cn("min-h-24 border-b border-r border-gray-200/65 p-1.5 dark:border-white/[0.055] sm:min-h-32", !isSameMonth(day, currentDate) && "bg-gray-100/35 text-gray-400 dark:bg-white/[0.012]") }>
                 <span className={cn("flex size-7 items-center justify-center rounded-xl text-xs font-bold", isToday(day) ? "bg-primary text-white shadow-[0_8px_18px_-10px_rgba(0,172,147,0.9)]" : "text-gray-700 dark:text-gray-200")}>{format(day, "d")}</span>
                 <div className="mt-1 space-y-1">
                   {dayEvents.map((event) => <div key={event.id} className="h-6"><EventItem event={event} view="month" onClick={() => onEventSelect(event)} /></div>)}
