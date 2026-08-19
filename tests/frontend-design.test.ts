@@ -321,13 +321,16 @@ describe("frontend information architecture", () => {
   it("shows the redesigned community announcement only once", () => {
     const layout = read("app/app/layout.tsx")
     const announcement = read("components/modals/CommunityLaunchDialog.tsx")
+    const onboarding = read("lib/onboarding.ts")
     const orbit = read("components/brand/BrandOrbit.tsx")
     const login = read("app/login/page.tsx")
 
     expect(layout).toContain("<CommunityLaunchDialog />")
-    expect(announcement).toContain("sapoconnect:announcement:community-pulse-2026-08")
+    expect(onboarding).toContain("sapoconnect:announcement:community-pulse-2026-08")
     expect(announcement).toContain("2026-08-28T18:00:00-03:00")
     expect(announcement).toContain("remainingTime <= 0")
+    expect(announcement).toContain("wasFirstLoginGuideSeen")
+    expect(announcement).toContain("rememberCommunityAnnouncement")
     expect(announcement).toContain("O SapoConnect está sendo muito visitado")
     expect(announcement).toContain("As funções continuam as mesmas")
     expect(announcement).toContain("Nova área: Pulso da comunidade")
@@ -344,6 +347,28 @@ describe("frontend information architecture", () => {
     expect(announcement).toContain('aria-label="Fechar aviso"')
     expect(announcement).toContain("🔝")
     expect(announcement).not.toContain("XIcon")
+  })
+
+  it("introduces theme and app installation on the first login", () => {
+    const layout = read("app/app/layout.tsx")
+    const guide = read("components/modals/FirstLoginGuideDialog.tsx")
+    const onboarding = read("lib/onboarding.ts")
+
+    expect(layout).toContain("<FirstLoginGuideDialog />")
+    expect(layout.indexOf("<FirstLoginGuideDialog />")).toBeLessThan(
+      layout.indexOf("<CommunityLaunchDialog />"),
+    )
+    expect(guide).toContain("user?.ra")
+    expect(guide).toContain("Modos claro e escuro")
+    expect(guide).toContain('aria-pressed={theme === "light"}')
+    expect(guide).toContain('aria-pressed={theme === "dark"}')
+    expect(guide).toContain("Adicionar à Tela de Início")
+    expect(guide).toContain("Instalar app")
+    expect(guide).toContain("Começar")
+    expect(guide).toContain("useReducedMotion")
+    expect(guide).toContain("rememberFirstLoginGuide")
+    expect(onboarding).toContain("SHA-256")
+    expect(onboarding).toContain("getOrCreateDeviceId")
   })
 
   it("does not leave a module in an endless loader when offline cache is missing", () => {
