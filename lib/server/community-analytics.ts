@@ -6,6 +6,7 @@ const VERCEL_ANALYTICS_API = 'https://api.vercel.com/v1/query/web-analytics';
 const COMMUNITY_PATH_FILTER = "startswith(requestPath, '/app/')";
 const ANALYTICS_REVALIDATE_SECONDS = 86_400;
 const ANALYTICS_TIMEOUT_MS = 8_000;
+const ANALYTICS_SETTLING_DELAY_MS = 15 * 60 * 1_000;
 const SAO_PAULO_TIME_ZONE = 'America/Sao_Paulo';
 
 type VisitCountResponse = {
@@ -50,16 +51,25 @@ function analyticsUrl(
   return url.toString();
 }
 
-async function fetchAnalyticsJson<T>(url: string, token: string): Promise<T> {
+async function fetchAnalyticsJson<T>(
+  url: string,
+  token: string,
+  freshness: 'live' | 'shared' = 'shared'
+): Promise<T> {
   const response = await fetch(url, {
     headers: {
       Accept: 'application/json',
       Authorization: `Bearer ${token}`,
     },
-    next: {
-      revalidate: ANALYTICS_REVALIDATE_SECONDS,
-      tags: ['community-pulse'],
-    },
+    ...(freshness === 'live'
+      ? { cache: 'no-store' as const }
+      : {
+          cache: 'force-cache' as const,
+          next: {
+            revalidate: ANALYTICS_REVALIDATE_SECONDS,
+            tags: ['community-pulse'],
+          },
+        }),
     signal: AbortSignal.timeout(ANALYTICS_TIMEOUT_MS),
   });
 
@@ -68,6 +78,11 @@ async function fetchAnalyticsJson<T>(url: string, token: string): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+export function getSettledAnalyticsCutoff(snapshotAt: Date): Date {
+  const delayed = new Date(snapshotAt.getTime() - ANALYTICS_SETTLING_DELAY_MS);
+  return dateInSaoPaulo(delayed) === dateInSaoPaulo(snapshotAt) ? delayed : snapshotAt;
 }
 
 export function buildCommunityPulse(
@@ -120,16 +135,17 @@ export async function getCommunityPulse(snapshotAt = new Date()): Promise<Commun
 
   if (!token || !projectId || !teamId) return { available: false };
 
-  const weekStart = new Date(snapshotAt.getTime() - 6 * 24 * 60 * 60 * 1_000);
-  const until = snapshotAt.toISOString();
+  const analyticsCutoff = getSettledAnalyticsCutoff(snapshotAt);
+  const weekStart = new Date(analyticsCutoff.getTime() - 6 * 24 * 60 * 60 * 1_000);
+  const until = analyticsCutoff.toISOString();
 
   try {
     const [today, routes] = await Promise.all([
       fetchAnalyticsJson<VisitCountResponse>(analyticsUrl('visits/count', projectId, teamId, {
-        since: dateInSaoPaulo(snapshotAt),
+        since: dateInSaoPaulo(analyticsCutoff),
         until,
         filter: COMMUNITY_PATH_FILTER,
-      }), token),
+      }), token, 'live'),
       fetchAnalyticsJson<VisitAggregateResponse>(analyticsUrl('visits/aggregate', projectId, teamId, {
         since: dateInSaoPaulo(weekStart),
         until,

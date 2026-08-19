@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 
 import {
   COMMUNITY_PULSE_STALE_TIME_MS,
+  getCommunityPulseStaleTime,
   type CommunityPulse as CommunityPulseData,
 } from '@/lib/community-pulse';
 import { getCommunityPulseSchedule } from '@/lib/community-pulse-schedule';
@@ -66,12 +67,16 @@ export function CommunityPulse({ enabled, showHeading = true }: { enabled: boole
     queryKey: [...queryKeys.communityPulse, schedule.cacheKey],
     queryFn: fetchCommunityPulse,
     enabled,
-    staleTime: COMMUNITY_PULSE_STALE_TIME_MS,
+    staleTime: (query) => getCommunityPulseStaleTime(query.state.data),
     gcTime: 24 * 60 * 60 * 1_000,
     retry: false,
     refetchOnMount: false,
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
+    refetchInterval: (query) => {
+      const staleTime = getCommunityPulseStaleTime(query.state.data);
+      return staleTime < COMMUNITY_PULSE_STALE_TIME_MS ? staleTime : false;
+    },
   });
 
   return (

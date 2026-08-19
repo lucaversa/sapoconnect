@@ -1,4 +1,5 @@
 export const COMMUNITY_PULSE_STALE_TIME_MS = 2 * 60 * 60 * 1_000;
+export const COMMUNITY_PULSE_PROVISIONAL_STALE_TIME_MS = 10 * 60 * 1_000;
 
 export type CommunityPulse =
   | {
@@ -25,4 +26,10 @@ const APP_PAGE_LABELS: Record<string, string> = {
 
 export function getCommunityPageLabel(path: string): string {
   return APP_PAGE_LABELS[path] ?? 'Outras páginas';
+}
+
+export function getCommunityPulseStaleTime(pulse: CommunityPulse | undefined): number {
+  return pulse?.available && pulse.todayVisitors === 0
+    ? COMMUNITY_PULSE_PROVISIONAL_STALE_TIME_MS
+    : COMMUNITY_PULSE_STALE_TIME_MS;
 }
