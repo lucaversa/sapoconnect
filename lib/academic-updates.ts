@@ -1,3 +1,10 @@
+import { EVALUATION_BACKGROUND_SKIPPED } from '@/lib/evaluation-update-batch'
+import {
+  isSpecialEvaluation,
+  isSummaryEvaluation,
+  parseEvaluationGrade,
+} from '@/lib/evaluation-progress'
+
 // Version 2 intentionally starts a clean update feed after the grouped-session redesign.
 export const ACADEMIC_UPDATES_SCHEMA_VERSION = 2
 
@@ -64,6 +71,7 @@ export interface AcademicUpdatesState {
   snapshots: Partial<Record<AcademicModule, AcademicModuleSnapshot>>
   updates: AcademicUpdate[]
   lastSuccessfulSyncAt: Partial<Record<AcademicModule, number>>
+  lastFullSyncAt?: Partial<Record<AcademicModule, number>>
   lastBackgroundSweepAt: number
 }
 
@@ -76,6 +84,15 @@ export interface ApplyAcademicSnapshotResult {
 interface NormalizedSnapshot {
   records: AcademicSnapshotRecord[]
   protectedNamespaces: string[]
+  skippedNamespaces?: string[]
+  partial?: boolean
+}
+
+interface UpdateCandidate {
+  kind: AcademicUpdateKind
+  previous?: AcademicSnapshotRecord
+  current?: AcademicSnapshotRecord
+  changes: AcademicUpdateChange[]
 }
 
 const MAX_UPDATES = 200
@@ -123,6 +140,12 @@ function keyText(value: unknown): string {
 function numericComparison(value: string): string {
   const parsed = Number.parseFloat(value.replace(/\s/g, '').replace('%', '').replace(',', '.'))
   return Number.isFinite(parsed) ? String(parsed) : comparisonText(value)
+}
+
+function numericValue(value: string | undefined): number | null {
+  if (!value) return null
+  const parsed = Number.parseFloat(value.replace(/\s/g, '').replace('%', '').replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function field(label: string, value: unknown, numeric = false): AcademicSnapshotField {
@@ -292,6 +315,14 @@ function normalizeAbsences(data: Record<string, unknown>): NormalizedSnapshot {
   const records = arrayFrom(data.faltas).map((absence) => {
     const entityLabel = displayText(absence.disciplina) || 'Disciplina'
     const namespace = `disc:${keyText(absence.codigo || entityLabel)}|`
+    const riskValue = displayText(absence.status)
+    const riskLabel = riskValue === 'abaixo'
+      ? 'Seguro'
+      : riskValue === 'proximo'
+        ? 'Próximo do limite'
+        : riskValue === 'acima'
+          ? 'Acima do limite'
+          : riskValue
     const futureEvents = Array.isArray(absence.eventosFuturos)
       ? absence.eventosFuturos.map(formatLocalDateTime).filter(Boolean)
       : []
@@ -303,6 +334,7 @@ function normalizeAbsences(data: Record<string, unknown>): NormalizedSnapshot {
         percentage: field('Faltas', absence.porcentagem, true),
         limit: field('Limite', absence.limiteFaltas, true),
         situation: field('Situação', absence.situacao),
+        risk: field('Nível de atenção', riskLabel),
       },
       details: detailsFrom([
         detail('Código', absence.codigo),
@@ -327,20 +359,36 @@ function normalizeAbsences(data: Record<string, unknown>): NormalizedSnapshot {
 function normalizeEvaluations(data: Record<string, unknown>): NormalizedSnapshot {
   const records: AcademicSnapshotRecord[] = []
   const protectedNamespaces: string[] = []
+  const skippedNamespaces: string[] = []
+  const partial = data.__partial === true
 
   for (const subject of arrayFrom(data.disciplinas)) {
     const subjectLabel = displayText(subject.nome) || 'Disciplina'
     const namespace = `disc:${keyText(subject.codigo || subjectLabel)}|`
     if (displayText(subject.error) || !isRecord(subject.resultado)) {
       protectedNamespaces.push(namespace)
+      if (displayText(subject.code) === EVALUATION_BACKGROUND_SKIPPED) {
+        skippedNamespaces.push(namespace)
+      }
       continue
     }
 
     const duplicateCounts = new Map<string, number>()
+    const regularGrades: number[] = []
+    let regularEvaluationCount = 0
+    let pendingRegularCount = 0
     for (const category of arrayFrom(subject.resultado.categorias)) {
       const categoryLabel = displayText(category.nome) || 'Avaliação'
       for (const evaluation of arrayFrom(category.avaliacoes)) {
         const entityLabel = displayText(evaluation.nome) || 'Avaliação'
+        const isRegular = !isSpecialEvaluation(categoryLabel, entityLabel)
+          && !isSummaryEvaluation(categoryLabel, entityLabel)
+        if (isRegular) {
+          regularEvaluationCount += 1
+          const grade = parseEvaluationGrade(displayText(evaluation.nota))
+          if (grade === null) pendingRegularCount += 1
+          else regularGrades.push(grade)
+        }
         const base = `${namespace}${keyText(categoryLabel)}|${keyText(entityLabel)}`
         const duplicateIndex = duplicateCounts.get(base) ?? 0
         duplicateCounts.set(base, duplicateIndex + 1)
@@ -366,9 +414,36 @@ function normalizeEvaluations(data: Record<string, unknown>): NormalizedSnapshot
         })
       }
     }
+
+    const approvalTarget = parseEvaluationGrade(displayText(subject.resultado.mediaParaAprovacao)) ?? 60
+    const launchedTotal = regularGrades.reduce((total, grade) => total + grade, 0)
+    const remaining = Math.max(approvalTarget - launchedTotal, 0)
+    const averageStatus = launchedTotal >= approvalTarget
+      ? 'Média regular atingida'
+      : 'Abaixo da média regular'
+    records.push({
+      id: `${namespace}resumo`,
+      namespace,
+      entityLabel: subjectLabel,
+      context: 'Resumo da disciplina',
+      fields: {
+        launchedTotal: field('Total regular lançado', launchedTotal, true),
+        pendingCount: field('Avaliações pendentes', pendingRegularCount, true),
+        averageStatus: field('Situação da média', averageStatus),
+        approvalTarget: field('Média para aprovação', approvalTarget, true),
+      },
+      details: detailsFrom([
+        detail('Disciplina', subjectLabel),
+        detail('Total regular lançado', launchedTotal.toFixed(1).replace('.', ',')),
+        detail('Média para aprovação', approvalTarget.toFixed(1).replace('.', ',')),
+        detail('Pontos necessários', remaining.toFixed(1).replace('.', ',')),
+        detail('Avaliações regulares', regularEvaluationCount),
+        detail('Avaliações pendentes', pendingRegularCount),
+      ]),
+    })
   }
 
-  return { records, protectedNamespaces }
+  return { records, protectedNamespaces, skippedNamespaces, partial }
 }
 
 function normalizeHistory(data: Record<string, unknown>): NormalizedSnapshot {
@@ -492,7 +567,13 @@ function titleFor(
     if (grade) return 'Nota corrigida'
     return 'Avaliação atualizada'
   }
-  if (module === 'faltas') return 'Frequência atualizada'
+  if (module === 'faltas') {
+    const risk = changes.find((change) => change.label === 'Nível de atenção')
+    if (risk?.after === 'Acima do limite') return 'Limite de faltas ultrapassado'
+    if (risk?.after === 'Próximo do limite') return 'Faltas próximas do limite'
+    if (risk?.after === 'Seguro') return 'Faltas em nível seguro'
+    return 'Faltas atualizadas'
+  }
   return 'Situação acadêmica atualizada'
 }
 
@@ -515,6 +596,22 @@ function summaryFor(
     if (kind === 'removed') return descriptor ? `Não aparece mais em ${descriptor}.` : 'Aula removida dos horários atuais.'
     const changedLabels = changes.map((change) => change.label.toLocaleLowerCase('pt-BR')).join(', ')
     if (changedLabels && descriptor) return `Mudanças em ${changedLabels}. Agora: ${descriptor}.`
+  }
+
+  if (module === 'faltas' && kind === 'changed') {
+    const percentage = changes.find((change) => change.label === 'Faltas')
+    const before = numericValue(percentage?.before)
+    const after = numericValue(percentage?.after)
+    const impact = numericValue(record.details?.find((item) => item.label === 'Impacto de uma falta')?.value)
+    if (percentage && before !== null && after !== null) {
+      const delta = after - before
+      const direction = delta > 0 ? 'aumento' : delta < 0 ? 'redução' : 'alteração'
+      const deltaText = Math.abs(delta).toFixed(2).replace('.', ',')
+      const estimatedAbsences = impact && impact > 0 && delta > 0
+        ? Math.max(1, Math.round(delta / impact))
+        : null
+      return `Faltas: ${percentage.before} para ${percentage.after} (${direction} de ${deltaText} p.p.)${estimatedAbsences ? `, aproximadamente ${estimatedAbsences} ${estimatedAbsences === 1 ? 'falta registrada' : 'faltas registradas'}` : ''}.`
+    }
   }
 
   if (kind === 'added') return `${record.entityLabel} foi incluída em ${ACADEMIC_MODULE_META[module].label}.`
@@ -553,6 +650,165 @@ function createUpdate(
     detectedAt,
     readAt: null,
   }
+}
+
+function candidateRecord(candidate: UpdateCandidate): AcademicSnapshotRecord {
+  const record = candidate.current ?? candidate.previous
+  if (!record) throw new Error('Registro acadêmico ausente')
+  return record
+}
+
+function isEvaluationSummaryRecord(record: AcademicSnapshotRecord): boolean {
+  return record.id.endsWith('|resumo')
+}
+
+function resignUpdate(
+  update: AcademicUpdate,
+  changes: AcademicUpdateChange[],
+  details: AcademicUpdateDetail[],
+): AcademicUpdate {
+  const signature = hashText(JSON.stringify({
+    module: update.module,
+    kind: update.kind,
+    entityLabel: update.entityLabel,
+    changes,
+  }))
+  return {
+    ...update,
+    id: `${update.module}:${update.detectedAt}:${signature}`,
+    signature,
+    changes,
+    details,
+  }
+}
+
+function uniqueDetails(details: AcademicUpdateDetail[]): AcademicUpdateDetail[] {
+  const seen = new Set<string>()
+  return details.filter((item) => {
+    const key = `${item.label}\u0000${item.value}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function createEvaluationUpdates(
+  candidates: UpdateCandidate[],
+  detectedAt: number,
+): AcademicUpdate[] {
+  const groups = new Map<string, UpdateCandidate[]>()
+  for (const candidate of candidates) {
+    const namespace = candidateRecord(candidate).namespace
+    const group = groups.get(namespace) ?? []
+    group.push(candidate)
+    groups.set(namespace, group)
+  }
+
+  return Array.from(groups.values()).map((group) => {
+    const primary = group.filter((candidate) => !isEvaluationSummaryRecord(candidateRecord(candidate)))
+    const summaries = group.filter((candidate) => isEvaluationSummaryRecord(candidateRecord(candidate)))
+    const summaryChanges = summaries.flatMap((candidate) => candidate.changes.map((change) => ({
+      ...change,
+      label: `Resumo — ${change.label}`,
+    })))
+    const summaryDetails = summaries.flatMap((candidate) => candidateRecord(candidate).details ?? [])
+
+    if (primary.length <= 1) {
+      const source = primary[0] ?? summaries[0]
+      const record = candidateRecord(source)
+      let update = createUpdate(
+        'avaliacoes',
+        source.kind,
+        source.previous,
+        source.current,
+        source.changes,
+        detectedAt,
+      )
+      if (primary.length === 0) {
+        const reachedAverage = source.changes.some(
+          (change) => change.label === 'Situação da média' && change.after === 'Média regular atingida',
+        )
+        update = {
+          ...update,
+          title: reachedAverage ? 'Média regular atingida' : 'Resumo da disciplina atualizado',
+          entityLabel: record.entityLabel,
+        }
+      }
+      const changes = primary.length === 1
+        ? [...update.changes, ...summaryChanges]
+        : update.changes
+      const details = uniqueDetails([...(update.details ?? []), ...summaryDetails])
+      return resignUpdate(update, changes, details)
+    }
+
+    const records = primary.map(candidateRecord)
+    const subjectLabel = records[0].context?.split(' / ')[0] || records[0].entityLabel
+    const allGradesLaunched = primary.every((candidate) =>
+      candidate.kind === 'changed'
+      && candidate.changes.some(
+        (change) => change.label === 'Nota'
+          && change.before === EMPTY_VALUE
+          && change.after !== EMPTY_VALUE,
+      ),
+    )
+    const changes = [
+      ...primary.flatMap((candidate) => candidate.changes.map((change) => ({
+        ...change,
+        label: `${candidateRecord(candidate).entityLabel} — ${change.label}`,
+      }))),
+      ...summaryChanges,
+    ]
+    const details = uniqueDetails([
+      { label: 'Disciplina', value: subjectLabel },
+      ...primary.map((candidate) => {
+        const record = candidateRecord(candidate)
+        const grade = record.fields.grade?.value
+        const date = record.fields.date?.value
+        const value = record.fields.value?.value
+        const descriptor = [
+          candidate.kind === 'added' ? 'Nova avaliação' : candidate.kind === 'removed' ? 'Avaliação removida' : 'Atualizada',
+          grade ? `nota ${grade}` : null,
+          value ? `valor ${value}` : null,
+          date ? `data ${date}` : null,
+        ].filter(Boolean).join(' • ')
+        return { label: record.entityLabel, value: descriptor }
+      }),
+      ...summaryDetails,
+    ])
+    const kind = primary.every((candidate) => candidate.kind === primary[0].kind)
+      ? primary[0].kind
+      : 'changed'
+    const signature = hashText(JSON.stringify({ module: 'avaliacoes', kind, subjectLabel, changes }))
+    return {
+      id: `avaliacoes:${detectedAt}:${signature}`,
+      signature,
+      module: 'avaliacoes',
+      kind,
+      title: allGradesLaunched ? `${primary.length} notas lançadas` : 'Avaliações atualizadas',
+      entityLabel: subjectLabel,
+      context: `${primary.length} mudanças agrupadas`,
+      summary: `${primary.length} avaliações tiveram alterações. Abra para conferir todos os detalhes.`,
+      changes,
+      details,
+      detectedAt,
+      readAt: null,
+    }
+  })
+}
+
+function mergeRecordDetails(
+  previous: AcademicSnapshotRecord[],
+  current: AcademicSnapshotRecord[],
+): AcademicSnapshotRecord[] {
+  const previousById = new Map(previous.map((record) => [record.id, record]))
+  return current.map((record) => {
+    const prior = previousById.get(record.id)
+    if (!prior?.details?.length) return record
+    return {
+      ...record,
+      details: uniqueDetails([...(record.details ?? []), ...prior.details]),
+    }
+  })
 }
 
 function mergeProtectedRecords(
@@ -633,6 +889,7 @@ function withModuleSnapshot(
   capturedAt: number,
   added: AcademicUpdate[],
   pendingNamespaces: string[] = [],
+  partial = false,
 ): AcademicUpdatesState {
   const retained = state.updates.filter(
     (update) => capturedAt - update.detectedAt <= UPDATE_RETENTION_MS,
@@ -656,6 +913,12 @@ function withModuleSnapshot(
       ...state.lastSuccessfulSyncAt,
       [module]: capturedAt,
     },
+    lastFullSyncAt: partial
+      ? state.lastFullSyncAt
+      : {
+          ...state.lastFullSyncAt,
+          [module]: capturedAt,
+        },
   }
 }
 
@@ -666,6 +929,7 @@ export function createAcademicUpdatesState(cacheScope: string): AcademicUpdatesS
     snapshots: {},
     updates: [],
     lastSuccessfulSyncAt: {},
+    lastFullSyncAt: {},
     lastBackgroundSweepAt: 0,
   }
 }
@@ -681,8 +945,16 @@ export function isAcademicUpdatesState(
     isRecord(value.snapshots) &&
     Array.isArray(value.updates) &&
     isRecord(value.lastSuccessfulSyncAt) &&
-    typeof value.lastBackgroundSweepAt === 'number'
+    typeof value.lastBackgroundSweepAt === 'number' &&
+    (value.lastFullSyncAt === undefined || isRecord(value.lastFullSyncAt))
   )
+}
+
+export function migrateAcademicUpdatesState(
+  state: AcademicUpdatesState,
+): AcademicUpdatesState {
+  if (state.lastFullSyncAt) return state
+  return { ...state, lastFullSyncAt: { ...state.lastSuccessfulSyncAt } }
 }
 
 export function applyAcademicSnapshot(
@@ -702,6 +974,9 @@ export function applyAcademicSnapshot(
   }
 
   const previousSnapshot = state.snapshots[module]
+  if (normalized.partial && !previousSnapshot) {
+    return { state, added: [], status: 'ignored-incomplete' }
+  }
   if (!previousSnapshot) {
     return {
       state: withModuleSnapshot(
@@ -711,6 +986,7 @@ export function applyAcademicSnapshot(
         capturedAt,
         [],
         normalized.protectedNamespaces,
+        normalized.partial,
       ),
       added: [],
       status: 'baseline',
@@ -744,16 +1020,30 @@ export function applyAcademicSnapshot(
     return { state, added: [], status: 'ignored-incomplete' }
   }
 
-  const currentRecords = mergeProtectedRecords(
+  const currentRecords = mergeRecordDetails(
     previousSnapshot.records,
-    normalized.records,
-    normalized.protectedNamespaces,
+    mergeProtectedRecords(
+      previousSnapshot.records,
+      normalized.records,
+      normalized.protectedNamespaces,
+    ),
   )
+  const previouslyPendingNamespaces = new Set(previousSnapshot.pendingNamespaces ?? [])
   const pendingNamespaces = new Set(previousSnapshot.pendingNamespaces ?? [])
-  const added: AcademicUpdate[] = []
+  const skippedNamespaces = new Set(normalized.skippedNamespaces ?? [])
+  for (const record of normalized.records) pendingNamespaces.delete(record.namespace)
+  for (const namespace of normalized.protectedNamespaces) {
+    if (!skippedNamespaces.has(namespace)) pendingNamespaces.add(namespace)
+  }
+  const candidates: UpdateCandidate[] = []
   const matchedPrevious = new Set<string>()
   const matchedCurrent = new Set<string>()
   const previousById = new Map(previousSnapshot.records.map((record) => [record.id, record]))
+  const evaluationSummaryNamespaces = new Set(
+    previousSnapshot.records
+      .filter(isEvaluationSummaryRecord)
+      .map((record) => record.namespace),
+  )
   const pairs = module === 'calendario'
     ? calendarRecordPairs(previousSnapshot.records, currentRecords)
     : currentRecords.flatMap((current) => {
@@ -766,22 +1056,38 @@ export function applyAcademicSnapshot(
     matchedCurrent.add(current.id)
     const changes = changesBetween(previous, current)
     if (changes.length > 0) {
-      added.push(createUpdate(module, 'changed', previous, current, changes, capturedAt))
+      candidates.push({ kind: 'changed', previous, current, changes })
     }
   }
 
   for (const current of currentRecords) {
     if (matchedCurrent.has(current.id)) continue
-    if (!pendingNamespaces.has(current.namespace)) {
-      added.push(createUpdate(module, 'added', undefined, current, [], capturedAt))
+    if (
+      module === 'avaliacoes'
+      && isEvaluationSummaryRecord(current)
+      && !evaluationSummaryNamespaces.has(current.namespace)
+    ) continue
+    if (!previouslyPendingNamespaces.has(current.namespace)) {
+      candidates.push({ kind: 'added', current, changes: [] })
     }
   }
 
   for (const previous of previousSnapshot.records) {
     if (!matchedPrevious.has(previous.id)) {
-      added.push(createUpdate(module, 'removed', previous, undefined, [], capturedAt))
+      candidates.push({ kind: 'removed', previous, changes: [] })
     }
   }
+
+  const added = module === 'avaliacoes'
+    ? createEvaluationUpdates(candidates, capturedAt)
+    : candidates.map((candidate) => createUpdate(
+        module,
+        candidate.kind,
+        candidate.previous,
+        candidate.current,
+        candidate.changes,
+        capturedAt,
+      ))
 
   return {
     state: withModuleSnapshot(
@@ -790,7 +1096,8 @@ export function applyAcademicSnapshot(
       currentRecords,
       capturedAt,
       added,
-      normalized.protectedNamespaces,
+      Array.from(pendingNamespaces),
+      normalized.partial,
     ),
     added,
     status: added.length > 0 ? 'updated' : 'unchanged',

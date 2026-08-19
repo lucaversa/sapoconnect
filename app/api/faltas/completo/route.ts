@@ -210,7 +210,9 @@ function parseHistoricoHTML(html: string): DisciplinaHistorico[] {
 
 async function fetchFromTOTVS(url: string, cookies: string, cacheScope?: string): Promise<{ value: string; cache: 'hit' | 'miss' | 'stale' }> {
   if (!cacheScope) return { value: await fetchFromTOTVSUncached(url, cookies), cache: 'miss' };
-  return getOrLoad(cacheScope, `source:${url}`, () => fetchFromTOTVSUncached(url, cookies), { ttlMs: 45_000, staleMs: 120_000, canServeStale: isTransientUpstreamError });
+  const parsedUrl = new URL(url);
+  const sharedCacheKey = `html:${parsedUrl.pathname}${parsedUrl.search}`;
+  return getOrLoad(cacheScope, sharedCacheKey, () => fetchFromTOTVSUncached(url, cookies), { ttlMs: 45_000, staleMs: 120_000, canServeStale: isTransientUpstreamError });
 }
 
 async function fetchFromTOTVSUncached(url: string, cookies: string): Promise<string> {

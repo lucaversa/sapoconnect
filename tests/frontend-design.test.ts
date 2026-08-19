@@ -240,6 +240,8 @@ describe("frontend information architecture", () => {
 
   it("persists scoped update snapshots and limits background synchronization", () => {
     const provider = read("lib/academic-updates-provider.tsx")
+    const schedule = read("lib/academic-update-schedule.ts")
+    const batch = read("lib/evaluation-update-batch.ts")
     const storage = read("lib/storage.ts")
 
     expect(storage).toContain("const DB_VERSION = 5")
@@ -247,10 +249,14 @@ describe("frontend information architecture", () => {
     expect(storage).toContain("store.put(payload, cacheScope)")
     expect(storage).toContain("stored.version === ACADEMIC_UPDATES_SCHEMA_VERSION")
     expect(storage).toContain("await clearAcademicUpdatesState(expectedScope)")
-    expect(provider).toContain("BACKGROUND_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1_000")
-    expect(provider).toContain("HISTORY_BACKGROUND_INTERVAL_MS = 24 * 60 * 60 * 1_000")
-    expect(provider).toContain("await syncModule('calendario')")
-    expect(provider).toContain("await syncModule(candidate)")
+    expect(schedule).toContain("ABSENCES_BACKGROUND_INTERVAL_MS = 4 * 60 * 60 * 1_000")
+    expect(schedule).toContain("EVALUATIONS_BACKGROUND_INTERVAL_MS = 6 * 60 * 60 * 1_000")
+    expect(schedule).toContain("EVALUATIONS_FULL_INTERVAL_MS = 24 * 60 * 60 * 1_000")
+    expect(batch).toContain("EVALUATION_BACKGROUND_BATCH_SIZE = 3")
+    expect(provider).toContain("apiFetch('/api/faltas')")
+    expect(provider).toContain("apiFetch('/api/avaliacoes/atualizacoes'")
+    expect(provider).toContain("acquireBackgroundLock")
+    expect(provider).toContain("document.visibilityState !== 'visible'")
     expect(provider).not.toContain('syncAll')
     expect(provider).not.toContain("mode: 'manual'")
   })

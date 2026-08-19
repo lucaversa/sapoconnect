@@ -94,9 +94,9 @@ export function UpdateDetailDialog({
                 O que mudou
               </h3>
               <div className="space-y-3">
-                {update.changes.map((change) => (
+                {update.changes.map((change, index) => (
                   <article
-                    key={change.label}
+                    key={`${change.label}-${index}`}
                     className="liquid-float rounded-[1.25rem] p-4"
                     aria-label={`Alteração em ${change.label}`}
                   >
