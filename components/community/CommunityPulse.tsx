@@ -35,7 +35,19 @@ function PulseSkeleton() {
   );
 }
 
-function Metric({ icon: Icon, label, value }: { icon: typeof UsersRound; label: string; value: number }) {
+function Metric({
+  icon: Icon,
+  label,
+  value,
+  zeroAsDash = false,
+}: {
+  icon: typeof UsersRound;
+  label: string;
+  value: number;
+  zeroAsDash?: boolean;
+}) {
+  const showDash = zeroAsDash && value === 0;
+
   return (
     <div className="min-w-0 rounded-2xl border border-white/70 bg-white/45 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] dark:border-white/[0.07] dark:bg-white/[0.035]">
       <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
@@ -43,7 +55,12 @@ function Metric({ icon: Icon, label, value }: { icon: typeof UsersRound; label: 
         <span className="truncate text-[11px] font-bold">{label}</span>
       </div>
       <p className="mt-2 text-2xl font-extrabold tabular-nums tracking-[-0.04em] text-gray-950 dark:text-white">
-        {numberFormatter.format(value)}
+        {showDash ? (
+          <>
+            <span aria-hidden="true">-</span>
+            <span className="sr-only">Sem registro</span>
+          </>
+        ) : numberFormatter.format(value)}
       </p>
     </div>
   );
@@ -95,7 +112,7 @@ export function CommunityPulse({ enabled, showHeading = true }: { enabled: boole
         <PulseSkeleton />
       ) : data?.available ? (
         <div className="grid grid-cols-2 gap-2" aria-live="polite">
-          <Metric icon={UsersRound} label="Alunos hoje" value={data.todayVisitors} />
+          <Metric icon={UsersRound} label="Alunos hoje" value={data.todayVisitors} zeroAsDash />
           <Metric icon={Eye} label="Aberturas em 7 dias" value={data.weekPageviews} />
           <div className="col-span-2 flex min-w-0 items-center gap-3 rounded-2xl border border-white/70 bg-white/45 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] dark:border-white/[0.07] dark:bg-white/[0.035]">
             <ChartNoAxesCombined className="size-4 shrink-0 text-primary" aria-hidden="true" />
