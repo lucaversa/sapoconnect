@@ -145,15 +145,15 @@ export function AppHeaderView({ theme, toggleTheme, logout, greeting, ra, unread
                   <span className="icon-orb size-9"><Activity className="size-4" aria-hidden="true" /></span>
                   Pulso da comunidade
                 </button>
+                <button type="button" role="menuitem" onClick={() => { closeUtilityMenu(false); setIsAboutOpen(true) }} className="liquid-menu-item flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-sm font-bold text-gray-700 hover:text-primary-700 dark:text-gray-200 dark:hover:text-primary-300">
+                  <span className="icon-orb size-9"><Info className="size-4" /></span>
+                  Sobre e instalar
+                </button>
                 <a href="https://fundacaoeducacional132827.rm.cloudtotvs.com.br/" target="_blank" rel="noopener noreferrer" role="menuitem" onClick={() => closeUtilityMenu(false)} className="liquid-menu-item flex min-h-12 items-center gap-3 rounded-2xl px-3 text-sm font-bold text-gray-700 hover:text-primary-700 dark:text-gray-200 dark:hover:text-primary-300">
                   <span className="icon-orb size-9"><GraduationCap className="size-4" /></span>
                   Portal oficial
                   <ExternalLink className="ml-auto size-4 text-gray-400" />
                 </a>
-                <button type="button" role="menuitem" onClick={() => { closeUtilityMenu(false); setIsAboutOpen(true) }} className="liquid-menu-item flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-sm font-bold text-gray-700 hover:text-primary-700 dark:text-gray-200 dark:hover:text-primary-300">
-                  <span className="icon-orb size-9"><Info className="size-4" /></span>
-                  Sobre e instalar
-                </button>
                 <div className="my-1 h-px bg-gray-200/70 dark:bg-white/[0.07]" />
                 <button type="button" role="menuitem" onClick={handleLogout} disabled={isLoggingOut} className="liquid-menu-item flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-sm font-bold text-red-600 disabled:opacity-60 dark:text-red-300">
                   <span className="flex size-9 items-center justify-center rounded-2xl bg-red-500/10"><LogOut className="size-4" /></span>

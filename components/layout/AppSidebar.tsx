@@ -115,6 +115,10 @@ export function AppSidebar() {
               <p className="truncate text-sm font-bold text-gray-900 dark:text-white">{user?.ra ? `RA ${user.ra}` : "Sessão ativa"}</p>
             </div>
           </div>
+          <button type="button" onClick={() => setIsAboutOpen(true)} className="native-control flex w-full items-center gap-3 px-3 text-xs font-bold">
+            <Info className="size-4 text-primary" aria-hidden="true" />
+            Sobre e instalar
+          </button>
           <a
             href="https://fundacaoeducacional132827.rm.cloudtotvs.com.br/"
             target="_blank"
@@ -125,10 +129,6 @@ export function AppSidebar() {
             Portal oficial
             <ExternalLink className="ml-auto size-3.5 text-gray-400" aria-hidden="true" />
           </a>
-          <button type="button" onClick={() => setIsAboutOpen(true)} className="native-control flex w-full items-center gap-3 px-3 text-xs font-bold">
-            <Info className="size-4 text-primary" aria-hidden="true" />
-            Sobre e instalar
-          </button>
         </div>
       </aside>
       <AboutDialog open={isAboutOpen} onOpenChange={setIsAboutOpen} />

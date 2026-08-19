@@ -1,12 +1,21 @@
 import { getCommunityPulse } from '@/lib/server/community-analytics';
+import { getCommunityPulseSchedule } from '@/lib/community-pulse-schedule';
 
-const PUBLIC_CACHE_HEADERS = {
-  'Cache-Control': 'public, max-age=300, s-maxage=21600, stale-while-revalidate=86400',
-  'CDN-Cache-Control': 'public, s-maxage=21600, stale-while-revalidate=86400',
-  'Vercel-CDN-Cache-Control': 'public, s-maxage=21600, stale-while-revalidate=86400',
-};
+function publicCacheHeaders(secondsUntilNextRefresh: number) {
+  const sharedMaxAge = Math.max(1, secondsUntilNextRefresh);
+  const browserMaxAge = Math.min(300, sharedMaxAge);
+
+  return {
+    'Cache-Control': `public, max-age=${browserMaxAge}, s-maxage=${sharedMaxAge}, stale-while-revalidate=300`,
+    'CDN-Cache-Control': `public, s-maxage=${sharedMaxAge}, stale-while-revalidate=300`,
+    'Vercel-CDN-Cache-Control': `public, s-maxage=${sharedMaxAge}, stale-while-revalidate=300`,
+  };
+}
 
 export async function GET() {
-  const pulse = await getCommunityPulse();
-  return Response.json(pulse, { headers: PUBLIC_CACHE_HEADERS });
+  const schedule = getCommunityPulseSchedule();
+  const pulse = await getCommunityPulse(schedule.snapshotAt);
+  return Response.json(pulse, {
+    headers: publicCacheHeaders(schedule.secondsUntilNextRefresh),
+  });
 }

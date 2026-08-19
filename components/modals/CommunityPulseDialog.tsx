@@ -17,7 +17,7 @@ export function CommunityPulseDialog({ open, onOpenChange }: { open: boolean; on
             </span>
             <div className="min-w-0">
               <DialogTitle className="text-white">Pulso da comunidade</DialogTitle>
-              <DialogDescription className="mt-0.5 text-white/60">A movimentação do SapoConnect em números.</DialogDescription>
+              <DialogDescription className="mt-0.5 text-white/60">Atualizado às 00h e a cada 2 horas entre 05h e 23h.</DialogDescription>
             </div>
           </div>
         </DialogHeader>
