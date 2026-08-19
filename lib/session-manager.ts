@@ -23,7 +23,6 @@ export enum DisconnectReason {
 
 export interface SessionUserData {
   ra: string;
-  appTier?: 'standard' | 'lite';
 }
 
 export interface SessionInfo {
@@ -38,7 +37,6 @@ interface RefreshPayload {
   type?: 'refresh';
   ok?: boolean;
   ra?: string;
-  appTier?: 'standard' | 'lite';
   cacheScope?: string;
   lastExternalLoginAt?: number;
   reconnectStorage?: 'httpOnly';
@@ -168,7 +166,6 @@ export class SessionManager {
     if (
       previous.status !== this.state.status ||
       previous.user?.ra !== this.state.user?.ra ||
-      previous.user?.appTier !== this.state.user?.appTier ||
       previous.cacheScope !== this.state.cacheScope ||
       previous.lastRefreshedAt !== this.state.lastRefreshedAt
     ) {
@@ -179,10 +176,7 @@ export class SessionManager {
   private applyActivePayload(payload: RefreshPayload): void {
     const now = Date.now();
     this.setState({
-      user: {
-        ra: payload.ra || this.state.user?.ra || '',
-        appTier: payload.appTier || this.state.user?.appTier || 'standard',
-      },
+      user: { ra: payload.ra || this.state.user?.ra || '' },
       status: 'active',
       lastCheckedAt: now,
       lastRefreshedAt: payload.lastExternalLoginAt || now,
@@ -202,7 +196,7 @@ export class SessionManager {
     const hint = await getOfflineSessionHint();
     if (!hint) return false;
     this.setState({
-      user: { ra: hint.ra, appTier: 'standard' },
+      user: { ra: hint.ra },
       status: 'error',
       cacheScope: hint.cacheScope,
     });
