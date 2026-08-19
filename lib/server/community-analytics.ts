@@ -4,7 +4,7 @@ import { getCommunityPageLabel, type CommunityPulse } from '@/lib/community-puls
 
 const VERCEL_ANALYTICS_API = 'https://api.vercel.com/v1/query/web-analytics';
 const COMMUNITY_PATH_FILTER = "startswith(requestPath, '/app/')";
-const ANALYTICS_REVALIDATE_SECONDS = 86_400;
+const ANALYTICS_REVALIDATE_SECONDS = 2 * 60 * 60;
 const ANALYTICS_TIMEOUT_MS = 8_000;
 const ANALYTICS_SETTLING_DELAY_MS = 15 * 60 * 1_000;
 const SAO_PAULO_TIME_ZONE = 'America/Sao_Paulo';
@@ -137,25 +137,26 @@ export async function getCommunityPulse(snapshotAt = new Date()): Promise<Commun
 
   const analyticsCutoff = getSettledAnalyticsCutoff(snapshotAt);
   const weekStart = new Date(analyticsCutoff.getTime() - 6 * 24 * 60 * 60 * 1_000);
-  const until = analyticsCutoff.toISOString();
+  const analyticsDate = dateInSaoPaulo(analyticsCutoff);
+  const updatedAt = analyticsCutoff.toISOString();
 
   try {
     const [today, routes] = await Promise.all([
       fetchAnalyticsJson<VisitCountResponse>(analyticsUrl('visits/count', projectId, teamId, {
-        since: dateInSaoPaulo(analyticsCutoff),
-        until,
+        since: analyticsDate,
+        until: analyticsDate,
         filter: COMMUNITY_PATH_FILTER,
       }), token, 'live'),
       fetchAnalyticsJson<VisitAggregateResponse>(analyticsUrl('visits/aggregate', projectId, teamId, {
         since: dateInSaoPaulo(weekStart),
-        until,
+        until: analyticsDate,
         by: 'requestPath',
         limit: '8',
         filter: COMMUNITY_PATH_FILTER,
       }), token),
     ]);
 
-    return buildCommunityPulse(today, routes, until);
+    return buildCommunityPulse(today, routes, updatedAt);
   } catch {
     return { available: false };
   }

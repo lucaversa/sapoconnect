@@ -1,8 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { buildCommunityPulse, getSettledAnalyticsCutoff } from '@/lib/server/community-analytics';
+import {
+  buildCommunityPulse,
+  getCommunityPulse,
+  getSettledAnalyticsCutoff,
+} from '@/lib/server/community-analytics';
 import {
   COMMUNITY_PULSE_PROVISIONAL_STALE_TIME_MS,
   COMMUNITY_PULSE_STALE_TIME_MS,
@@ -10,6 +14,11 @@ import {
 } from '@/lib/community-pulse';
 
 describe('community pulse aggregation', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
   it('sums weekly page views and maps the most visited app page', () => {
     const pulse = buildCommunityPulse(
       { data: { visitors: 18, pageviews: 72 } },
@@ -46,6 +55,35 @@ describe('community pulse aggregation', () => {
       .toBe('2026-08-19T11:45:00.000Z');
     expect(getSettledAnalyticsCutoff(new Date('2026-08-19T03:00:00.000Z')).toISOString())
       .toBe('2026-08-19T03:00:00.000Z');
+  });
+
+  it('queries Vercel with inclusive calendar dates instead of mixed timestamps', async () => {
+    vi.stubEnv('VERCEL_ANALYTICS_TOKEN', 'analytics-token');
+    vi.stubEnv('VERCEL_ANALYTICS_PROJECT_ID', 'project-id');
+    vi.stubEnv('VERCEL_ANALYTICS_TEAM_ID', 'team-id');
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { visitors: 376, pageviews: 1_074 } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [{ requestPath: '/app/calendario', pageviews: 3_131 }],
+        }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getCommunityPulse(new Date('2026-08-19T20:00:00.000Z'));
+
+    const todayUrl = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(todayUrl.searchParams.get('since')).toBe('2026-08-19');
+    expect(todayUrl.searchParams.get('until')).toBe('2026-08-19');
+
+    const weeklyUrl = new URL(fetchMock.mock.calls[1][0] as string);
+    expect(weeklyUrl.searchParams.get('since')).toBe('2026-08-13');
+    expect(weeklyUrl.searchParams.get('until')).toBe('2026-08-19');
   });
 
   it('treats a zero visitor count as provisional', () => {
