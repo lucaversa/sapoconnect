@@ -2,16 +2,15 @@
 
 import { Activity, ChartNoAxesCombined, Eye, UsersRound } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
 
 import {
   COMMUNITY_PULSE_STALE_TIME_MS,
   type CommunityPulse as CommunityPulseData,
 } from '@/lib/community-pulse';
 import { queryKeys } from '@/lib/query-keys';
+import { cn } from '@/lib/utils';
 
 const numberFormatter = new Intl.NumberFormat('pt-BR');
-const COMMUNITY_PULSE_REVEAL_AT = Date.parse('2026-08-21T18:00:00-03:00');
 
 async function fetchCommunityPulse(): Promise<CommunityPulseData> {
   try {
@@ -47,24 +46,11 @@ function Metric({ icon: Icon, label, value }: { icon: typeof UsersRound; label: 
   );
 }
 
-export function CommunityPulse({ enabled }: { enabled: boolean }) {
-  const [isVisible, setIsVisible] = useState(() => Date.now() >= COMMUNITY_PULSE_REVEAL_AT);
-
-  useEffect(() => {
-    if (isVisible) return;
-
-    const timer = window.setTimeout(
-      () => setIsVisible(true),
-      Math.max(0, COMMUNITY_PULSE_REVEAL_AT - Date.now())
-    );
-
-    return () => window.clearTimeout(timer);
-  }, [isVisible]);
-
+export function CommunityPulse({ enabled, showHeading = true }: { enabled: boolean; showHeading?: boolean }) {
   const { data, isPending } = useQuery({
     queryKey: queryKeys.communityPulse,
     queryFn: fetchCommunityPulse,
-    enabled: enabled && isVisible,
+    enabled,
     staleTime: COMMUNITY_PULSE_STALE_TIME_MS,
     gcTime: 24 * 60 * 60 * 1_000,
     retry: false,
@@ -73,17 +59,17 @@ export function CommunityPulse({ enabled }: { enabled: boolean }) {
     refetchOnWindowFocus: false,
   });
 
-  if (!isVisible) return null;
-
   return (
-    <section className="border-t border-gray-200/70 py-5 dark:border-white/[0.065]">
-      <div className="mb-3 flex items-start gap-3">
-        <span className="icon-orb size-9"><Activity className="size-[18px]" aria-hidden="true" /></span>
-        <div className="min-w-0">
-          <h3 className="font-extrabold text-gray-950 dark:text-white">Pulso da comunidade</h3>
-          <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">Dados anônimos do uso do aplicativo, atualizados a cada 6 horas.</p>
+    <section className={cn("py-5", showHeading && "border-t border-gray-200/70 dark:border-white/[0.065]")}>
+      {showHeading ? (
+        <div className="mb-3 flex items-start gap-3">
+          <span className="icon-orb size-9"><Activity className="size-[18px]" aria-hidden="true" /></span>
+          <div className="min-w-0">
+            <h3 className="font-extrabold text-gray-950 dark:text-white">Pulso da comunidade</h3>
+            <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">Dados anônimos do uso do aplicativo, atualizados a cada 6 horas.</p>
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {isPending ? (
         <PulseSkeleton />
