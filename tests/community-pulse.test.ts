@@ -57,7 +57,7 @@ describe('community pulse aggregation', () => {
       .toBe('2026-08-19T03:00:00.000Z');
   });
 
-  it('queries Vercel with inclusive calendar dates instead of mixed timestamps', async () => {
+  it('uses calendar dates for daily counts without truncating the weekly snapshot', async () => {
     vi.stubEnv('VERCEL_ANALYTICS_TOKEN', 'analytics-token');
     vi.stubEnv('VERCEL_ANALYTICS_PROJECT_ID', 'project-id');
     vi.stubEnv('VERCEL_ANALYTICS_TEAM_ID', 'team-id');
@@ -83,7 +83,7 @@ describe('community pulse aggregation', () => {
 
     const weeklyUrl = new URL(fetchMock.mock.calls[1][0] as string);
     expect(weeklyUrl.searchParams.get('since')).toBe('2026-08-13');
-    expect(weeklyUrl.searchParams.get('until')).toBe('2026-08-19');
+    expect(weeklyUrl.searchParams.get('until')).toBe('2026-08-19T19:45:00.000Z');
   });
 
   it('treats a zero visitor count as provisional', () => {
