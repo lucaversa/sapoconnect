@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useSyncExternalStore, type TouchEvent } from "react"
 import { addDays, addMonths, addWeeks, endOfWeek, format, isSameMonth, startOfWeek, subMonths, subWeeks } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Maximize2, Minimize2, RotateCw } from "lucide-react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 
 import { cn } from "@/lib/utils"
@@ -13,6 +13,7 @@ import { DayView } from "./day-view"
 import { EventViewDialog } from "./event-view-dialog"
 import { MonthView } from "./month-view"
 import type { CalendarEvent, CalendarView } from "./types"
+import { useCalendarImmersive } from "./use-calendar-immersive"
 import { WeekView } from "./week-view"
 
 const viewNames: Record<CalendarView, string> = { agenda: "Agenda", day: "Dia", week: "Semana", month: "Mês" }
@@ -52,6 +53,8 @@ export function EventCalendar({
   const [isViewMenuOpen, setIsViewMenuOpen] = useState(false)
   const reducedMotion = useReducedMotion()
   const touchStart = useRef<{ x: number; y: number } | null>(null)
+  const { enterImmersive, exitImmersive, isImmersive, isLandscape } = useCalendarImmersive()
+  const supportsImmersiveView = view === "week" || view === "month"
 
   const move = (direction: -1 | 1) => {
     setCurrentDate((date) => {
@@ -97,9 +100,26 @@ export function EventCalendar({
     setIsEventDialogOpen(true)
   }
 
+  const selectView = (nextView: CalendarView) => {
+    setSelectedView(nextView)
+    setIsViewMenuOpen(false)
+    if (isImmersive && nextView !== "week" && nextView !== "month") void exitImmersive()
+  }
+
+  const toggleImmersive = () => {
+    if (isImmersive) {
+      void exitImmersive()
+      return
+    }
+
+    enterImmersive()
+  }
+
   return (
     <section
-      className={cn("academic-panel overflow-hidden", className)}
+      data-calendar-immersive={isImmersive ? "true" : undefined}
+      data-pull-to-refresh-ignore
+      className={cn("academic-panel overflow-hidden", isImmersive && "calendar-immersive-shell", className)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchCancel={() => { touchStart.current = null }}
@@ -108,11 +128,19 @@ export function EventCalendar({
         <div className="sm:hidden">
           <div className="flex min-w-0 items-center justify-between gap-3">
             <h2 className="min-w-0 truncate text-base font-semibold text-gray-900 first-letter:uppercase dark:text-white">{viewTitle}</h2>
-            <div className="relative shrink-0">
-              <button type="button" onClick={() => setIsViewMenuOpen((open) => !open)} className="native-control flex h-10 min-h-0 items-center gap-1 px-3 text-sm font-bold" aria-expanded={isViewMenuOpen}>
-                {viewNames[view]} <ChevronDown className="h-4 w-4" />
-              </button>
-              {isViewMenuOpen && <div className="liquid-float absolute right-0 z-40 mt-2 w-36 rounded-2xl p-1.5">{views.map((option) => <button key={option} type="button" onClick={() => { setSelectedView(option); setIsViewMenuOpen(false) }} className={cn("liquid-menu-item flex h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold", view === option ? "border-white/70 bg-gray-950 text-white dark:border-white/10 dark:bg-white dark:text-gray-950" : "text-gray-700 dark:text-gray-200")}>{viewNames[option]}</button>)}</div>}
+            <div className="flex shrink-0 items-center gap-1.5">
+              {supportsImmersiveView ? (
+                <button type="button" onClick={toggleImmersive} className={cn("native-control flex h-10 min-h-0 items-center justify-center gap-1.5 p-0", isImmersive ? "px-3 text-sm font-bold text-primary" : "size-10")} aria-label={isImmersive ? "Sair da tela cheia" : "Abrir calendário em tela cheia"} aria-pressed={isImmersive} title={isImmersive ? "Sair da tela cheia" : "Tela cheia"}>
+                  {isImmersive ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                  {isImmersive ? <span>Sair</span> : null}
+                </button>
+              ) : null}
+              <div className="relative">
+                <button type="button" onClick={() => setIsViewMenuOpen((open) => !open)} className="native-control flex h-10 min-h-0 items-center gap-1 px-3 text-sm font-bold" aria-expanded={isViewMenuOpen} aria-controls="calendar-view-menu">
+                  {viewNames[view]} <ChevronDown className="h-4 w-4" />
+                </button>
+                {isViewMenuOpen && <div id="calendar-view-menu" className="liquid-float absolute right-0 z-40 mt-2 w-36 rounded-2xl p-1.5">{views.map((option) => <button key={option} type="button" onClick={() => selectView(option)} className={cn("liquid-menu-item flex h-11 w-full items-center rounded-xl px-3 text-left text-sm font-semibold", view === option ? "border-white/70 bg-gray-950 text-white dark:border-white/10 dark:bg-white dark:text-gray-950" : "text-gray-700 dark:text-gray-200")}>{viewNames[option]}</button>)}</div>}
+              </div>
             </div>
           </div>
           <div className="mt-1 flex items-center justify-between">
@@ -132,7 +160,15 @@ export function EventCalendar({
             <button type="button" onClick={() => move(1)} className="native-control flex size-11 min-h-0 shrink-0 items-center justify-center p-0" aria-label="Próximo período"><ChevronRight className="h-5 w-5" /></button>
             <h2 className="min-w-0 truncate px-1 text-base font-semibold text-gray-900 first-letter:uppercase dark:text-white">{viewTitle}</h2>
           </div>
-          <div className="flex shrink-0 items-center rounded-2xl border border-white/70 bg-gray-100/70 p-1 dark:border-white/[0.06] dark:bg-white/[0.04]">{views.map((option) => <button key={option} type="button" onClick={() => setSelectedView(option)} className={cn("h-9 rounded-xl px-3 text-sm font-semibold transition-[background-color,color,box-shadow] motion-reduce:transition-none", view === option ? "bg-gray-950 text-white shadow-sm dark:bg-white dark:text-gray-950" : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white")}>{viewNames[option]}</button>)}</div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex items-center rounded-2xl border border-white/70 bg-gray-100/70 p-1 dark:border-white/[0.06] dark:bg-white/[0.04]">{views.map((option) => <button key={option} type="button" onClick={() => selectView(option)} className={cn("h-9 rounded-xl px-3 text-sm font-semibold transition-[background-color,color,box-shadow] motion-reduce:transition-none", view === option ? "bg-gray-950 text-white shadow-sm dark:bg-white dark:text-gray-950" : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white")}>{viewNames[option]}</button>)}</div>
+            {supportsImmersiveView ? (
+              <button type="button" onClick={toggleImmersive} className={cn("native-control flex h-11 min-h-0 items-center justify-center gap-2 p-0", isImmersive ? "px-3.5 text-sm font-bold text-primary" : "size-11")} aria-label={isImmersive ? "Sair da tela cheia" : "Abrir calendário em tela cheia"} aria-pressed={isImmersive} title={isImmersive ? "Sair da tela cheia" : "Tela cheia"}>
+                {isImmersive ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                {isImmersive ? <span>Sair</span> : null}
+              </button>
+            ) : null}
+          </div>
         </div>
       </header>
       <AnimatePresence mode="wait" initial={false}>
@@ -146,9 +182,24 @@ export function EventCalendar({
         >
           {view === "agenda" && <AgendaView currentDate={currentDate} events={events} onEventSelect={selectEvent} />}
           {view === "day" && <DayView currentDate={currentDate} events={events} onEventSelect={selectEvent} />}
-          {view === "week" && <WeekView currentDate={currentDate} events={events} onEventSelect={selectEvent} />}
-          {view === "month" && <MonthView currentDate={currentDate} events={events} onEventSelect={selectEvent} />}
+          {view === "week" && <WeekView currentDate={currentDate} events={events} onEventSelect={selectEvent} immersive={isImmersive} />}
+          {view === "month" && <MonthView currentDate={currentDate} events={events} onEventSelect={selectEvent} immersive={isImmersive} />}
         </motion.div>
+      </AnimatePresence>
+      <AnimatePresence>
+        {isImmersive && !isLandscape ? (
+          <motion.div
+            initial={reducedMotion ? false : { opacity: 0, y: 10, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={reducedMotion ? undefined : { opacity: 0, y: 8, scale: 0.98 }}
+            transition={{ duration: reducedMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
+            className="calendar-orientation-hint liquid-float liquid-notice pointer-events-none absolute bottom-3 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-2xl px-3.5 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-200"
+            role="status"
+          >
+            <RotateCw className="size-4 shrink-0 text-primary" aria-hidden="true" />
+            Gire o celular para ampliar a grade
+          </motion.div>
+        ) : null}
       </AnimatePresence>
       <EventViewDialog event={selectedEvent} isOpen={isEventDialogOpen} onClose={() => { setIsEventDialogOpen(false); setSelectedEvent(null) }} />
     </section>
