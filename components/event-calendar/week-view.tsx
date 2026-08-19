@@ -28,10 +28,9 @@ interface WeekViewProps {
   currentDate: Date
   events: CalendarEvent[]
   onEventSelect: (event: CalendarEvent) => void
-  immersive?: boolean
 }
 
-export function WeekView({ currentDate, events, onEventSelect, immersive = false }: WeekViewProps) {
+export function WeekView({ currentDate, events, onEventSelect }: WeekViewProps) {
   const days = useMemo(() => {
     const start = startOfWeek(currentDate, { weekStartsOn: 0 })
     return Array.from({ length: 7 }, (_, index) => addDays(start, index))
@@ -39,7 +38,7 @@ export function WeekView({ currentDate, events, onEventSelect, immersive = false
   const hours = useMemo(() => getCalendarHours(StartHour, EndHour), [])
   const { currentTimePosition, currentTimeVisible } = useCurrentTimeIndicator(currentDate, "week")
   const isCompactWeek = useSyncExternalStore(subscribeToCompactWeek, getCompactWeekSnapshot, () => true)
-  const hourHeight = isCompactWeek || immersive ? 48 : WeekCellsHeight
+  const hourHeight = isCompactWeek ? 48 : WeekCellsHeight
   const gridHeight = (EndHour - StartHour) * hourHeight
 
   return (

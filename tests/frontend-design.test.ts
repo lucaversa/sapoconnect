@@ -63,27 +63,9 @@ describe("frontend information architecture", () => {
     expect(globals).toContain("height: min(68dvh, 50rem)")
     expect(globals).toContain(".calendar-day-view > .calendar-scroll-viewport")
     expect(globals).toContain("touch-action: pan-x pan-y")
-    expect(week).toContain("isCompactWeek || immersive ? 48 : WeekCellsHeight")
+    expect(week).toContain("isCompactWeek ? 48 : WeekCellsHeight")
     expect(week).toContain("min-w-[720px] sm:min-w-[880px]")
     expect(month).toContain("min-h-24")
-  })
-
-  it("offers an immersive landscape mode only for week and month views", () => {
-    const calendar = read("components/event-calendar/event-calendar.tsx")
-    const immersive = read("components/event-calendar/use-calendar-immersive.ts")
-    const globals = read("app/globals.css")
-    const eventDialog = read("components/event-calendar/event-view-dialog.tsx")
-
-    expect(calendar).toContain('view === "week" || view === "month"')
-    expect(calendar).toContain('aria-label={isImmersive ? "Sair da tela cheia" : "Abrir calendário em tela cheia"}')
-    expect(calendar).toContain("Gire o celular para ampliar a grade")
-    expect(immersive).toContain('root.requestFullscreen({ navigationUI: "hide" })')
-    expect(immersive).toContain('orientation?.lock?.("landscape")')
-    expect(immersive).toContain("exitNativeFullscreen()")
-    expect(globals).toContain('.calendar-immersive-shell')
-    expect(globals).toContain('html[data-calendar-immersive="true"] body')
-    expect(globals).toContain('html[data-calendar-immersive="true"] [data-sonner-toaster]')
-    expect(eventDialog).toContain("calendar-event-dialog")
   })
 
   it("keeps agenda cards inside the mobile viewport", () => {
