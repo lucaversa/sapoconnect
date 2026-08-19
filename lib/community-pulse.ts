@@ -1,4 +1,4 @@
-export const COMMUNITY_PULSE_STALE_TIME_MS = 6 * 60 * 60 * 1_000;
+export const COMMUNITY_PULSE_STALE_TIME_MS = 2 * 60 * 60 * 1_000;
 
 export type CommunityPulse =
   | {
