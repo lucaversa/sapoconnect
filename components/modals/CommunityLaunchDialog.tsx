@@ -12,34 +12,15 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { BrandOrbit } from "@/components/brand/BrandOrbit"
+import { useSession } from "@/lib/session-provider"
+import {
+  getFirstLoginGuideStorageKey,
+  rememberCommunityAnnouncement,
+  wasCommunityAnnouncementSeen,
+  wasFirstLoginGuideSeen,
+} from "@/lib/onboarding"
 
-const ANNOUNCEMENT_STORAGE_KEY = "sapoconnect:announcement:community-pulse-2026-08"
-const ANNOUNCEMENT_COOKIE = "sc_announcement_community_pulse_2026_08"
 const ANNOUNCEMENT_EXPIRES_AT = Date.parse("2026-08-28T18:00:00-03:00")
-const ONE_YEAR_IN_SECONDS = 60 * 60 * 24 * 365
-
-function wasAnnouncementSeen() {
-  try {
-    if (window.localStorage.getItem(ANNOUNCEMENT_STORAGE_KEY) === "seen") return true
-  } catch {
-    // A cookie is the fallback for browsers that restrict local storage.
-  }
-
-  return document.cookie
-    .split(";")
-    .some((cookie) => cookie.trim().startsWith(`${ANNOUNCEMENT_COOKIE}=`))
-}
-
-function rememberAnnouncement() {
-  try {
-    window.localStorage.setItem(ANNOUNCEMENT_STORAGE_KEY, "seen")
-  } catch {
-    // The non-sensitive cookie below keeps the one-time behavior available.
-  }
-
-  const secure = window.location.protocol === "https:" ? "; Secure" : ""
-  document.cookie = `${ANNOUNCEMENT_COOKIE}=seen; Max-Age=${ONE_YEAR_IN_SECONDS}; Path=/; SameSite=Lax${secure}`
-}
 
 const highlights = [
   {
@@ -60,28 +41,37 @@ const highlights = [
 ]
 
 export function CommunityLaunchDialog() {
+  const { user } = useSession()
   const reducedMotion = useReducedMotion()
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
+    if (!user?.ra) return
+
+    let cancelled = false
     let expiryTimer: number | undefined
 
     const frame = window.requestAnimationFrame(() => {
-      const remainingTime = ANNOUNCEMENT_EXPIRES_AT - Date.now()
-      if (remainingTime <= 0 || wasAnnouncementSeen()) return
+      void getFirstLoginGuideStorageKey(user.ra).then((storageKey) => {
+        if (cancelled || !wasFirstLoginGuideSeen(storageKey)) return
 
-      setOpen(true)
-      expiryTimer = window.setTimeout(() => setOpen(false), remainingTime)
+        const remainingTime = ANNOUNCEMENT_EXPIRES_AT - Date.now()
+        if (remainingTime <= 0 || wasCommunityAnnouncementSeen()) return
+
+        setOpen(true)
+        expiryTimer = window.setTimeout(() => setOpen(false), remainingTime)
+      })
     })
 
     return () => {
+      cancelled = true
       window.cancelAnimationFrame(frame)
       if (expiryTimer !== undefined) window.clearTimeout(expiryTimer)
     }
-  }, [])
+  }, [user?.ra])
 
   function handleOpenChange(nextOpen: boolean) {
-    if (!nextOpen) rememberAnnouncement()
+    if (!nextOpen) rememberCommunityAnnouncement()
     setOpen(nextOpen)
   }
 
