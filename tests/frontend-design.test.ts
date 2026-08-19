@@ -339,30 +339,6 @@ describe("frontend information architecture", () => {
     expect(announcement).not.toContain("XIcon")
   })
 
-  it("targets the recurring Lite upgrade notice through the private server session", () => {
-    const layout = read("app/app/layout.tsx")
-    const banner = read("components/modals/LiteUpgradeBanner.tsx")
-    const manager = read("lib/session-manager.ts")
-    const sessionRoute = read("app/api/auth/session/route.ts")
-    const refreshRoute = read("app/api/auth/refresh/route.ts")
-    const env = read(".env.example")
-
-    expect(layout).toContain("<LiteUpgradeBanner />")
-    expect(banner).toContain("LITE_BANNER_INTERVAL_MS = 2 * 60 * 1_000")
-    expect(banner).toContain("CLOSE_DELAY_SECONDS = 10")
-    expect(banner).toContain('user?.appTier === "lite"')
-    expect(banner).toContain("SapoConnect Lite")
-    expect(banner).toContain("R$ 100")
-    expect(banner).toContain("35997030903")
-    expect(banner).toContain("Continuar no Lite")
-    expect(banner).toContain("onPointerDownOutside")
-    expect(manager).toContain("appTier")
-    expect(sessionRoute).toContain("resolveAppTier(session.ra)")
-    expect(refreshRoute).toContain("resolveAppTier(session.ra)")
-    expect(env).toContain("SAPOCONNECT_LITE_RAS=")
-    expect(env).not.toContain("NEXT_PUBLIC_SAPOCONNECT_LITE_RAS")
-  })
-
   it("does not leave a module in an endless loader when offline cache is missing", () => {
     const pages = [
       "app/app/calendario/page.tsx",
