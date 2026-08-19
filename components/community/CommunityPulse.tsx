@@ -103,7 +103,7 @@ export function CommunityPulse({ enabled, showHeading = true }: { enabled: boole
           <span className="icon-orb size-9"><Activity className="size-[18px]" aria-hidden="true" /></span>
           <div className="min-w-0">
             <h3 className="font-extrabold text-gray-950 dark:text-white">Pulso da comunidade</h3>
-            <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">Dados anônimos do uso do aplicativo, atualizados às 00h e a cada 2 horas entre 05h e 23h.</p>
+            <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">Dados anônimos do uso do aplicativo.</p>
           </div>
         </div>
       ) : null}
