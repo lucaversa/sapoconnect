@@ -60,8 +60,8 @@ export function EventViewDialog({ event, isOpen, onClose }: EventViewDialogProps
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="gap-0 p-0 sm:max-w-md sm:p-0">
-        <div className="relative overflow-hidden border-b border-white/10 bg-gray-950 px-5 pb-5 pt-5 text-white sm:px-6 sm:pb-6 sm:pt-6">
+      <DialogContent data-pull-to-refresh-ignore className="calendar-event-dialog gap-0 p-0 sm:max-w-md sm:p-0">
+        <div className="calendar-event-dialog-hero relative overflow-hidden border-b border-white/10 bg-gray-950 px-5 pb-5 pt-5 text-white sm:px-6 sm:pb-6 sm:pt-6">
           <div aria-hidden="true" className="absolute -right-16 -top-20 size-52 rounded-full bg-primary/22 blur-3xl" />
           <DialogHeader className="relative pr-10">
             <span className="inline-flex w-fit items-center gap-2 text-xs font-medium text-white/65">
@@ -77,7 +77,7 @@ export function EventViewDialog({ event, isOpen, onClose }: EventViewDialogProps
           </DialogHeader>
         </div>
 
-        <div className="no-scrollbar max-h-[62dvh] divide-y divide-gray-200/80 overflow-y-auto px-4 pb-2 dark:divide-white/[0.065] sm:px-5">
+        <div className="calendar-event-dialog-details no-scrollbar max-h-[62dvh] divide-y divide-gray-200/80 overflow-y-auto px-4 pb-2 dark:divide-white/[0.065] sm:px-5">
           {(info.sala || info.predio || info["prédio"] || info.bloco || event.location) ? (
             <DetailRow icon={MapPin} label="Localização">
               <p>{info.sala || event.location}</p>
