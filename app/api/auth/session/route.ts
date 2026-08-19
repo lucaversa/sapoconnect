@@ -4,6 +4,7 @@
  */
 
 import { getSession } from '@/lib/session';
+import { resolveAppTier } from '@/lib/server/app-tier';
 import { privateJson } from '@/lib/server/http';
 import {
   ServerConfigurationError,
@@ -36,6 +37,7 @@ export async function GET() {
       authenticated: true,
       lastExternalLoginAt: session.lastExternalLoginAt,
       ra: session.ra || null,
+      appTier: resolveAppTier(session.ra),
       cacheScope: session.cacheScope,
     });
   } catch (error) {

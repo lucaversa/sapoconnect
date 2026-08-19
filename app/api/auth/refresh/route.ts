@@ -4,6 +4,7 @@ import { createSession, destroySession, getReconnectCredentials, getSession, upd
 import { privateJson } from '@/lib/server/http';
 import { AuthInputError, readAuthCredentials } from '@/lib/server/auth-input';
 import { guardAuthRequest, guardSameOriginRequest, RequestGuardError } from '@/lib/server/request-guard';
+import { resolveAppTier } from '@/lib/server/app-tier';
 import {
   ServerConfigurationError,
   SERVER_CONFIGURATION_ERROR_CODE,
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
           credentials,
           !supplied ? stored?.sessionId : undefined
         );
-    return privateJson({ ok: true, reconnectStorage: 'httpOnly', cacheScope: session.cacheScope, ra: session.ra, lastExternalLoginAt: session.lastExternalLoginAt, migrationConfirmed: true });
+    return privateJson({ ok: true, reconnectStorage: 'httpOnly', cacheScope: session.cacheScope, ra: session.ra, appTier: resolveAppTier(session.ra), lastExternalLoginAt: session.lastExternalLoginAt, migrationConfirmed: true });
   } catch (error) {
     if (error instanceof RequestGuardError) {
       return privateJson(
