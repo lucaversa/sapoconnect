@@ -1,12 +1,13 @@
 /* global self, caches, fetch, URL, Request, Response */
 
-const SHELL_CACHE = 'sapoconnect-shell-v2';
-const STATIC_CACHE = 'sapoconnect-static-v2';
+const SHELL_CACHE = 'sapoconnect-shell-v3';
+const STATIC_CACHE = 'sapoconnect-static-v3';
 const CACHE_PREFIX = 'sapoconnect-';
 const SHELL_ROUTES = [
   '/',
   '/login',
   '/app',
+  '/app/ava',
   '/app/calendario',
   '/app/avaliacoes',
   '/app/faltas',
@@ -110,8 +111,9 @@ async function navigationResponse(request) {
     if (response.ok) await cache.put(url.pathname, response.clone());
     return response;
   } catch {
+    const moduleFallback = url.pathname.startsWith('/app/ava') ? '/app/ava' : '/app';
     return cached
-      || await cache.match('/app')
+      || await cache.match(moduleFallback)
       || await cache.match('/login')
       || await cache.match('/')
       || Response.error();

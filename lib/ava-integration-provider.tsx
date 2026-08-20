@@ -18,9 +18,11 @@ import { queryKeys } from '@/lib/query-keys'
 interface AvaIntegrationContextValue {
   connection: AvaConnectionState
   isLoading: boolean
+  isUnavailable: boolean
   isDialogOpen: boolean
   setDialogOpen: (open: boolean) => void
   openConnectionDialog: () => void
+  retryConnection: () => Promise<void>
   connect: (password: string) => Promise<void>
   disconnect: () => Promise<void>
   markDisconnected: () => void
@@ -68,16 +70,27 @@ export function AvaIntegrationProvider({ children }: { children: React.ReactNode
     markDisconnected()
   }, [markDisconnected])
 
+  const retryConnection = useCallback(async () => {
+    await queryClient.refetchQueries({ queryKey: queryKeys.avaConnection(), exact: true })
+  }, [])
+
+  const hasConnectionResult = connectionQuery.data !== undefined
+  const isUnavailable = !hasConnectionResult && (
+    connectionQuery.isError || connectionQuery.fetchStatus === 'paused'
+  )
+
   const value = useMemo<AvaIntegrationContextValue>(() => ({
     connection: connectionQuery.data ?? DISCONNECTED,
-    isLoading: connectionQuery.isLoading,
+    isLoading: !hasConnectionResult && !isUnavailable,
+    isUnavailable,
     isDialogOpen,
     setDialogOpen,
     openConnectionDialog: () => setDialogOpen(true),
+    retryConnection,
     connect,
     disconnect,
     markDisconnected,
-  }), [connect, connectionQuery.data, connectionQuery.isLoading, disconnect, isDialogOpen, markDisconnected])
+  }), [connect, connectionQuery.data, disconnect, hasConnectionResult, isDialogOpen, isUnavailable, markDisconnected, retryConnection])
 
   return (
     <AvaIntegrationContext.Provider value={value}>

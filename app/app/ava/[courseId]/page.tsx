@@ -152,16 +152,22 @@ export default function AvaCoursePage() {
   const params = useParams<{ courseId: string }>()
   const parsedCourseId = Number(params.courseId)
   const courseId = Number.isSafeInteger(parsedCourseId) && parsedCourseId > 1 ? parsedCourseId : null
-  const { connection, isLoading: isConnectionLoading, openConnectionDialog } = useAvaIntegration()
+  const {
+    connection,
+    isLoading: isConnectionLoading,
+    isUnavailable: isConnectionUnavailable,
+    openConnectionDialog,
+    retryConnection,
+  } = useAvaIntegration()
   const promptedRef = useRef(false)
   const [expandedSections, setExpandedSections] = useState<Set<number>>(() => new Set())
   const detail = useAvaCourse(courseId, connection.connected)
 
   useEffect(() => {
-    if (isConnectionLoading || connection.connected || promptedRef.current) return
+    if (isConnectionLoading || isConnectionUnavailable || connection.connected || promptedRef.current) return
     promptedRef.current = true
     openConnectionDialog()
-  }, [connection.connected, isConnectionLoading, openConnectionDialog])
+  }, [connection.connected, isConnectionLoading, isConnectionUnavailable, openConnectionDialog])
 
   const toggleSection = (sectionId: number) => {
     setExpandedSections((current) => {
@@ -181,6 +187,20 @@ export default function AvaCoursePage() {
 
   if (courseId === null) return <ApiError error={new Error('Disciplina inválida.')} />
   if (isConnectionLoading) return <PageLoading message="Preparando integração com o AVA..." />
+  if (isConnectionUnavailable) {
+    return (
+      <PageTransition className="app-page">
+        <PageHeading icon={BookOpenCheck} title="AVA" />
+        <section className="liquid-float rounded-[1.75rem] px-5 py-10 text-center sm:px-8 sm:py-14">
+          <h2 className="text-lg font-extrabold text-gray-950 dark:text-white">Não foi possível verificar o AVA</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600 dark:text-gray-300">
+            Sua integração continua salva. Reconecte-se para abrir esta disciplina caso ela ainda não esteja disponível offline.
+          </p>
+          <Button type="button" onClick={() => void retryConnection()} className="mt-5">Tentar novamente</Button>
+        </section>
+      </PageTransition>
+    )
+  }
   if (!connection.connected) {
     return (
       <PageTransition className="app-page">

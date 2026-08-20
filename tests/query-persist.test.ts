@@ -31,6 +31,7 @@ describe('persisted query isolation', () => {
   it('persists only successful academic queries', () => {
     expect(shouldPersistQuery(query('faltas'))).toBe(true);
     expect(shouldPersistQuery(query('ava'))).toBe(true);
+    expect(shouldPersistQuery(query('ava-connection'))).toBe(true);
     expect(shouldPersistQuery(query('session'))).toBe(false);
     expect(shouldPersistQuery(query('faltas', 'pending'))).toBe(false);
     expect(
