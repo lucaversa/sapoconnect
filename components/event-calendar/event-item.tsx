@@ -74,7 +74,7 @@ export function EventItem({
         view === "month"
           ? "items-center text-[10px] sm:text-xs"
           : view === "week"
-            ? "flex-col justify-center py-0.5 text-[10px] leading-3 sm:py-1 sm:text-xs sm:leading-4"
+            ? "flex-col justify-center px-1 py-0.5 text-[10px] leading-3 sm:px-2 sm:py-1 sm:text-xs sm:leading-4"
             : "flex-col py-1 text-xs",
         className
       )}
