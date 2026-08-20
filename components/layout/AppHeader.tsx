@@ -1,7 +1,7 @@
 "use client"
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { Activity, BellRing, ExternalLink, GraduationCap, Info, LogOut, Moon, MoreHorizontal, Sun } from "lucide-react"
+import { Activity, BellRing, BookOpenCheck, ExternalLink, GraduationCap, Info, LogOut, Moon, MoreHorizontal, Sun } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 
@@ -11,6 +11,8 @@ import { CommunityPulseDialog } from "@/components/modals/CommunityPulseDialog"
 import { useTheme } from "@/context/ThemeContext"
 import { useUserInfo } from "@/hooks/use-user-info"
 import { useAcademicUpdates } from "@/lib/academic-updates-provider"
+import { useAvaIntegration } from "@/lib/ava-integration-provider"
+import { normalizePersonName } from "@/lib/person-name"
 import { useSession } from "@/lib/session-provider"
 
 type AppHeaderViewProps = {
@@ -19,10 +21,13 @@ type AppHeaderViewProps = {
   logout: () => Promise<void>
   greeting?: string | null
   ra?: string | null
+  userName?: string | null
   unreadCount?: number
+  avaConnected?: boolean
+  openAvaConnection?: () => void
 }
 
-export function AppHeaderView({ theme, toggleTheme, logout, greeting, ra, unreadCount = 0 }: AppHeaderViewProps) {
+export function AppHeaderView({ theme, toggleTheme, logout, greeting, ra, userName, unreadCount = 0, avaConnected = false, openAvaConnection }: AppHeaderViewProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isUtilityMenuOpen, setIsUtilityMenuOpen] = useState(false)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
@@ -30,6 +35,8 @@ export function AppHeaderView({ theme, toggleTheme, logout, greeting, ra, unread
   const menuRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const reducedMotion = useReducedMotion()
+  const salutation = greeting || "Olá"
+  const normalizedUserName = normalizePersonName(userName)
 
   const handleLogout = async () => {
     setIsLoggingOut(true)
@@ -72,7 +79,9 @@ export function AppHeaderView({ theme, toggleTheme, logout, greeting, ra, unread
           <BrandMark className="size-9 lg:hidden" priority />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-extrabold tracking-[-0.025em] text-gray-950 dark:text-white">
-              {greeting || "Olá"}<span className="hidden min-[360px]:inline">{ra ? `, ${ra}` : ""}</span>
+              {normalizedUserName ? `${salutation}, ${normalizedUserName}` : (
+                <>{salutation}<span className="hidden min-[360px]:inline">{ra ? `, ${ra}` : ""}</span></>
+              )}
             </p>
             <p className="hidden truncate text-[11px] font-medium text-gray-500 dark:text-gray-400 min-[360px]:block">Seu painel acadêmico está pronto</p>
           </div>
@@ -145,6 +154,10 @@ export function AppHeaderView({ theme, toggleTheme, logout, greeting, ra, unread
                   <span className="icon-orb size-9"><Activity className="size-4" aria-hidden="true" /></span>
                   Pulso da comunidade
                 </button>
+                <button type="button" role="menuitem" onClick={() => { closeUtilityMenu(false); openAvaConnection?.() }} className="liquid-menu-item flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-sm font-bold text-gray-700 hover:text-primary-700 dark:text-gray-200 dark:hover:text-primary-300">
+                  <span className="icon-orb size-9"><BookOpenCheck className="size-4" aria-hidden="true" /></span>
+                  {avaConnected ? "AVA conectado" : "Conectar ao AVA"}
+                </button>
                 <button type="button" role="menuitem" onClick={() => { closeUtilityMenu(false); setIsAboutOpen(true) }} className="liquid-menu-item flex min-h-12 w-full items-center gap-3 rounded-2xl px-3 text-sm font-bold text-gray-700 hover:text-primary-700 dark:text-gray-200 dark:hover:text-primary-300">
                   <span className="icon-orb size-9"><Info className="size-4" /></span>
                   Sobre e instalar
@@ -178,5 +191,6 @@ export function AppHeader() {
   const { logout } = useSession()
   const { greeting, ra } = useUserInfo()
   const { unreadCount } = useAcademicUpdates()
-  return <AppHeaderView theme={theme} toggleTheme={toggleTheme} logout={logout} greeting={greeting} ra={ra} unreadCount={unreadCount} />
+  const { connection, openConnectionDialog } = useAvaIntegration()
+  return <AppHeaderView theme={theme} toggleTheme={toggleTheme} logout={logout} greeting={greeting} ra={ra} userName={connection.connected ? connection.fullName : null} unreadCount={unreadCount} avaConnected={connection.connected} openAvaConnection={openConnectionDialog} />
 }

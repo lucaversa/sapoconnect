@@ -5,4 +5,8 @@ export const queryKeys = {
   avaliacoesCompleto: () => ['avaliacoes', 'completo'] as const,
   calendario: () => ['calendario'] as const,
   historico: () => ['historico'] as const,
-} satisfies Record<string, readonly unknown[] | (() => readonly unknown[])>;
+  avaConnection: () => ['ava-connection'] as const,
+  avaOverview: () => ['ava', 'overview'] as const,
+  avaContentSummary: (courseIds: number[]) => ['ava', 'content-summary', ...courseIds] as const,
+  avaCourse: (courseId: number) => ['ava', 'course', courseId] as const,
+};

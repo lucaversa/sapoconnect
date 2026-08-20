@@ -8,7 +8,7 @@ const IV_LENGTH = 12;
 const MAX_LEGACY_WINDOW_MS = 30 * 24 * 60 * 60 * 1_000;
 
 type Key = { id: string; key: Buffer };
-export type CookiePurpose = 'session' | 'reconnect';
+export type CookiePurpose = 'session' | 'reconnect' | 'moodle';
 
 function configuredKeyMaterial(): string {
   const configured = process.env.SESSION_ENCRYPTION_KEYS || process.env.SESSION_ENCRYPTION_KEY;

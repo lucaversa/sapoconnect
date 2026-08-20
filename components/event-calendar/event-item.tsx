@@ -38,7 +38,11 @@ export function EventItem({
   const start = useMemo(() => new Date(event.start), [event.start])
   const end = useMemo(() => new Date(event.end), [event.end])
   const durationMinutes = useMemo(() => differenceInMinutes(end, start), [end, start])
-  const time = event.allDay ? "Dia inteiro" : `${formatTime(start)} - ${formatTime(end)}`
+  const deadline = event.deadlineAt ? new Date(event.deadlineAt) : null
+  const time = event.source === "ava" && deadline
+    ? `Prazo ${formatTime(deadline)}`
+    : event.allDay ? "Dia inteiro" : `${formatTime(start)} - ${formatTime(end)}`
+  const pastAt = deadline ?? end
 
   if (view === "agenda") {
     return (
@@ -50,7 +54,7 @@ export function EventItem({
           getEventColorClasses(event.color),
           className
         )}
-        data-past-event={isPast(end) || undefined}
+        data-past-event={isPast(pastAt) || undefined}
       >
         <span className="w-1 shrink-0 bg-current opacity-55" aria-hidden="true" />
         <span className="min-w-0 flex-1 px-3 py-3 sm:px-4">
@@ -78,7 +82,7 @@ export function EventItem({
             : "flex-col py-1 text-xs",
         className
       )}
-      data-past-event={isPast(end) || undefined}
+      data-past-event={isPast(pastAt) || undefined}
     >
       {children || (
         <>

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import {
   BellRing,
+  BookMarked,
   BookOpenCheck,
   CalendarClock,
   ClipboardCheck,
@@ -29,6 +30,7 @@ const MODULE_ICONS = {
   calendario: CalendarClock,
   faltas: ClipboardCheck,
   avaliacoes: BookOpenCheck,
+  ava: BookMarked,
   historico: History,
 } satisfies Record<AcademicModule, typeof BellRing>
 

@@ -2,19 +2,17 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
-import { CalendarDays, ClipboardList, ExternalLink, GraduationCap, History, Info, Star } from "lucide-react"
+import { BookOpenCheck, CalendarDays, ClipboardList, History, Star } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
 
-import { BrandLockup, BrandMark } from "@/components/brand/BrandMark"
-import { AboutDialog } from "@/components/modals/AboutDialog"
-import { useSession } from "@/lib/session-provider"
+import { BrandLockup } from "@/components/brand/BrandMark"
 import { cn } from "@/lib/utils"
 
 const items = [
   { href: "/app/calendario", label: "Horários", icon: CalendarDays },
   { href: "/app/faltas", label: "Faltas", icon: ClipboardList },
   { href: "/app/avaliacoes", label: "Avaliações", icon: Star },
+  { href: "/app/ava", label: "AVA", icon: BookOpenCheck },
   { href: "/app/historico", label: "Histórico", icon: History },
 ]
 
@@ -23,7 +21,7 @@ function DesktopNav() {
   return (
     <nav aria-label="Navegação do aplicativo" className="space-y-1.5">
       {items.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href
+        const active = pathname === href || pathname.startsWith(`${href}/`)
         return (
           <Link
             key={href}
@@ -52,9 +50,9 @@ function MobileNavLinks() {
   const pathname = usePathname()
   const reducedMotion = useReducedMotion()
   return (
-    <nav aria-label="Navegação principal" className="grid grid-cols-4 gap-0.5">
+    <nav aria-label="Navegação principal" className="grid grid-cols-5 gap-0.5">
       {items.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href
+        const active = pathname === href || pathname.startsWith(`${href}/`)
         return (
           <Link
             key={href}
@@ -93,45 +91,15 @@ export function MobileNav() {
 }
 
 export function AppSidebar() {
-  const { user } = useSession()
-  const [isAboutOpen, setIsAboutOpen] = useState(false)
-
   return (
-    <>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-white/70 bg-white/58 px-4 pb-5 pt-5 backdrop-blur-2xl dark:border-white/[0.07] dark:bg-gray-950/72 lg:flex">
-        <Link href="/app/calendario" className="flex min-h-14 items-center rounded-2xl px-2 focus-visible:outline-none">
-          <BrandLockup />
-        </Link>
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col border-r border-white/70 bg-white/58 px-4 pb-5 pt-5 backdrop-blur-2xl dark:border-white/[0.07] dark:bg-gray-950/72 lg:flex">
+      <Link href="/app/calendario" className="flex min-h-14 items-center rounded-2xl px-2 focus-visible:outline-none">
+        <BrandLockup />
+      </Link>
 
-        <div className="mb-7 mt-4 h-px bg-gradient-to-r from-transparent via-gray-300/90 to-transparent dark:via-white/10" aria-hidden="true" />
+      <div className="mb-7 mt-4 h-px bg-gradient-to-r from-transparent via-gray-300/90 to-transparent dark:via-white/10" aria-hidden="true" />
 
-        <DesktopNav />
-
-        <div className="mt-auto space-y-2">
-          <div className="mb-3 flex items-center gap-3 rounded-2xl bg-gray-950/[0.035] px-3 py-3 dark:bg-white/[0.035]">
-            <BrandMark className="size-9" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[11px] font-bold uppercase tracking-[0.08em] text-gray-500 dark:text-gray-400">Conta acadêmica</p>
-              <p className="truncate text-sm font-bold text-gray-900 dark:text-white">{user?.ra ? `RA ${user.ra}` : "Sessão ativa"}</p>
-            </div>
-          </div>
-          <button type="button" onClick={() => setIsAboutOpen(true)} className="native-control flex w-full items-center gap-3 px-3 text-xs font-bold">
-            <Info className="size-4 text-primary" aria-hidden="true" />
-            Sobre e instalar
-          </button>
-          <a
-            href="https://fundacaoeducacional132827.rm.cloudtotvs.com.br/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="native-control flex w-full items-center gap-3 px-3 text-xs font-bold"
-          >
-            <GraduationCap className="size-4 text-primary" aria-hidden="true" />
-            Portal oficial
-            <ExternalLink className="ml-auto size-3.5 text-gray-400" aria-hidden="true" />
-          </a>
-        </div>
-      </aside>
-      <AboutDialog open={isAboutOpen} onOpenChange={setIsAboutOpen} />
-    </>
+      <DesktopNav />
+    </aside>
   )
 }

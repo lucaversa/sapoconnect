@@ -40,6 +40,7 @@ export function WeekView({ currentDate, events, onEventSelect }: WeekViewProps) 
   const isCompactWeek = useSyncExternalStore(subscribeToCompactWeek, getCompactWeekSnapshot, () => true)
   const hourHeight = isCompactWeek ? 48 : WeekCellsHeight
   const gridHeight = (EndHour - StartHour) * hourHeight
+  const hasAllDayEvents = days.some((day) => getAgendaEventsForDay(events, day).some((event) => event.allDay))
 
   return (
     <div data-calendar-scroll className="calendar-scroll-viewport" aria-label="Grade semanal; deslize para consultar dias e horários">
@@ -54,6 +55,20 @@ export function WeekView({ currentDate, events, onEventSelect }: WeekViewProps) 
           ))}
         </div>
 
+        {hasAllDayEvents ? (
+          <div className="grid grid-cols-[2.75rem_repeat(7,minmax(0,1fr))] border-b border-gray-200/70 bg-amber-50/45 dark:border-white/[0.07] dark:bg-amber-950/10 sm:grid-cols-[3.75rem_repeat(7,minmax(0,1fr))]">
+            <div className="sticky left-0 z-20 flex items-center justify-center border-r border-gray-200/70 bg-amber-50 px-1 text-[9px] font-bold text-amber-800 dark:border-white/[0.07] dark:bg-gray-900 dark:text-amber-300 sm:text-[10px]">Prazos</div>
+            {days.map((day) => {
+              const deadlines = getAgendaEventsForDay(events, day).filter((event) => event.allDay)
+              return (
+                <div key={`deadlines-${day.toISOString()}`} className="min-h-8 space-y-1 border-r border-gray-200/70 p-1 last:border-r-0 dark:border-white/[0.07]">
+                  {deadlines.map((event) => <div key={event.id} className="h-6"><EventItem event={event} view="month" onClick={() => onEventSelect(event)} /></div>)}
+                </div>
+              )
+            })}
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-[2.75rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[3.75rem_repeat(7,minmax(0,1fr))]">
           <div data-time-axis className="sticky left-0 z-30 relative border-r border-gray-200/70 bg-white dark:border-white/[0.07] dark:bg-gray-900" style={{ height: gridHeight }}>
             {hours.map((hour) => (
@@ -64,7 +79,7 @@ export function WeekView({ currentDate, events, onEventSelect }: WeekViewProps) 
           </div>
 
           {days.map((day) => {
-            const dayEvents = getAgendaEventsForDay(events, day)
+            const dayEvents = getAgendaEventsForDay(events, day).filter((event) => !event.allDay)
             return (
               <section
                 key={day.toISOString()}

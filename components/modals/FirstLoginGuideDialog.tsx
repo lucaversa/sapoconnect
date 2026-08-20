@@ -16,8 +16,8 @@ import {
 import { useTheme } from "@/context/ThemeContext"
 import { useSession } from "@/lib/session-provider"
 import {
+  FIRST_LOGIN_GUIDE_COMPLETED_EVENT,
   getFirstLoginGuideStorageKey,
-  rememberCommunityAnnouncement,
   rememberFirstLoginGuide,
   wasFirstLoginGuideSeen,
 } from "@/lib/onboarding"
@@ -50,7 +50,7 @@ export function FirstLoginGuideDialog() {
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen && storageKeyRef.current) {
       rememberFirstLoginGuide(storageKeyRef.current)
-      rememberCommunityAnnouncement()
+      window.dispatchEvent(new Event(FIRST_LOGIN_GUIDE_COMPLETED_EVENT))
     }
     setOpen(nextOpen)
   }

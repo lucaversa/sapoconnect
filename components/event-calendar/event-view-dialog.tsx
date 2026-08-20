@@ -2,9 +2,10 @@
 
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { BookOpen, Calendar, Clock, GraduationCap, MapPin, RefreshCw, Users } from "lucide-react"
+import { BookOpen, Calendar, Clock, GraduationCap, MapPin, MoveRight, RefreshCw, Users } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
+import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -40,11 +41,14 @@ export function EventViewDialog({ event, isOpen, onClose }: EventViewDialogProps
 
   if (!event) return null
 
-  const startDate = new Date(event.start)
+  const isAvaTask = event.source === "ava"
+  const startDate = event.deadlineAt ? new Date(event.deadlineAt) : new Date(event.start)
   const endDate = new Date(event.end)
   const dayName = format(startDate, "EEEE", { locale: ptBR })
   const formattedDate = format(startDate, "d 'de' MMMM", { locale: ptBR })
-  const formattedTime = `${format(startDate, "HH:mm")} - ${format(endDate, "HH:mm")}`
+  const formattedTime = isAvaTask
+    ? `Entrega até ${format(startDate, "HH:mm")}`
+    : `${format(startDate, "HH:mm")} - ${format(endDate, "HH:mm")}`
 
   const info: Record<string, string> = {}
   event.description?.split("\n").filter(Boolean).forEach((line) => {
@@ -78,7 +82,13 @@ export function EventViewDialog({ event, isOpen, onClose }: EventViewDialogProps
         </div>
 
         <div className="no-scrollbar max-h-[62dvh] divide-y divide-gray-200/80 overflow-y-auto px-4 pb-2 dark:divide-white/[0.065] sm:px-5">
-          {(info.sala || info.predio || info["prédio"] || info.bloco || event.location) ? (
+          {isAvaTask && event.courseName ? (
+            <DetailRow icon={BookOpen} label="Disciplina">
+              <p>{event.courseName}</p>
+            </DetailRow>
+          ) : null}
+
+          {!isAvaTask && (info.sala || info.predio || info["prédio"] || info.bloco || event.location) ? (
             <DetailRow icon={MapPin} label="Localização">
               <p>{info.sala || event.location}</p>
               {(info.predio || info["prédio"]) ? <p className="font-medium text-gray-500 dark:text-gray-400">{info.predio || info["prédio"]}</p> : null}
@@ -124,6 +134,16 @@ export function EventViewDialog({ event, isOpen, onClose }: EventViewDialogProps
             </DetailRow>
           ) : null}
         </div>
+
+        {isAvaTask && event.href ? (
+          <div className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
+            <Button asChild className="w-full gap-2">
+              <Link href={event.href} onClick={onClose}>
+                Abrir disciplina no AVA <MoveRight className="size-4" aria-hidden="true" />
+              </Link>
+            </Button>
+          </div>
+        ) : null}
 
       </DialogContent>
     </Dialog>

@@ -40,6 +40,7 @@ import { getAcademicUpdatesState, saveAcademicUpdatesState } from '@/lib/storage
 
 const BACKGROUND_START_DELAY_MS = 2_400
 const CALENDAR_BACKGROUND_INTERVAL_MS = 6 * 60 * 60 * 1_000
+const AVA_BACKGROUND_INTERVAL_MS = 6 * 60 * 60 * 1_000
 const LOCK_RETRY_INTERVAL_MS = 5 * 60 * 1_000
 const FAILED_SWEEP_RETRY_INTERVAL_MS = 60 * 60 * 1_000
 const LOCK_KEY_PREFIX = 'sapoconnect:academic-sync-lock:'
@@ -65,6 +66,11 @@ const RESOURCES: Record<AcademicModule, AcademicResource> = {
     queryKey: queryKeys.avaliacoesCompleto(),
     url: '/api/avaliacoes/completo',
     staleTime: QUERY_STALE_TIME.avaliacoes,
+  },
+  ava: {
+    queryKey: queryKeys.avaOverview(),
+    url: '/api/moodle/overview',
+    staleTime: QUERY_STALE_TIME.ava,
   },
   historico: {
     queryKey: queryKeys.historico(),
@@ -133,6 +139,7 @@ function moduleFromQuery(query: Query): AcademicModule | null {
   if (root === 'faltas') return 'faltas'
   if (root === 'historico') return 'historico'
   if (root === 'avaliacoes' && detail === 'completo') return 'avaliacoes'
+  if (root === 'ava' && detail === 'overview') return 'ava'
   return null
 }
 
@@ -157,7 +164,18 @@ async function readAcademicResponse(response: Response): Promise<unknown> {
 }
 
 async function fetchAcademicResource(academicModule: AcademicModule): Promise<unknown> {
-  return readAcademicResponse(await apiFetch(RESOURCES[academicModule].url))
+  try {
+    return await readAcademicResponse(await apiFetch(RESOURCES[academicModule].url))
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code
+    if (
+      academicModule === 'ava'
+      && (code === 'AVA_CONNECTION_EXPIRED' || code === 'AVA_NOT_CONNECTED')
+    ) {
+      queryClient.setQueryData(queryKeys.avaConnection(), { connected: false })
+    }
+    throw error
+  }
 }
 
 function preferredEvaluationCodes(): string[] {
@@ -292,6 +310,12 @@ export function AcademicUpdatesProvider({
     }
   }, [cacheScope, processQuery])
 
+  useEffect(() => {
+    if (!isReady) return
+    const migrated = migrateAcademicUpdatesState(stateRef.current)
+    if (migrated !== stateRef.current) commitState(migrated)
+  }, [commitState, isReady])
+
   const syncModule = useCallback(async (academicModule: AcademicModule) => {
     const resource = RESOURCES[academicModule]
     const data = await queryClient.fetchQuery({
@@ -356,6 +380,13 @@ export function AcademicUpdatesProvider({
       const tasks: BackgroundTask[] = []
       if (now - (current.lastSuccessfulSyncAt.calendario ?? 0) >= CALENDAR_BACKGROUND_INTERVAL_MS) {
         tasks.push({ module: 'calendario', run: () => syncModule('calendario') })
+      }
+      const avaConnection = queryClient.getQueryData<{ connected?: boolean }>(queryKeys.avaConnection())
+      if (
+        avaConnection?.connected
+        && now - (current.lastSuccessfulSyncAt.ava ?? 0) >= AVA_BACKGROUND_INTERVAL_MS
+      ) {
+        tasks.push({ module: 'ava', run: () => syncModule('ava') })
       }
       if (plan.absencesDue) {
         tasks.push({ module: 'faltas', run: syncLightAbsences })
