@@ -8,7 +8,7 @@ import {
 // Version 2 intentionally starts a clean update feed after the grouped-session redesign.
 export const ACADEMIC_UPDATES_SCHEMA_VERSION = 2
 
-export type AcademicModule = 'calendario' | 'faltas' | 'avaliacoes' | 'historico'
+export type AcademicModule = 'calendario' | 'faltas' | 'avaliacoes' | 'ava' | 'historico'
 export type AcademicUpdateKind = 'added' | 'changed' | 'removed'
 export type AcademicSnapshotStatus =
   | 'baseline'
@@ -86,6 +86,7 @@ interface NormalizedSnapshot {
   protectedNamespaces: string[]
   skippedNamespaces?: string[]
   partial?: boolean
+  allowEmpty?: boolean
 }
 
 interface UpdateCandidate {
@@ -107,6 +108,7 @@ export const ACADEMIC_MODULE_META: Record<
   calendario: { label: 'Horários', href: '/app/calendario' },
   faltas: { label: 'Faltas', href: '/app/faltas' },
   avaliacoes: { label: 'Avaliações', href: '/app/avaliacoes' },
+  ava: { label: 'AVA', href: '/app/ava' },
   historico: { label: 'Histórico', href: '/app/historico' },
 }
 
@@ -122,6 +124,10 @@ function displayText(value: unknown): string {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value)
   if (typeof value !== 'string') return ''
   return value.replace(/\s+/g, ' ').trim()
+}
+
+function normalizeAvaCourseLabel(value: unknown): string {
+  return displayText(value).replace(/\s*[-\u2013\u2014]\s*7M80D\s*$/i, '').trim()
 }
 
 function comparisonText(value: string): string {
@@ -487,12 +493,43 @@ function normalizeHistory(data: Record<string, unknown>): NormalizedSnapshot {
   return { records, protectedNamespaces: [] }
 }
 
+function normalizeAva(data: Record<string, unknown>): NormalizedSnapshot {
+  const records = arrayFrom(data.tasks).map((task) => {
+    const entityLabel = displayText(task.name) || 'Atividade'
+    const courseLabel = normalizeAvaCourseLabel(task.courseName) || 'Disciplina'
+    const taskId = displayText(task.id) || `${task.courseId}:${entityLabel}`
+    const namespace = `ava:${keyText(task.courseId || courseLabel)}|`
+    const deadline = formatLocalDateTime(task.deadline)
+    return {
+      id: `${namespace}${keyText(taskId)}`,
+      namespace,
+      entityLabel,
+      context: courseLabel,
+      fields: {
+        deadline: field('Prazo', deadline),
+        urgency: field('Proximidade do prazo', task.urgencyLabel),
+        course: field('Disciplina', courseLabel),
+        type: field('Tipo', task.moduleLabel),
+      },
+      details: detailsFrom([
+        detail('Disciplina', courseLabel),
+        detail('Atividade', entityLabel),
+        detail('Tipo', task.moduleLabel),
+        detail('Prazo', deadline),
+        detail('Situação', task.urgencyLabel),
+      ]),
+    } satisfies AcademicSnapshotRecord
+  })
+  return { records, protectedNamespaces: [], allowEmpty: true }
+}
+
 function normalizeSnapshot(module: AcademicModule, data: unknown): NormalizedSnapshot | null {
   if (!isRecord(data)) return null
   if (module === 'calendario' && !Array.isArray(data.aulas)) return null
   if (module === 'faltas' && !Array.isArray(data.faltas)) return null
   if (module === 'avaliacoes' && !Array.isArray(data.disciplinas)) return null
   if (module === 'historico' && !Array.isArray(data.periodos)) return null
+  if (module === 'ava' && (!Array.isArray(data.tasks) || !Array.isArray(data.courses))) return null
 
   switch (module) {
     case 'calendario':
@@ -503,6 +540,8 @@ function normalizeSnapshot(module: AcademicModule, data: unknown): NormalizedSna
       return normalizeEvaluations(data)
     case 'historico':
       return normalizeHistory(data)
+    case 'ava':
+      return normalizeAva(data)
   }
 }
 
@@ -523,6 +562,9 @@ function changesBetween(
   const fieldKeys = new Set([...Object.keys(previous.fields), ...Object.keys(current.fields)])
 
   for (const key of Array.from(fieldKeys)) {
+    // The course ID is already part of every AVA record identity. A display-name
+    // cleanup or rename must not make every pending task look updated.
+    if (key === 'course' && previous.namespace.startsWith('ava:')) continue
     const before = previous.fields[key]
     const after = current.fields[key]
     if ((before?.comparison ?? '') === (after?.comparison ?? '')) continue
@@ -543,11 +585,13 @@ function titleFor(
   if (kind === 'added') {
     if (module === 'calendario') return 'Aula adicionada'
     if (module === 'avaliacoes') return 'Avaliação adicionada'
+    if (module === 'ava') return 'Nova atividade no AVA'
     return 'Disciplina adicionada'
   }
   if (kind === 'removed') {
     if (module === 'calendario') return 'Aula não aparece mais'
     if (module === 'avaliacoes') return 'Avaliação não aparece mais'
+    if (module === 'ava') return 'Atividade concluída ou removida'
     return 'Disciplina não aparece mais'
   }
 
@@ -573,6 +617,11 @@ function titleFor(
     if (risk?.after === 'Próximo do limite') return 'Faltas próximas do limite'
     if (risk?.after === 'Seguro') return 'Faltas em nível seguro'
     return 'Faltas atualizadas'
+  }
+  if (module === 'ava') {
+    if (labels.has('Prazo')) return 'Prazo da atividade alterado'
+    if (labels.has('Proximidade do prazo')) return 'Atividade perto do prazo'
+    return 'Atividade atualizada no AVA'
   }
   return 'Situação acadêmica atualizada'
 }
@@ -611,6 +660,17 @@ function summaryFor(
         ? Math.max(1, Math.round(delta / impact))
         : null
       return `Faltas: ${percentage.before} para ${percentage.after} (${direction} de ${deltaText} p.p.)${estimatedAbsences ? `, aproximadamente ${estimatedAbsences} ${estimatedAbsences === 1 ? 'falta registrada' : 'faltas registradas'}` : ''}.`
+    }
+  }
+
+  if (module === 'ava') {
+    const deadline = record.fields.deadline?.value
+    const course = record.fields.course?.value
+    const urgency = record.fields.urgency?.value
+    if (kind === 'added') return `${record.entityLabel} foi publicada em ${course || 'uma disciplina'}${deadline ? `, com prazo em ${deadline}` : ''}.`
+    if (kind === 'removed') return `${record.entityLabel} não aparece mais entre as pendências do AVA.`
+    if (urgency && changes.some((change) => change.label === 'Proximidade do prazo')) {
+      return `${record.entityLabel}: ${urgency}${deadline ? `. Prazo em ${deadline}.` : '.'}`
     }
   }
 
@@ -799,7 +859,9 @@ function createEvaluationUpdates(
 function mergeRecordDetails(
   previous: AcademicSnapshotRecord[],
   current: AcademicSnapshotRecord[],
+  preservePrevious = true,
 ): AcademicSnapshotRecord[] {
+  if (!preservePrevious) return current
   const previousById = new Map(previous.map((record) => [record.id, record]))
   return current.map((record) => {
     const prior = previousById.get(record.id)
@@ -953,8 +1015,24 @@ export function isAcademicUpdatesState(
 export function migrateAcademicUpdatesState(
   state: AcademicUpdatesState,
 ): AcademicUpdatesState {
-  if (state.lastFullSyncAt) return state
-  return { ...state, lastFullSyncAt: { ...state.lastSuccessfulSyncAt } }
+  const updates = state.updates.filter((update) => {
+    if (update.module !== 'ava' || update.kind !== 'changed' || update.changes.length === 0) {
+      return true
+    }
+    const onlyCosmeticCourseChanges = update.changes.every((change) => (
+      change.label === 'Disciplina'
+      && comparisonText(normalizeAvaCourseLabel(change.before))
+        === comparisonText(normalizeAvaCourseLabel(change.after))
+    ))
+    return !onlyCosmeticCourseChanges
+  })
+
+  if (state.lastFullSyncAt && updates.length === state.updates.length) return state
+  return {
+    ...state,
+    updates,
+    lastFullSyncAt: state.lastFullSyncAt ?? { ...state.lastSuccessfulSyncAt },
+  }
 }
 
 export function applyAcademicSnapshot(
@@ -1015,7 +1093,8 @@ export function applyAcademicSnapshot(
   if (
     previousSnapshot.records.length > 0 &&
     normalized.records.length === 0 &&
-    normalized.protectedNamespaces.length === 0
+    normalized.protectedNamespaces.length === 0 &&
+    !normalized.allowEmpty
   ) {
     return { state, added: [], status: 'ignored-incomplete' }
   }
@@ -1027,6 +1106,7 @@ export function applyAcademicSnapshot(
       normalized.records,
       normalized.protectedNamespaces,
     ),
+    module !== 'ava',
   )
   const previouslyPendingNamespaces = new Set(previousSnapshot.pendingNamespaces ?? [])
   const pendingNamespaces = new Set(previousSnapshot.pendingNamespaces ?? [])

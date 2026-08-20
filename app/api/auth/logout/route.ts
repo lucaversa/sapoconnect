@@ -5,13 +5,14 @@
  */
 
 import { destroySession } from '@/lib/session';
+import { destroyMoodleSession } from '@/lib/moodle-session';
 import { privateJson } from '@/lib/server/http';
 import { guardSameOriginRequest, RequestGuardError } from '@/lib/server/request-guard';
 
 export async function POST(request: Request) {
   try {
     guardSameOriginRequest(request);
-    await destroySession();
+    await Promise.all([destroySession(), destroyMoodleSession()]);
 
     return privateJson({ ok: true });
   } catch (error) {

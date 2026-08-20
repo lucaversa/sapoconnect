@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import {
   BellRing,
+  BookMarked,
   BookOpenCheck,
   CalendarClock,
   CheckCheck,
@@ -32,6 +33,7 @@ const MODULE_ICONS = {
   calendario: CalendarClock,
   faltas: ClipboardCheck,
   avaliacoes: BookOpenCheck,
+  ava: BookMarked,
   historico: History,
 } satisfies Record<AcademicModule, typeof BellRing>
 

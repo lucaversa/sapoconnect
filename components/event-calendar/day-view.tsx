@@ -26,6 +26,8 @@ export function DayView({ currentDate, events, onEventSelect }: DayViewProps) {
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()),
     [currentDate, events],
   )
+  const allDayEvents = dayEvents.filter((event) => event.allDay)
+  const timedEvents = dayEvents.filter((event) => !event.allDay)
   const hours = useMemo(() => getCalendarHours(StartHour, EndHour), [])
   const { currentTimePosition, currentTimeVisible } = useCurrentTimeIndicator(currentDate, "day")
 
@@ -39,9 +41,16 @@ export function DayView({ currentDate, events, onEventSelect }: DayViewProps) {
           </h3>
         </div>
         <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-          {dayEvents.length} {dayEvents.length === 1 ? "aula" : "aulas"}
+          {dayEvents.length} {dayEvents.length === 1 ? "evento" : "eventos"}
         </span>
       </header>
+
+      {allDayEvents.length > 0 ? (
+        <section className="border-b border-gray-200/70 bg-amber-50/45 px-4 py-2 dark:border-white/[0.065] dark:bg-amber-950/10 sm:px-5" aria-label="Prazos do dia">
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-amber-800 dark:text-amber-300">Prazos</p>
+          <div className="space-y-1">{allDayEvents.map((event) => <EventItem key={event.id} event={event} view="agenda" onClick={() => onEventSelect(event)} />)}</div>
+        </section>
+      ) : null}
 
       <div data-calendar-scroll className="calendar-scroll-viewport">
         <div className="grid grid-cols-[4.25rem_minmax(0,1fr)]">
@@ -53,7 +62,7 @@ export function DayView({ currentDate, events, onEventSelect }: DayViewProps) {
             ))}
           </aside>
 
-          <section className="relative" style={{ height: GRID_HEIGHT }} aria-label={`${dayEvents.length} aulas em ${format(currentDate, "dd/MM/yyyy")}`}>
+          <section className="relative" style={{ height: GRID_HEIGHT }} aria-label={`${timedEvents.length} aulas em ${format(currentDate, "dd/MM/yyyy")}`}>
             <div className="pointer-events-none absolute inset-0">
               {hours.map((hour) => (
                 <div key={hour} className="absolute inset-x-0 border-t border-gray-200/65 dark:border-white/[0.055]" style={{ top: (hour - StartHour) * DayCellsHeight }}>
@@ -68,7 +77,7 @@ export function DayView({ currentDate, events, onEventSelect }: DayViewProps) {
               </div>
             ) : null}
 
-            {dayEvents.map((event) => {
+            {timedEvents.map((event) => {
               const position = getCalendarEventPosition(new Date(event.start), new Date(event.end), { startHour: StartHour, hourHeight: DayCellsHeight })
               return (
                 <div key={event.id} className="absolute inset-x-2 z-10" style={{ top: position.top + 4, height: position.height - 8 }}>
@@ -77,10 +86,10 @@ export function DayView({ currentDate, events, onEventSelect }: DayViewProps) {
               )
             })}
 
-            {!dayEvents.length ? (
+            {!timedEvents.length ? (
               <div className="absolute inset-x-4 top-24 flex items-center gap-3 border-l-2 border-gray-200 px-4 py-2 text-gray-500 dark:border-white/10 dark:text-gray-400">
                 <Clock3 className="size-5" />
-                <div><p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Dia livre</p><p className="text-xs">Não há aulas marcadas para esta data.</p></div>
+                <div><p className="text-sm font-semibold text-gray-700 dark:text-gray-200">Sem aulas com horário</p><p className="text-xs">Não há aulas marcadas para esta data.</p></div>
               </div>
             ) : null}
           </section>

@@ -5,12 +5,13 @@ import {
   applyAcademicSnapshot,
   createAcademicUpdatesState,
   isAcademicUpdatesState,
+  migrateAcademicUpdatesState,
   type AcademicUpdatesState,
 } from '@/lib/academic-updates'
 
 function apply(
   state: AcademicUpdatesState,
-  module: 'calendario' | 'faltas' | 'avaliacoes' | 'historico',
+  module: 'calendario' | 'faltas' | 'avaliacoes' | 'ava' | 'historico',
   data: unknown,
   now: number,
 ) {
@@ -37,6 +38,131 @@ describe('academic updates', () => {
     expect(result.status).toBe('baseline')
     expect(result.added).toEqual([])
     expect(result.state.snapshots.faltas?.records).toHaveLength(1)
+  })
+
+  it('tracks new AVA tasks and approaching deadlines after the baseline', () => {
+    const course = { id: 6747, fullName: 'Perícia Médica I' }
+    const task = {
+      id: 'quiz:99',
+      courseId: 6747,
+      courseName: course.fullName,
+      name: 'Atividade 1',
+      moduleLabel: 'Questionário',
+      deadline: '2026-08-23T23:59:00-03:00',
+      urgencyLabel: 'Prazo futuro',
+    }
+    const baseline = apply(createAcademicUpdatesState('scope-fixture'), 'ava', {
+      courses: [course],
+      tasks: [],
+    }, 1_000).state
+    const added = apply(baseline, 'ava', { courses: [course], tasks: [task] }, 2_000)
+
+    expect(added.added).toHaveLength(1)
+    expect(added.added[0].title).toBe('Nova atividade no AVA')
+    expect(added.added[0].details).toContainEqual({ label: 'Disciplina', value: course.fullName })
+
+    const approaching = apply(added.state, 'ava', {
+      courses: [course],
+      tasks: [{ ...task, urgencyLabel: 'Vence em até 24 horas' }],
+    }, 3_000)
+    expect(approaching.added).toHaveLength(1)
+    expect(approaching.added[0].title).toBe('Atividade perto do prazo')
+  })
+
+  it('allows the AVA pending list to become empty after completion', () => {
+    const data = {
+      courses: [{ id: 6747, fullName: 'Perícia Médica I' }],
+      tasks: [{
+        id: 'assign:12', courseId: 6747, courseName: 'Perícia Médica I',
+        name: 'Entrega', moduleLabel: 'Tarefa', deadline: '2026-08-23T23:59:00-03:00',
+        urgencyLabel: 'Prazo futuro',
+      }],
+    }
+    const baseline = apply(createAcademicUpdatesState('scope-fixture'), 'ava', data, 1_000).state
+    const completed = apply(baseline, 'ava', { courses: data.courses, tasks: [] }, 2_000)
+
+    expect(completed.status).toBe('updated')
+    expect(completed.added[0].title).toBe('Atividade concluída ou removida')
+  })
+
+  it('ignores a cosmetic AVA course-name cleanup for every existing task', () => {
+    const task = {
+      id: 'assign:12',
+      courseId: 6747,
+      courseName: 'Prática Formativa na Comunidade VII',
+      name: 'Atividade 4 26/08',
+      moduleLabel: 'Tarefa',
+      deadline: '2026-08-26T23:59:00-03:00',
+      urgencyLabel: 'Prazo futuro',
+    }
+    const baseline = apply(createAcademicUpdatesState('scope-fixture'), 'ava', {
+      courses: [{ id: 6747, fullName: task.courseName }],
+      tasks: [task],
+    }, 1_000).state
+    const record = baseline.snapshots.ava?.records[0]
+    if (!record) throw new Error('AVA baseline missing')
+    record.context = 'Prática Formativa na Comunidade VII – 7M80D'
+    record.fields.course = {
+      label: 'Disciplina',
+      value: 'Prática Formativa na Comunidade VII – 7M80D',
+      comparison: 'pratica formativa na comunidade vii – 7m80d',
+    }
+    record.details = [{ label: 'Disciplina', value: record.context }]
+
+    const result = apply(baseline, 'ava', {
+      courses: [{ id: 6747, fullName: task.courseName }],
+      tasks: [task],
+    }, 2_000)
+
+    expect(result.status).toBe('unchanged')
+    expect(result.added).toEqual([])
+    expect(result.state.snapshots.ava?.records[0].context).toBe(task.courseName)
+    expect(result.state.snapshots.ava?.records[0].details).toEqual([
+      { label: 'Disciplina', value: task.courseName },
+      { label: 'Atividade', value: task.name },
+      { label: 'Tipo', value: task.moduleLabel },
+      { label: 'Prazo', value: '26/08/2026 às 23:59' },
+      { label: 'Situação', value: task.urgencyLabel },
+    ])
+  })
+
+  it('removes already stored AVA updates caused only by the course-name cleanup', () => {
+    const state = createAcademicUpdatesState('scope-fixture')
+    state.lastFullSyncAt = { ava: 1_000 }
+    state.updates = [
+      {
+        id: 'cosmetic',
+        signature: 'cosmetic',
+        module: 'ava',
+        kind: 'changed',
+        title: 'Atividade atualizada no AVA',
+        entityLabel: 'Atividade 4 26/08',
+        summary: 'Disciplina atualizada.',
+        changes: [{
+          label: 'Disciplina',
+          before: 'Prática Formativa na Comunidade VII – 7M80D',
+          after: 'Prática Formativa na Comunidade VII',
+        }],
+        detectedAt: 2_000,
+        readAt: null,
+      },
+      {
+        id: 'deadline',
+        signature: 'deadline',
+        module: 'ava',
+        kind: 'changed',
+        title: 'Prazo da atividade alterado',
+        entityLabel: 'Atividade 4 26/08',
+        summary: 'Prazo atualizado.',
+        changes: [{ label: 'Prazo', before: '26/08/2026', after: '27/08/2026' }],
+        detectedAt: 3_000,
+        readAt: null,
+      },
+    ]
+
+    const migrated = migrateAcademicUpdatesState(state)
+
+    expect(migrated.updates.map((update) => update.id)).toEqual(['deadline'])
   })
 
   it('detects calendar time and room changes without treating the class as new', () => {

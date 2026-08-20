@@ -10,6 +10,10 @@ export interface CalendarEvent {
   color?: EventColor
   location?: string
   detalheId?: string  // ID para buscar detalhes adicionais (professor)
+  source?: "totvs" | "ava"
+  deadlineAt?: Date | string
+  href?: string
+  courseName?: string
 }
 
 export type EventColor =

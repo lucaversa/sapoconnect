@@ -13,11 +13,15 @@ describe('session cookie encryption', () => {
 
     const session = encryptSessionData('{"ra":"123"}', 'session');
     const reconnect = encryptSessionData('{"senha":"secret"}', 'reconnect');
+    const moodle = encryptSessionData('{"token":"moodle-token"}', 'moodle');
 
     expect(decryptSessionData(session, 'session')).toBe('{"ra":"123"}');
     expect(decryptSessionData(reconnect, 'reconnect')).toBe('{"senha":"secret"}');
+    expect(decryptSessionData(moodle, 'moodle')).toBe('{"token":"moodle-token"}');
     expect(() => decryptSessionData(session, 'reconnect')).toThrow();
     expect(() => decryptSessionData(reconnect, 'session')).toThrow();
+    expect(() => decryptSessionData(moodle, 'session')).toThrow();
+    expect(() => decryptSessionData(session, 'moodle')).toThrow();
   });
 
   it('reads an older key from an explicit rotation keyring', () => {

@@ -18,10 +18,12 @@ import { MetricCard } from "@/components/ui/metric-card"
 import { PageHeading } from "@/components/ui/page-heading"
 import type { CalendarEvent } from "@/components/event-calendar/types"
 import { useHorario } from "@/hooks/use-horario"
+import { useAvaOverview } from "@/hooks/use-ava"
 import { useUserInfo } from "@/hooks/use-user-info"
+import { useAvaIntegration } from "@/lib/ava-integration-provider"
 import { isTotvsOfflineError } from "@/lib/api-response-error"
 import { exportCalendarioToPDF } from "@/lib/calendar-export"
-import { aulasToCalendarEvents } from "@/lib/event-calendar-adapter"
+import { aulasToCalendarEvents, avaTasksToCalendarEvents } from "@/lib/event-calendar-adapter"
 
 const EventCalendar = dynamic(
   () => import("@/components/event-calendar/event-calendar").then((module) => module.EventCalendar),
@@ -35,6 +37,8 @@ const EventViewDialog = dynamic(
 
 export default function CalendarioPage() {
   const { data, error, isLoading, isFetching, fetchStatus, refetch, dataUpdatedAt } = useHorario()
+  const { connection } = useAvaIntegration()
+  const avaOverview = useAvaOverview(connection.connected)
   const { ra } = useUserInfo()
   const [isExporting, setIsExporting] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
@@ -43,9 +47,13 @@ export default function CalendarioPage() {
   const handleRefresh = async () => {
     const toastId = toast.loading("Atualizando...", { id: "refresh-calendar" })
     try {
-      const result = await refetch()
+      const [result, avaResult] = await Promise.all([
+        refetch(),
+        connection.connected ? avaOverview.refetch() : Promise.resolve(null),
+      ])
       if (result.error) throw result.error
-      toast.success("Atualizado com sucesso!", { id: toastId })
+      if (avaResult?.error) toast.warning("Horários atualizados, mas o AVA não respondeu.", { id: toastId })
+      else toast.success("Atualizado com sucesso!", { id: toastId })
     } catch (refreshError) {
       if (isTotvsOfflineError(refreshError)) {
         toast.error("Sistema da TOTVS possivelmente fora do ar.", { id: toastId })
@@ -101,7 +109,10 @@ export default function CalendarioPage() {
   if (error && !data) return <ApiError error={error} retry={() => refetch()} />
   if (!data?.aulas?.length) return <EmptyState title="Nenhum horário encontrado" description="Não há aulas cadastradas para exibir." icon="calendar" retry={() => refetch()} />
 
-  const eventos = aulasToCalendarEvents(data.aulas)
+  const eventos = [
+    ...aulasToCalendarEvents(data.aulas),
+    ...avaTasksToCalendarEvents(avaOverview.data?.tasks ?? []),
+  ]
   const proximaAula = encontrarProximaAula()
   const proximoSabado = encontrarProximoSabado()
   const lastUpdatedLabel = dataUpdatedAt

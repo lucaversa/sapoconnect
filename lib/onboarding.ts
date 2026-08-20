@@ -1,9 +1,12 @@
 import { getOrCreateDeviceId } from '@/lib/crypto';
 
 export const FIRST_LOGIN_GUIDE_STORAGE_PREFIX = 'sapoconnect:onboarding:first-login:v1:';
-export const COMMUNITY_ANNOUNCEMENT_STORAGE_KEY = 'sapoconnect:announcement:community-pulse-2026-08';
+export const FIRST_LOGIN_GUIDE_COMPLETED_EVENT = 'sapoconnect:onboarding:first-login-completed';
+export const AVA_ANNOUNCEMENT_STORAGE_KEY = 'sapoconnect:announcement:ava-2026-08';
+export const AVA_ANNOUNCEMENT_STARTS_AT = Date.parse('2026-08-20T00:00:00-03:00');
+export const AVA_ANNOUNCEMENT_EXPIRES_AT = Date.parse('2026-09-04T00:00:00-03:00');
 
-const COMMUNITY_ANNOUNCEMENT_COOKIE = 'sc_announcement_community_pulse_2026_08';
+const AVA_ANNOUNCEMENT_COOKIE = 'sc_announcement_ava_2026_08';
 const ONE_YEAR_IN_SECONDS = 60 * 60 * 24 * 365;
 
 function bytesToHex(bytes: Uint8Array): string {
@@ -73,20 +76,24 @@ export function rememberFirstLoginGuide(storageKey: string): void {
   rememberCookie(onboardingCookieName(storageKey));
 }
 
-export function wasCommunityAnnouncementSeen(): boolean {
+export function isAvaAnnouncementActive(now = Date.now()): boolean {
+  return now >= AVA_ANNOUNCEMENT_STARTS_AT && now < AVA_ANNOUNCEMENT_EXPIRES_AT;
+}
+
+export function wasAvaAnnouncementSeen(): boolean {
   try {
-    if (window.localStorage.getItem(COMMUNITY_ANNOUNCEMENT_STORAGE_KEY) === 'seen') return true;
+    if (window.localStorage.getItem(AVA_ANNOUNCEMENT_STORAGE_KEY) === 'seen') return true;
   } catch {
     // The cookie below is the fallback for restricted storage.
   }
-  return hasCookie(COMMUNITY_ANNOUNCEMENT_COOKIE);
+  return hasCookie(AVA_ANNOUNCEMENT_COOKIE);
 }
 
-export function rememberCommunityAnnouncement(): void {
+export function rememberAvaAnnouncement(): void {
   try {
-    window.localStorage.setItem(COMMUNITY_ANNOUNCEMENT_STORAGE_KEY, 'seen');
+    window.localStorage.setItem(AVA_ANNOUNCEMENT_STORAGE_KEY, 'seen');
   } catch {
     // The non-sensitive cookie below keeps the one-time behavior available.
   }
-  rememberCookie(COMMUNITY_ANNOUNCEMENT_COOKIE);
+  rememberCookie(AVA_ANNOUNCEMENT_COOKIE);
 }

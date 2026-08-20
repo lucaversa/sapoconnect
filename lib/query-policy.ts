@@ -4,6 +4,9 @@ export const QUERY_STALE_TIME = {
   detalheAula: 30 * 60 * 1_000,
   faltas: 5 * 60 * 1_000,
   historico: 12 * 60 * 60 * 1_000,
+  ava: 5 * 60 * 1_000,
+  avaContentSummary: 30 * 60 * 1_000,
+  avaCourse: 30 * 60 * 1_000,
 } as const;
 
 // Academic snapshots are small and are explicitly removed on logout. Keeping

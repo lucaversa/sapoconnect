@@ -11,6 +11,8 @@ describe("frontend information architecture", () => {
       "app/app/avaliacoes/page.tsx",
       "app/app/faltas/page.tsx",
       "app/app/historico/page.tsx",
+      "app/app/ava/page.tsx",
+      "app/app/ava/[courseId]/page.tsx",
     ].map(read).join("\n")
 
     expect(pages).not.toContain("Grade inteligente")
@@ -65,7 +67,7 @@ describe("frontend information architecture", () => {
     expect(globals).toContain("touch-action: pan-x pan-y")
     expect(week).toContain("isCompactWeek ? 48 : WeekCellsHeight")
     expect(week).toContain("min-w-[590px] sm:min-w-[880px]")
-    expect(week.match(/grid-cols-\[2\.75rem_repeat\(7,minmax\(0,1fr\)\)\]/g)).toHaveLength(2)
+    expect(week.match(/grid-cols-\[2\.75rem_repeat\(7,minmax\(0,1fr\)\)\]/g)).toHaveLength(3)
     expect(week).toContain("absolute inset-x-0.5 z-10 sm:inset-x-1")
     expect(month).toContain("min-h-24")
   })
@@ -182,7 +184,7 @@ describe("frontend information architecture", () => {
     expect(toaster).toContain("style={{ zIndex: 35 }}")
   })
 
-  it("places academic updates in the header and moves theme controls into the utility menu", () => {
+  it("keeps utilities in the header menu and the sidebar focused on academic navigation", () => {
     const header = read("components/layout/AppHeader.tsx")
     const mobileNav = read("components/layout/AppSidebar.tsx")
 
@@ -196,8 +198,11 @@ describe("frontend information architecture", () => {
     expect(header).toContain("Criado e mantido por")
     expect(header).toContain("Luca Janini")
     expect(header.indexOf("Sobre e instalar")).toBeLessThan(header.indexOf("Portal oficial"))
-    expect(mobileNav.indexOf("Sobre e instalar")).toBeLessThan(mobileNav.indexOf("Portal oficial"))
-    expect(mobileNav).toContain('className="grid grid-cols-4 gap-0.5"')
+    expect(mobileNav).not.toContain("Sobre e instalar")
+    expect(mobileNav).not.toContain("Portal oficial")
+    expect(mobileNav).not.toContain("Conta acadêmica")
+    expect(mobileNav).toContain('className="grid grid-cols-5 gap-0.5"')
+    expect(mobileNav).toContain('href: "/app/ava"')
     expect(mobileNav).not.toContain('/app/atualizacoes')
     expect(mobileNav).toContain('mobile-dock-viewport')
     expect(mobileNav).toContain('data-mobile-dock')
@@ -237,7 +242,51 @@ describe("frontend information architecture", () => {
     expect(detail).not.toContain('truncate text-xs text-gray-500')
     expect(detail).toContain("prefetch={false}")
     expect(detail).toContain("Abrir {moduleMeta.label}")
-    expect(providers).toContain("<AcademicUpdatesProvider key={cacheScope}")
+    expect(providers).toContain("<AvaIntegrationProvider key={cacheScope}")
+    expect(providers).toContain("<AcademicUpdatesProvider cacheScope={cacheScope}")
+  })
+
+  it("keeps Moodle authentication explicit and separate from the TOTVS login", () => {
+    const modal = read("components/modals/AvaConnectionDialog.tsx")
+    const header = read("components/layout/AppHeader.tsx")
+    const provider = read("lib/ava-integration-provider.tsx")
+
+    expect(modal).toContain("A senha do AVA pode ser diferente")
+    expect(modal).toContain("usada uma única vez")
+    expect(modal).toContain('autoComplete="current-password"')
+    expect(modal).not.toContain("senha do EduConnect")
+    expect(header).toContain("Conectar ao AVA")
+    expect(header).toContain("normalizePersonName(userName)")
+    expect(header).toContain('`${salutation}, ${normalizedUserName}`')
+    expect(header).toContain("connection.connected ? connection.fullName : null")
+    expect(provider).toContain("maxRetries: 0")
+  })
+
+  it("shows current AVA courses, pending work, section materials and protected downloads", () => {
+    const overview = read("app/app/ava/page.tsx")
+    const detail = read("app/app/ava/[courseId]/page.tsx")
+    const calendar = read("app/app/calendario/page.tsx")
+    const download = read("app/api/moodle/files/route.ts")
+    const contentSummary = read("app/api/moodle/content-summary/route.ts")
+
+    expect(overview).toContain('label="Próxima tarefa"')
+    expect(overview).toContain('label="Tarefas pendentes"')
+    expect(overview).toContain("formatDistanceToNow")
+    expect(overview).toContain("Atualizado {lastUpdatedLabel}")
+    expect(detail).toContain("Conteúdos por seção")
+    expect(detail).toContain("Atividades pendentes")
+    expect(detail).toContain("material.downloadUrl")
+    expect(detail).toContain('aria-label="Arquivo PDF"')
+    expect(detail).toContain("MATERIAL_ICON_STYLES[materialKind]")
+    expect(detail).not.toContain("pdf: FileText")
+    expect(overview).toContain("useAvaContentSummary")
+    expect(overview).toContain("sectionCount")
+    expect(overview).toContain("materialCount")
+    expect(calendar).toContain("avaTasksToCalendarEvents")
+    expect(download).toContain("requireMoodleConnection")
+    expect(download).toContain("X-Content-Type-Options")
+    expect(contentSummary).toContain("getMoodleContentSummary")
+    expect(contentSummary).toContain("MAX_COURSES_PER_REQUEST")
   })
 
   it("persists scoped update snapshots and limits background synchronization", () => {
@@ -330,32 +379,25 @@ describe("frontend information architecture", () => {
     expect(bugTemplate).toContain("não contém RA, senha, notas")
   })
 
-  it("shows the redesigned community announcement only once", () => {
+  it("shows the AVA launch announcement once during its 15-day window", () => {
     const layout = read("app/app/layout.tsx")
-    const announcement = read("components/modals/CommunityLaunchDialog.tsx")
+    const announcement = read("components/modals/AvaLaunchDialog.tsx")
     const onboarding = read("lib/onboarding.ts")
-    const orbit = read("components/brand/BrandOrbit.tsx")
-    const login = read("app/login/page.tsx")
 
-    expect(layout).toContain("<CommunityLaunchDialog />")
-    expect(onboarding).toContain("sapoconnect:announcement:community-pulse-2026-08")
-    expect(announcement).toContain("2026-08-28T18:00:00-03:00")
-    expect(announcement).toContain("remainingTime <= 0")
+    expect(layout).toContain("<AvaLaunchDialog />")
+    expect(layout).not.toContain("<CommunityLaunchDialog />")
+    expect(onboarding).toContain("sapoconnect:announcement:ava-2026-08")
+    expect(onboarding).toContain("2026-08-20T00:00:00-03:00")
+    expect(onboarding).toContain("2026-09-04T00:00:00-03:00")
+    expect(announcement).toContain("isAvaAnnouncementActive")
     expect(announcement).toContain("wasFirstLoginGuideSeen")
-    expect(announcement).toContain("rememberCommunityAnnouncement")
-    expect(announcement).toContain("O SapoConnect está sendo muito visitado")
-    expect(announcement).toContain("As funções continuam as mesmas")
-    expect(announcement).toContain("Nova área: Pulso da comunidade")
-    expect(orbit).toContain('data-community-orbit="outer"')
-    expect(orbit).toContain('data-community-orbit="inner"')
-    expect(orbit).toContain("icon={CalendarDays}")
-    expect(orbit).toContain("icon={GraduationCap}")
-    expect(orbit).not.toContain("absolute -right-1 -top-1 size-3 rounded-full")
-    expect(announcement).toContain("<BrandOrbit priority />")
-    expect(login).toContain("<BrandOrbit compact priority />")
-    expect(announcement).toContain("navigator.share")
-    expect(announcement).toContain("navigator.clipboard.writeText")
-    expect(announcement).toContain("Compartilhar com outros alunos")
+    expect(announcement).toContain("FIRST_LOGIN_GUIDE_COMPLETED_EVENT")
+    expect(announcement).toContain("rememberAvaAnnouncement")
+    expect(announcement).toContain("Novo módulo AVA")
+    expect(announcement).toContain('title: "Disciplinas"')
+    expect(announcement).toContain('title: "Materiais"')
+    expect(announcement).toContain('title: "Tarefas e prazos"')
+    expect(announcement).not.toContain("Explorar o AVA")
     expect(announcement).toContain('aria-label="Fechar aviso"')
     expect(announcement).toContain("🔝")
     expect(announcement).not.toContain("XIcon")
@@ -368,7 +410,7 @@ describe("frontend information architecture", () => {
 
     expect(layout).toContain("<FirstLoginGuideDialog />")
     expect(layout.indexOf("<FirstLoginGuideDialog />")).toBeLessThan(
-      layout.indexOf("<CommunityLaunchDialog />"),
+      layout.indexOf("<AvaLaunchDialog />"),
     )
     expect(guide).toContain("user?.ra")
     expect(guide).toContain("Modos claro e escuro")
@@ -379,6 +421,8 @@ describe("frontend information architecture", () => {
     expect(guide).toContain("Começar")
     expect(guide).toContain("useReducedMotion")
     expect(guide).toContain("rememberFirstLoginGuide")
+    expect(guide).toContain("FIRST_LOGIN_GUIDE_COMPLETED_EVENT")
+    expect(guide).not.toContain("rememberAvaAnnouncement")
     expect(onboarding).toContain("SHA-256")
     expect(onboarding).toContain("getOrCreateDeviceId")
   })

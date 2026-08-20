@@ -5,7 +5,8 @@
 
 import { Aula } from '@/types/calendario';
 import type { CalendarEvent, EventColor } from '@/components/event-calendar/types';
-import { addDays, startOfDay } from 'date-fns';
+import type { AvaTask } from '@/lib/ava-types';
+import { addDays, endOfDay, startOfDay } from 'date-fns';
 
 /**
  * Parseia data ISO no timezone local (evita problemas de UTC)
@@ -147,4 +148,24 @@ export function aulasToCalendarEvents(aulas: Aula[]): CalendarEvent[] {
 
   
   return events.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+}
+
+export function avaTasksToCalendarEvents(tasks: AvaTask[]): CalendarEvent[] {
+  return tasks.map((task) => {
+    const deadline = new Date(task.deadline);
+    return {
+      id: `ava-task-${task.id}`,
+      start: startOfDay(deadline),
+      end: endOfDay(deadline),
+      title: task.name,
+      description: task.description,
+      color: task.overdue ? 'rose' : 'amber',
+      location: task.courseName,
+      allDay: true,
+      source: 'ava',
+      deadlineAt: deadline,
+      href: `/app/ava/${task.courseId}`,
+      courseName: task.courseName,
+    };
+  });
 }
