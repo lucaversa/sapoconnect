@@ -441,6 +441,25 @@ describe("frontend information architecture", () => {
     }
   })
 
+  it("keeps the AVA route and connection state available offline", () => {
+    const serviceWorker = read("public/sw.js")
+    const provider = read("lib/ava-integration-provider.tsx")
+    const overview = read("app/app/ava/page.tsx")
+    const detail = read("app/app/ava/[courseId]/page.tsx")
+    const persistence = read("lib/query-persist.ts")
+
+    expect(serviceWorker).toContain("sapoconnect-shell-v3")
+    expect(serviceWorker).toContain("'/app/ava'")
+    expect(serviceWorker).toContain("url.pathname.startsWith('/app/ava') ? '/app/ava' : '/app'")
+    expect(persistence).toContain("'ava-connection'")
+    expect(provider).toContain("connectionQuery.fetchStatus === 'paused'")
+    expect(provider).toContain("connectionQuery.isError")
+    expect(overview).toContain("isConnectionUnavailable")
+    expect(detail).toContain("isConnectionUnavailable")
+    expect(overview).toContain("Sua integração continua salva")
+    expect(detail).toContain("Sua integração continua salva")
+  })
+
   it("excludes equivalent subjects from every history count", () => {
     const history = read("app/app/historico/page.tsx")
 

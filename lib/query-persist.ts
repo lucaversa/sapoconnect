@@ -12,6 +12,7 @@ const PERSISTED_QUERY_ROOTS = new Set([
   'faltas',
   'historico',
   'ava',
+  'ava-connection',
 ]);
 
 export function getPersistKeyForScope(cacheScope: string): string {

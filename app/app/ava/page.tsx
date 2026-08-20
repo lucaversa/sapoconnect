@@ -55,7 +55,13 @@ function CourseStat({
 
 export default function AvaPage() {
   const router = useRouter()
-  const { connection, isLoading: isConnectionLoading, openConnectionDialog } = useAvaIntegration()
+  const {
+    connection,
+    isLoading: isConnectionLoading,
+    isUnavailable: isConnectionUnavailable,
+    openConnectionDialog,
+    retryConnection,
+  } = useAvaIntegration()
   const promptedRef = useRef(false)
   const overview = useAvaOverview(connection.connected)
   const courseIds = useMemo(
@@ -65,10 +71,10 @@ export default function AvaPage() {
   const contentSummary = useAvaContentSummary(courseIds, overview.isSuccess)
 
   useEffect(() => {
-    if (isConnectionLoading || connection.connected || promptedRef.current) return
+    if (isConnectionLoading || isConnectionUnavailable || connection.connected || promptedRef.current) return
     promptedRef.current = true
     openConnectionDialog()
-  }, [connection.connected, isConnectionLoading, openConnectionDialog])
+  }, [connection.connected, isConnectionLoading, isConnectionUnavailable, openConnectionDialog])
 
   const pendingByCourse = useMemo(() => {
     const counts = new Map<number, number>()
@@ -104,6 +110,22 @@ export default function AvaPage() {
   }
 
   if (isConnectionLoading) return <PageLoading message="Preparando integração com o AVA..." />
+
+  if (isConnectionUnavailable) {
+    return (
+      <PageTransition className="app-page">
+        <PageHeading icon={BookOpenCheck} title="AVA" />
+        <section className="liquid-float rounded-[1.75rem] px-5 py-10 text-center sm:px-8 sm:py-14">
+          <span className="icon-orb mx-auto size-16"><BookOpenCheck className="size-7" aria-hidden="true" /></span>
+          <h2 className="mt-4 text-lg font-extrabold tracking-[-0.03em] text-gray-950 dark:text-white">Não foi possível verificar o AVA</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600 dark:text-gray-300">
+            Sua integração continua salva. Conecte-se à internet para carregar os dados que ainda não estiverem disponíveis offline.
+          </p>
+          <Button type="button" onClick={() => void retryConnection()} className="mt-5">Tentar novamente</Button>
+        </section>
+      </PageTransition>
+    )
+  }
 
   if (!connection.connected) {
     return (
