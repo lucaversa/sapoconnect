@@ -64,7 +64,9 @@ describe("frontend information architecture", () => {
     expect(globals).toContain(".calendar-day-view > .calendar-scroll-viewport")
     expect(globals).toContain("touch-action: pan-x pan-y")
     expect(week).toContain("isCompactWeek ? 48 : WeekCellsHeight")
-    expect(week).toContain("min-w-[720px] sm:min-w-[880px]")
+    expect(week).toContain("min-w-[590px] sm:min-w-[880px]")
+    expect(week.match(/grid-cols-\[2\.75rem_repeat\(7,minmax\(0,1fr\)\)\]/g)).toHaveLength(2)
+    expect(week).toContain("absolute inset-x-0.5 z-10 sm:inset-x-1")
     expect(month).toContain("min-h-24")
   })
 
