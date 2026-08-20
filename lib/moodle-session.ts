@@ -136,6 +136,15 @@ export async function createMoodleSession(
   return session
 }
 
+export async function renewMoodleSession(session: MoodleSessionData): Promise<MoodleSessionData> {
+  const renewedSession: MoodleSessionData = {
+    ...session,
+    expiresAt: Date.now() + MOODLE_MAX_AGE * 1_000,
+  }
+  await writeMoodleCookie(renewedSession, MOODLE_MAX_AGE)
+  return renewedSession
+}
+
 export async function destroyMoodleSession(): Promise<void> {
   const store = await cookies()
   store.set(MOODLE_COOKIE_NAME, '', cookieOptions(0))

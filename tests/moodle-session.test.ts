@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
@@ -19,11 +19,16 @@ import {
   destroyMoodleSession,
   getMoodleSession,
   getPendingMoodleSession,
+  renewMoodleSession,
 } from '@/lib/moodle-session'
 
 beforeEach(() => {
   cookieState.clear()
   process.env.SESSION_ENCRYPTION_KEYS = `test:${'81'.repeat(32)}`
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('Moodle token cookie', () => {
@@ -48,6 +53,27 @@ describe('Moodle token cookie', () => {
     expect(cookieState.get('sapoconnect_moodle')).toMatchObject({
       value: '',
       options: { path: '/api/moodle', maxAge: 0 },
+    })
+  })
+
+  it('renews an active session for another 90 days without changing its connection date', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-20T12:00:00-03:00'))
+    const original = await createMoodleSession({
+      token: 'moodle-token-at-least-sixteen-characters',
+      userId: 1234,
+      username: '000000.00000',
+      fullName: 'Aluno',
+      totvsRa: '000000.00000',
+    })
+
+    vi.advanceTimersByTime(24 * 60 * 60 * 1_000)
+    const renewed = await renewMoodleSession(original)
+
+    expect(renewed.connectedAt).toBe(original.connectedAt)
+    expect(renewed.expiresAt).toBe(original.expiresAt + 24 * 60 * 60 * 1_000)
+    expect(cookieState.get('sapoconnect_moodle')?.options).toMatchObject({
+      maxAge: 90 * 24 * 60 * 60,
     })
   })
 

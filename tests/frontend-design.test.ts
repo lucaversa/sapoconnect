@@ -268,6 +268,8 @@ describe("frontend information architecture", () => {
     const calendar = read("app/app/calendario/page.tsx")
     const download = read("app/api/moodle/files/route.ts")
     const contentSummary = read("app/api/moodle/content-summary/route.ts")
+    const overviewRoute = read("app/api/moodle/overview/route.ts")
+    const courseRoute = read("app/api/moodle/courses/[courseId]/route.ts")
 
     expect(overview).toContain('label="Próxima tarefa"')
     expect(overview).toContain('label="Tarefas pendentes"')
@@ -287,6 +289,9 @@ describe("frontend information architecture", () => {
     expect(download).toContain("X-Content-Type-Options")
     expect(contentSummary).toContain("getMoodleContentSummary")
     expect(contentSummary).toContain("MAX_COURSES_PER_REQUEST")
+    for (const route of [overviewRoute, contentSummary, courseRoute, download]) {
+      expect(route).toContain("renewMoodleSession(moodleSession)")
+    }
   })
 
   it("persists scoped update snapshots and limits background synchronization", () => {

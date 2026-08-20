@@ -1,4 +1,5 @@
 import { fetchMoodleFile } from '@/lib/moodle-client'
+import { renewMoodleSession } from '@/lib/moodle-session'
 import { PRIVATE_NO_STORE } from '@/lib/server/http'
 import { AvaRouteError, moodleRouteError, requireMoodleConnection } from '@/lib/server/moodle-route'
 
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
       if (value) headers.set(name, value)
     }
     headers.set('X-Content-Type-Options', 'nosniff')
+    await renewMoodleSession(moodleSession)
     return new Response(upstream.body, { status: 200, headers })
   } catch (error) {
     return moodleRouteError(error, 'moodle/file')

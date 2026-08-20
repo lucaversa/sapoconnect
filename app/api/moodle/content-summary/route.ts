@@ -1,4 +1,5 @@
 import { getMoodleContentSummary } from '@/lib/moodle-client'
+import { renewMoodleSession } from '@/lib/moodle-session'
 import { privateJson } from '@/lib/server/http'
 import { AvaRouteError, moodleRouteError, requireMoodleConnection } from '@/lib/server/moodle-route'
 
@@ -23,7 +24,9 @@ export async function GET(request: Request) {
   try {
     const courseIds = readCourseIds(request)
     const { moodleSession } = await requireMoodleConnection()
-    return privateJson(await getMoodleContentSummary(moodleSession.token, courseIds))
+    const summary = await getMoodleContentSummary(moodleSession.token, courseIds)
+    await renewMoodleSession(moodleSession)
+    return privateJson(summary)
   } catch (error) {
     return moodleRouteError(error, 'moodle/content-summary')
   }
