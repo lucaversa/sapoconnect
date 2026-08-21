@@ -16,6 +16,9 @@ export const AgendaDaysToShow = 30
 export const StartHour = 6
 export const EndHour = 23
 
+// Compact labels shared by the mobile week and month grids
+export const WeekdayLabels = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"] as const
+
 // Default start and end times
 export const DefaultStartHour = 9 // 9 AM
 export const DefaultEndHour = 10 // 10 AM

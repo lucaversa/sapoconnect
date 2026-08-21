@@ -7,11 +7,10 @@ import { Clock3 } from "lucide-react"
 
 import { DayCellsHeight, EndHour, StartHour } from "./constants"
 import { EventItem } from "./event-item"
+import { useCompactCalendar } from "./hooks/use-compact-calendar"
 import { useCurrentTimeIndicator } from "./hooks/use-current-time-indicator"
 import { getCalendarEventPosition, getCalendarHours } from "./time-grid"
 import type { CalendarEvent } from "./types"
-
-const GRID_HEIGHT = (EndHour - StartHour) * DayCellsHeight
 
 interface DayViewProps {
   currentDate: Date
@@ -30,6 +29,9 @@ export function DayView({ currentDate, events, onEventSelect }: DayViewProps) {
   const timedEvents = dayEvents.filter((event) => !event.allDay)
   const hours = useMemo(() => getCalendarHours(StartHour, EndHour), [])
   const { currentTimePosition, currentTimeVisible } = useCurrentTimeIndicator(currentDate, "day")
+  const compact = useCompactCalendar()
+  const hourHeight = compact ? 40 : DayCellsHeight
+  const gridHeight = (EndHour - StartHour) * hourHeight
 
   return (
     <div className="calendar-day-view">
@@ -54,19 +56,19 @@ export function DayView({ currentDate, events, onEventSelect }: DayViewProps) {
 
       <div data-calendar-scroll className="calendar-scroll-viewport">
         <div className="grid grid-cols-[4.25rem_minmax(0,1fr)]">
-          <aside data-time-axis className="sticky left-0 z-30 relative border-r border-gray-200/70 bg-white dark:border-white/[0.07] dark:bg-gray-900" style={{ height: GRID_HEIGHT }} aria-label="Horários do dia">
+          <aside data-time-axis className="sticky left-0 z-30 relative border-r border-gray-200/70 bg-white dark:border-white/[0.07] dark:bg-gray-900" style={{ height: gridHeight }} aria-label="Horários do dia">
             {hours.map((hour) => (
-              <time key={hour} className="absolute right-2 -translate-y-1/2 bg-white px-1 text-[11px] font-semibold tabular-nums text-gray-500 dark:bg-gray-900 dark:text-gray-400" style={{ top: hour === StartHour ? 10 : hour === EndHour ? GRID_HEIGHT - 10 : (hour - StartHour) * DayCellsHeight }}>
+              <time key={hour} className="absolute right-2 -translate-y-1/2 bg-white px-1 text-[11px] font-semibold tabular-nums text-gray-500 dark:bg-gray-900 dark:text-gray-400" style={{ top: hour === StartHour ? 10 : hour === EndHour ? gridHeight - 10 : (hour - StartHour) * hourHeight }}>
                 {hour.toString().padStart(2, "0")}:00
               </time>
             ))}
           </aside>
 
-          <section className="relative" style={{ height: GRID_HEIGHT }} aria-label={`${timedEvents.length} aulas em ${format(currentDate, "dd/MM/yyyy")}`}>
+          <section className="relative" style={{ height: gridHeight }} aria-label={`${timedEvents.length} aulas em ${format(currentDate, "dd/MM/yyyy")}`}>
             <div className="pointer-events-none absolute inset-0">
               {hours.map((hour) => (
-                <div key={hour} className="absolute inset-x-0 border-t border-gray-200/65 dark:border-white/[0.055]" style={{ top: (hour - StartHour) * DayCellsHeight }}>
-                  {hour < EndHour ? <span className="absolute inset-x-0 border-t border-dashed border-gray-200/35 dark:border-white/[0.03]" style={{ top: DayCellsHeight / 2 }} /> : null}
+                <div key={hour} className="absolute inset-x-0 border-t border-gray-200/65 dark:border-white/[0.055]" style={{ top: (hour - StartHour) * hourHeight }}>
+                  {hour < EndHour ? <span className="absolute inset-x-0 border-t border-dashed border-gray-200/35 dark:border-white/[0.03]" style={{ top: hourHeight / 2 }} /> : null}
                 </div>
               ))}
             </div>
@@ -78,7 +80,7 @@ export function DayView({ currentDate, events, onEventSelect }: DayViewProps) {
             ) : null}
 
             {timedEvents.map((event) => {
-              const position = getCalendarEventPosition(new Date(event.start), new Date(event.end), { startHour: StartHour, hourHeight: DayCellsHeight })
+              const position = getCalendarEventPosition(new Date(event.start), new Date(event.end), { startHour: StartHour, hourHeight })
               return (
                 <div key={event.id} className="absolute inset-x-2 z-10" style={{ top: position.top + 4, height: position.height - 8 }}>
                   <EventItem event={event} view="day" showTime onClick={() => onEventSelect(event)} />

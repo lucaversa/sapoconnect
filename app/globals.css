@@ -598,22 +598,33 @@
   }
 
   @media (max-width: 639px) {
-    .calendar-week-frame,
-    .calendar-week-frame > * {
+    .calendar-page-scroll-frame,
+    .calendar-page-scroll-frame > * {
       height: auto;
     }
 
-    .calendar-week-frame {
+    .calendar-page-scroll-frame {
       overflow: visible;
     }
 
-    .calendar-week-frame .calendar-scroll-viewport {
+    .calendar-page-scroll-frame .calendar-scroll-viewport {
       height: auto;
       overflow-x: auto;
       overflow-y: clip;
       overscroll-behavior-x: contain;
       overscroll-behavior-y: auto;
       touch-action: pan-x pan-y;
+    }
+
+    .calendar-page-scroll-frame .calendar-day-view > .calendar-scroll-viewport {
+      flex: none;
+    }
+
+    .calendar-page-scroll-frame .calendar-month-view,
+    .calendar-page-scroll-frame .calendar-day-view > .calendar-scroll-viewport {
+      overflow: visible;
+      overscroll-behavior: auto;
+      touch-action: auto;
     }
   }
 

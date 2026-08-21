@@ -1,29 +1,17 @@
 "use client"
 
-import { useMemo, useSyncExternalStore } from "react"
+import { useMemo } from "react"
 import { addDays, format, isToday, startOfWeek } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 import { cn } from "@/lib/utils"
-import { EndHour, StartHour, WeekCellsHeight } from "./constants"
+import { EndHour, StartHour, WeekCellsHeight, WeekdayLabels } from "./constants"
 import { EventItem } from "./event-item"
+import { useCompactCalendar } from "./hooks/use-compact-calendar"
 import { useCurrentTimeIndicator } from "./hooks/use-current-time-indicator"
 import { getCalendarEventPosition, getCalendarHours } from "./time-grid"
 import type { CalendarEvent } from "./types"
 import { getAgendaEventsForDay } from "./utils"
-
-const compactWeekQuery = "(max-width: 639px)"
-const weekdayLabels = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"] as const
-
-function subscribeToCompactWeek(onChange: () => void) {
-  const mediaQuery = window.matchMedia(compactWeekQuery)
-  mediaQuery.addEventListener("change", onChange)
-  return () => mediaQuery.removeEventListener("change", onChange)
-}
-
-function getCompactWeekSnapshot() {
-  return window.matchMedia(compactWeekQuery).matches
-}
 
 interface WeekViewProps {
   currentDate: Date
@@ -38,8 +26,8 @@ export function WeekView({ currentDate, events, onEventSelect }: WeekViewProps) 
   }, [currentDate])
   const hours = useMemo(() => getCalendarHours(StartHour, EndHour), [])
   const { currentTimePosition, currentTimeVisible } = useCurrentTimeIndicator(currentDate, "week")
-  const isCompactWeek = useSyncExternalStore(subscribeToCompactWeek, getCompactWeekSnapshot, () => true)
-  const hourHeight = isCompactWeek ? 40 : WeekCellsHeight
+  const compact = useCompactCalendar()
+  const hourHeight = compact ? 40 : WeekCellsHeight
   const gridHeight = (EndHour - StartHour) * hourHeight
   const hasAllDayEvents = days.some((day) => getAgendaEventsForDay(events, day).some((event) => event.allDay))
 
@@ -50,7 +38,7 @@ export function WeekView({ currentDate, events, onEventSelect }: WeekViewProps) 
           <div data-time-axis className="sticky left-0 z-30 flex items-center justify-center border-r border-gray-200/70 bg-white text-[9px] font-semibold text-gray-400 dark:border-white/[0.07] dark:bg-gray-900 sm:text-[10px]">Horário</div>
           {days.map((day) => (
             <header key={day.toISOString()} className={cn("border-r border-gray-200/70 px-1 py-1.5 text-center last:border-r-0 dark:border-white/[0.07] sm:px-2 sm:py-3", isToday(day) && "bg-primary/[0.07]") }>
-              <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400 sm:text-[10px] sm:tracking-[0.11em]">{weekdayLabels[day.getDay()]}</p>
+              <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400 sm:text-[10px] sm:tracking-[0.11em]">{WeekdayLabels[day.getDay()]}</p>
               <span className={cn("mx-auto mt-0.5 flex size-6 items-center justify-center rounded-lg text-[11px] font-extrabold sm:mt-1.5 sm:size-8 sm:rounded-xl sm:text-sm", isToday(day) ? "bg-primary text-white shadow-[0_10px_20px_-12px_rgba(0,172,147,0.9)]" : "text-gray-900 dark:text-white")}>{format(day, "d")}</span>
             </header>
           ))}
