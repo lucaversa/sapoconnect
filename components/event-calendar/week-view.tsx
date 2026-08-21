@@ -13,6 +13,7 @@ import type { CalendarEvent } from "./types"
 import { getAgendaEventsForDay } from "./utils"
 
 const compactWeekQuery = "(max-width: 639px)"
+const weekdayLabels = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"] as const
 
 function subscribeToCompactWeek(onChange: () => void) {
   const mediaQuery = window.matchMedia(compactWeekQuery)
@@ -38,25 +39,25 @@ export function WeekView({ currentDate, events, onEventSelect }: WeekViewProps) 
   const hours = useMemo(() => getCalendarHours(StartHour, EndHour), [])
   const { currentTimePosition, currentTimeVisible } = useCurrentTimeIndicator(currentDate, "week")
   const isCompactWeek = useSyncExternalStore(subscribeToCompactWeek, getCompactWeekSnapshot, () => true)
-  const hourHeight = isCompactWeek ? 48 : WeekCellsHeight
+  const hourHeight = isCompactWeek ? 40 : WeekCellsHeight
   const gridHeight = (EndHour - StartHour) * hourHeight
   const hasAllDayEvents = days.some((day) => getAgendaEventsForDay(events, day).some((event) => event.allDay))
 
   return (
     <div data-calendar-scroll className="calendar-scroll-viewport" aria-label="Grade semanal; deslize para consultar dias e horários">
-      <div className="min-w-[590px] sm:min-w-[880px]">
-        <div className="sticky top-0 z-20 grid grid-cols-[2.75rem_repeat(7,minmax(0,1fr))] border-b border-gray-200/70 bg-white/88 backdrop-blur-xl dark:border-white/[0.07] dark:bg-gray-900/88 sm:grid-cols-[3.75rem_repeat(7,minmax(0,1fr))]">
+      <div className="min-w-[460px] sm:min-w-[880px]">
+        <div className="sticky top-0 z-20 grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] border-b border-gray-200/70 bg-white/88 backdrop-blur-xl dark:border-white/[0.07] dark:bg-gray-900/88 sm:grid-cols-[3.75rem_repeat(7,minmax(0,1fr))]">
           <div data-time-axis className="sticky left-0 z-30 flex items-center justify-center border-r border-gray-200/70 bg-white text-[9px] font-semibold text-gray-400 dark:border-white/[0.07] dark:bg-gray-900 sm:text-[10px]">Horário</div>
           {days.map((day) => (
             <header key={day.toISOString()} className={cn("border-r border-gray-200/70 px-1 py-1.5 text-center last:border-r-0 dark:border-white/[0.07] sm:px-2 sm:py-3", isToday(day) && "bg-primary/[0.07]") }>
-              <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400 sm:text-[10px] sm:tracking-[0.11em]">{format(day, "EEE", { locale: ptBR })}</p>
+              <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400 sm:text-[10px] sm:tracking-[0.11em]">{weekdayLabels[day.getDay()]}</p>
               <span className={cn("mx-auto mt-0.5 flex size-6 items-center justify-center rounded-lg text-[11px] font-extrabold sm:mt-1.5 sm:size-8 sm:rounded-xl sm:text-sm", isToday(day) ? "bg-primary text-white shadow-[0_10px_20px_-12px_rgba(0,172,147,0.9)]" : "text-gray-900 dark:text-white")}>{format(day, "d")}</span>
             </header>
           ))}
         </div>
 
         {hasAllDayEvents ? (
-          <div className="grid grid-cols-[2.75rem_repeat(7,minmax(0,1fr))] border-b border-gray-200/70 bg-amber-50/45 dark:border-white/[0.07] dark:bg-amber-950/10 sm:grid-cols-[3.75rem_repeat(7,minmax(0,1fr))]">
+          <div className="grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] border-b border-gray-200/70 bg-amber-50/45 dark:border-white/[0.07] dark:bg-amber-950/10 sm:grid-cols-[3.75rem_repeat(7,minmax(0,1fr))]">
             <div className="sticky left-0 z-20 flex items-center justify-center border-r border-gray-200/70 bg-amber-50 px-1 text-[9px] font-bold text-amber-800 dark:border-white/[0.07] dark:bg-gray-900 dark:text-amber-300 sm:text-[10px]">Prazos</div>
             {days.map((day) => {
               const deadlines = getAgendaEventsForDay(events, day).filter((event) => event.allDay)
@@ -69,7 +70,7 @@ export function WeekView({ currentDate, events, onEventSelect }: WeekViewProps) 
           </div>
         ) : null}
 
-        <div className="grid grid-cols-[2.75rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[3.75rem_repeat(7,minmax(0,1fr))]">
+        <div className="grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[3.75rem_repeat(7,minmax(0,1fr))]">
           <div data-time-axis className="sticky left-0 z-30 relative border-r border-gray-200/70 bg-white dark:border-white/[0.07] dark:bg-gray-900" style={{ height: gridHeight }}>
             {hours.map((hour) => (
               <time key={hour} className="absolute right-1 z-10 -translate-y-1/2 bg-white px-0.5 text-[9px] font-semibold tabular-nums text-gray-500 dark:bg-gray-900 dark:text-gray-400 sm:right-2 sm:px-1 sm:text-[10px]" style={{ top: hour === StartHour ? 8 : hour === EndHour ? gridHeight - 8 : (hour - StartHour) * hourHeight }}>

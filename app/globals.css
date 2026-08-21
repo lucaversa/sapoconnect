@@ -597,6 +597,26 @@
     background: color-mix(in srgb, hsl(var(--primary)) 38%, transparent);
   }
 
+  @media (max-width: 639px) {
+    .calendar-week-frame,
+    .calendar-week-frame > * {
+      height: auto;
+    }
+
+    .calendar-week-frame {
+      overflow: visible;
+    }
+
+    .calendar-week-frame .calendar-scroll-viewport {
+      height: auto;
+      overflow-x: auto;
+      overflow-y: clip;
+      overscroll-behavior-x: contain;
+      overscroll-behavior-y: auto;
+      touch-action: pan-x pan-y;
+    }
+  }
+
   @media (min-width: 640px) {
     .calendar-view-frame {
       height: min(68dvh, 50rem);
