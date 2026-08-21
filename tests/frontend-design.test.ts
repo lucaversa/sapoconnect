@@ -44,7 +44,7 @@ describe("frontend information architecture", () => {
     const month = read("components/event-calendar/month-view.tsx")
     const day = read("components/event-calendar/day-view.tsx")
 
-    expect(calendar).toContain('className="calendar-view-frame"')
+    expect(calendar).toContain('cn("calendar-view-frame", view === "week" && "calendar-week-frame")')
     expect(agenda).toContain("calendar-scroll-viewport")
     expect(week).toContain('className="calendar-scroll-viewport"')
     expect(month).toContain('className="calendar-scroll-viewport"')
@@ -54,7 +54,7 @@ describe("frontend information architecture", () => {
     expect(day).toContain('className="calendar-day-view"')
   })
 
-  it("uses a compact mobile week grid and a bounded two-axis viewport", () => {
+  it("uses a compact mobile week grid with page-owned vertical scrolling", () => {
     const globals = read("app/globals.css")
     const week = read("components/event-calendar/week-view.tsx")
     const month = read("components/event-calendar/month-view.tsx")
@@ -65,10 +65,15 @@ describe("frontend information architecture", () => {
     expect(globals).toContain("height: min(68dvh, 50rem)")
     expect(globals).toContain(".calendar-day-view > .calendar-scroll-viewport")
     expect(globals).toContain("touch-action: pan-x pan-y")
-    expect(week).toContain("isCompactWeek ? 48 : WeekCellsHeight")
-    expect(week).toContain("min-w-[590px] sm:min-w-[880px]")
-    expect(week.match(/grid-cols-\[2\.75rem_repeat\(7,minmax\(0,1fr\)\)\]/g)).toHaveLength(3)
+    expect(week).toContain("isCompactWeek ? 40 : WeekCellsHeight")
+    expect(week).toContain("min-w-[460px] sm:min-w-[880px]")
+    expect(week).toContain('const weekdayLabels = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"]')
+    expect(week).toContain("weekdayLabels[day.getDay()]")
+    expect(week.match(/grid-cols-\[2\.5rem_repeat\(7,minmax\(0,1fr\)\)\]/g)).toHaveLength(3)
     expect(week).toContain("absolute inset-x-0.5 z-10 sm:inset-x-1")
+    expect(globals).toContain(".calendar-week-frame .calendar-scroll-viewport")
+    expect(globals).toContain("overflow-y: clip")
+    expect(globals).toContain("overscroll-behavior-y: auto")
     expect(month).toContain("min-h-24")
   })
 
