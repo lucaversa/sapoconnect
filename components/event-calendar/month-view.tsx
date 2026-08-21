@@ -2,9 +2,9 @@
 
 import { useMemo } from "react"
 import { eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, isToday, startOfMonth, startOfWeek } from "date-fns"
-import { ptBR } from "date-fns/locale"
 
 import { cn } from "@/lib/utils"
+import { WeekdayLabels } from "./constants"
 import { EventItem } from "./event-item"
 import type { CalendarEvent } from "./types"
 import { getAgendaEventsForDay } from "./utils"
@@ -26,12 +26,12 @@ export function MonthView({ currentDate, events, onEventSelect }: MonthViewProps
   const weekdays = useMemo(() => days.slice(0, 7), [days])
 
   return (
-    <div data-calendar-scroll className="calendar-scroll-viewport">
-      <div className="min-w-[680px] sm:min-w-[720px]">
+    <div data-calendar-scroll className="calendar-scroll-viewport calendar-month-view">
+      <div className="w-full sm:min-w-[720px]">
         <div className="sticky top-0 z-20 grid grid-cols-7 border-b border-gray-200/70 bg-white/90 backdrop-blur-xl dark:border-white/[0.07] dark:bg-gray-900/90">
           {weekdays.map((day) => (
             <div key={day.toISOString()} className="px-2 py-3 text-center text-[10px] font-bold uppercase tracking-[0.1em] text-gray-500 dark:text-gray-400">
-              {format(day, "EEE", { locale: ptBR })}
+              {WeekdayLabels[day.getDay()]}
             </div>
           ))}
         </div>
