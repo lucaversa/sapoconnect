@@ -97,6 +97,12 @@ export function EventCalendar({
     setIsEventDialogOpen(true)
   }
 
+  const selectDay = (day: Date) => {
+    setCurrentDate(day)
+    setSelectedView("day")
+    setIsViewMenuOpen(false)
+  }
+
   return (
     <section
       className={cn("academic-panel overflow-hidden", className)}
@@ -147,7 +153,7 @@ export function EventCalendar({
           {view === "agenda" && <AgendaView currentDate={currentDate} events={events} onEventSelect={selectEvent} />}
           {view === "day" && <DayView currentDate={currentDate} events={events} onEventSelect={selectEvent} />}
           {view === "week" && <WeekView currentDate={currentDate} events={events} onEventSelect={selectEvent} />}
-          {view === "month" && <MonthView currentDate={currentDate} events={events} onEventSelect={selectEvent} />}
+          {view === "month" && <MonthView currentDate={currentDate} events={events} onDaySelect={selectDay} onEventSelect={selectEvent} />}
         </motion.div>
       </AnimatePresence>
       <EventViewDialog event={selectedEvent} isOpen={isEventDialogOpen} onClose={() => { setIsEventDialogOpen(false); setSelectedEvent(null) }} />

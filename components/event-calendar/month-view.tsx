@@ -2,6 +2,7 @@
 
 import { useMemo } from "react"
 import { eachDayOfInterval, endOfMonth, endOfWeek, format, isSameMonth, isToday, startOfMonth, startOfWeek } from "date-fns"
+import { ptBR } from "date-fns/locale"
 
 import { cn } from "@/lib/utils"
 import { WeekdayLabels } from "./constants"
@@ -12,10 +13,11 @@ import { getAgendaEventsForDay } from "./utils"
 interface MonthViewProps {
   currentDate: Date
   events: CalendarEvent[]
+  onDaySelect: (day: Date) => void
   onEventSelect: (event: CalendarEvent) => void
 }
 
-export function MonthView({ currentDate, events, onEventSelect }: MonthViewProps) {
+export function MonthView({ currentDate, events, onDaySelect, onEventSelect }: MonthViewProps) {
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentDate)
     return eachDayOfInterval({
@@ -41,10 +43,17 @@ export function MonthView({ currentDate, events, onEventSelect }: MonthViewProps
             const dayEvents = allDayEvents.slice(0, 3)
             const remaining = allDayEvents.length - dayEvents.length
             return (
-              <section key={day.toISOString()} className={cn("min-h-24 border-b border-r border-gray-200/65 p-1.5 dark:border-white/[0.055] sm:min-h-32", !isSameMonth(day, currentDate) && "bg-gray-100/35 text-gray-400 dark:bg-white/[0.012]") }>
-                <span className={cn("flex size-7 items-center justify-center rounded-xl text-xs font-bold", isToday(day) ? "bg-primary text-white shadow-[0_8px_18px_-10px_rgba(0,172,147,0.9)]" : "text-gray-700 dark:text-gray-200")}>{format(day, "d")}</span>
-                <div className="mt-1 space-y-1">
-                  {dayEvents.map((event) => <div key={event.id} className="h-6"><EventItem event={event} view="month" onClick={() => onEventSelect(event)} /></div>)}
+              <section key={day.toISOString()} className={cn("relative min-h-24 border-b border-r border-gray-200/65 p-1.5 dark:border-white/[0.055] sm:min-h-32", !isSameMonth(day, currentDate) && "bg-gray-100/35 text-gray-400 dark:bg-white/[0.012]") }>
+                <button
+                  type="button"
+                  data-month-day={format(day, "yyyy-MM-dd")}
+                  onClick={() => onDaySelect(day)}
+                  aria-label={`Abrir ${format(day, "EEEE, d 'de' MMMM", { locale: ptBR })} na visão diária`}
+                  className="absolute inset-0 z-0 transition-colors hover:bg-primary/[0.035] active:bg-primary/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary motion-reduce:transition-none"
+                />
+                <span className={cn("pointer-events-none relative z-10 flex size-7 items-center justify-center rounded-xl text-xs font-bold", isToday(day) ? "bg-primary text-white shadow-[0_8px_18px_-10px_rgba(0,172,147,0.9)]" : "text-gray-700 dark:text-gray-200")}>{format(day, "d")}</span>
+                <div className="pointer-events-none relative z-10 mt-1 space-y-1">
+                  {dayEvents.map((event) => <div key={event.id} className="pointer-events-auto h-6"><EventItem event={event} view="month" onClick={() => onEventSelect(event)} /></div>)}
                   {remaining > 0 ? <p className="px-1 text-[10px] font-bold text-gray-500">+{remaining} mais</p> : null}
                 </div>
               </section>

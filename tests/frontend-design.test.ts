@@ -105,6 +105,21 @@ describe("frontend information architecture", () => {
     expect(eventItem).toContain("[overflow-wrap:anywhere]")
   })
 
+  it("opens a selected month day in the daily view without hijacking event buttons", () => {
+    const calendar = read("components/event-calendar/event-calendar.tsx")
+    const month = read("components/event-calendar/month-view.tsx")
+
+    expect(calendar).toContain("const selectDay = (day: Date)")
+    expect(calendar).toContain('setSelectedView("day")')
+    expect(calendar).toContain("onDaySelect={selectDay}")
+    expect(month).toContain("onDaySelect: (day: Date) => void")
+    expect(month).toContain('data-month-day={format(day, "yyyy-MM-dd")}')
+    expect(month).toContain("onClick={() => onDaySelect(day)}")
+    expect(month).toContain("na visão diária")
+    expect(month).toContain("pointer-events-none relative z-10")
+    expect(month).toContain("pointer-events-auto h-6")
+  })
+
   it("keeps academic modules separated and removes the old nested score card", () => {
     const evaluations = read("app/app/avaliacoes/page.tsx")
     expect(evaluations).toContain('className="academic-stack"')
