@@ -243,6 +243,7 @@ function getLinhaTempoRisco(item: FaltasItem, diasRemovidos: Set<string>): Linha
 
 export default function FaltasPage() {
   const { data, error, isLoading, isFetching, fetchStatus, refetch, dataUpdatedAt } = useFaltas();
+  const [expandedDisciplinas, setExpandedDisciplinas] = useState<Set<string>>(new Set());
   const [expandedAulas, setExpandedAulas] = useState<Set<string>>(new Set());
   const [expandedDiasSemana, setExpandedDiasSemana] = useState<Set<string>>(new Set());
   const [diasRemovidosPorDisciplina, setDiasRemovidosPorDisciplina] = useState<Record<string, string[]>>({});
@@ -268,6 +269,18 @@ export default function FaltasPage() {
   const lastUpdatedLabel = dataUpdatedAt
     ? formatDistanceToNow(new Date(dataUpdatedAt), { addSuffix: true, locale: ptBR })
     : null;
+
+  function toggleDisciplina(codigo: string) {
+    setExpandedDisciplinas((prev) => {
+      const next = new Set(prev);
+      if (next.has(codigo)) {
+        next.delete(codigo);
+      } else {
+        next.add(codigo);
+      }
+      return next;
+    });
+  }
 
   function toggleAulas(codigo: string) {
     setExpandedAulas((prev) => {
@@ -443,30 +456,48 @@ export default function FaltasPage() {
             const faltarInfo = getFaltarRestanteInfo(item, diasRemovidos);
             const linhaTempoRisco = getLinhaTempoRisco(item, diasRemovidos);
             const primeiroDiaCritico = linhaTempoRisco.find((dia) => dia.acimaLimite && !dia.removido);
+            const disciplinaExpanded = expandedDisciplinas.has(item.codigo);
             const aulasExpanded = expandedAulas.has(item.codigo);
+            const disciplinaPanelId = `faltas-disciplina-${item.codigo.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
 
             return (
               <AcademicPanel
                 key={item.codigo}
-                expanded={aulasExpanded}
+                expanded={disciplinaExpanded}
               >
-                <div className="p-4 sm:p-5">
-                  {/* Header da disciplina */}
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${statusConfig.color}`}>
-                        <StatusIcon className="size-4" /> {statusConfig.label}
-                      </span>
-                      <h3 className="mt-2 text-sm font-bold leading-snug text-gray-950 dark:text-white sm:text-base">
+                <div>
+                  <button
+                    type="button"
+                    data-absence-summary
+                    onClick={() => toggleDisciplina(item.codigo)}
+                    className="group flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-gray-950/[0.025] active:bg-gray-950/[0.045] motion-reduce:transition-none dark:hover:bg-white/[0.025] dark:active:bg-white/[0.045] sm:gap-4 sm:p-5"
+                    aria-expanded={disciplinaExpanded}
+                    aria-controls={disciplinaPanelId}
+                  >
+                    <span className={`flex size-11 shrink-0 items-center justify-center rounded-2xl border ${statusConfig.bg} ${statusConfig.border}`}>
+                      <StatusIcon className={`size-5 ${statusConfig.color}`} aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <h3 className="text-sm font-bold leading-snug text-gray-950 dark:text-white sm:text-base">
                         {item.disciplina}
                       </h3>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className={`text-3xl font-extrabold leading-none tabular-nums ${statusConfig.color}`}>{item.porcentagem}</p>
-                      <p className="mt-1 text-[11px] font-medium text-gray-500 dark:text-gray-400">limite {item.limiteFaltas}</p>
-                    </div>
-                  </div>
+                      <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+                        <span className={`text-xs font-semibold ${statusConfig.color}`}>{statusConfig.label}</span>
+                        <span className="text-[11px] font-medium tabular-nums text-gray-500 dark:text-gray-400">
+                          <span className={`font-bold ${statusConfig.color}`}>{item.porcentagem}</span> de {item.limiteFaltas}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-gray-200/80 bg-white/55 text-gray-500 shadow-sm transition-colors group-hover:text-gray-900 dark:border-white/[0.08] dark:bg-white/[0.035] dark:text-gray-400 dark:group-hover:text-white">
+                      <ChevronDown
+                        className={`size-4 transition-transform duration-300 motion-reduce:transition-none ${disciplinaExpanded ? 'rotate-180' : ''}`}
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </button>
 
+                  {disciplinaExpanded ? (
+                  <div id={disciplinaPanelId} className="detail-reveal border-t border-gray-200/75 px-4 pb-4 dark:border-white/[0.065] sm:px-5 sm:pb-5">
                   {item.umaFaltaPct && item.ch ? (
                     <div className="mt-4 flex items-center gap-2 border-y border-gray-200/75 py-3 text-xs text-gray-500 dark:border-white/[0.065] dark:text-gray-400">
                       <Info className="size-4 shrink-0 text-primary" />
@@ -768,6 +799,8 @@ export default function FaltasPage() {
                       );
                     })()}
                   </div>
+                  </div>
+                  ) : null}
                 </div>
               </AcademicPanel>
             );
