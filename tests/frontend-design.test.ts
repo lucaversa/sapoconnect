@@ -200,6 +200,23 @@ describe("frontend information architecture", () => {
     expect(absences).toContain("detail-reveal mt-3")
   })
 
+  it("keeps absence subjects collapsed by default with a decision-focused summary", () => {
+    const absences = read("app/app/faltas/page.tsx")
+
+    expect(absences).toContain("expandedDisciplinas")
+    expect(absences).toContain("useState<Set<string>>(new Set())")
+    expect(absences).toContain("toggleDisciplina(item.codigo)")
+    expect(absences).toContain("data-absence-summary")
+    expect(absences).toContain("aria-expanded={disciplinaExpanded}")
+    expect(absences).toContain("aria-controls={disciplinaPanelId}")
+    expect(absences).toContain("{item.disciplina}")
+    expect(absences).toContain("{statusConfig.label}")
+    expect(absences).toContain("{item.porcentagem}")
+    expect(absences).toContain("</span> de {item.limiteFaltas}")
+    expect(absences).toContain("{disciplinaExpanded ? (")
+    expect(absences).toContain('id={disciplinaPanelId} className="detail-reveal')
+  })
+
   it("uses one Liquid Glass system for mobile navigation and feedback", () => {
     const globals = read("app/globals.css")
     const sidebar = read("components/layout/AppSidebar.tsx")
