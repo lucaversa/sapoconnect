@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useRouter } from 'next/navigation'
 
 import { UpdateDetailDialog } from '@/components/updates/UpdateDetailDialog'
 import { Button } from '@/components/ui/button'
@@ -73,6 +74,7 @@ function formatUpdateTime(timestamp: number): string {
 }
 
 export default function AtualizacoesPage() {
+  const router = useRouter()
   const {
     isReady,
     updates,
@@ -104,6 +106,11 @@ export default function AtualizacoesPage() {
   const openUpdate = (update: AcademicUpdate) => {
     markRead(update.id)
     setSelectedUpdate(update)
+  }
+
+  const readAllAndReturn = () => {
+    markAllRead()
+    router.back()
   }
 
   const currentSyncLabel = getAcademicSyncLabel(syncProgress.currentModule)
@@ -151,7 +158,7 @@ export default function AtualizacoesPage() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={markAllRead}
+            onClick={readAllAndReturn}
             aria-label="Marcar todas as atualizações como lidas"
             className="ml-auto h-10 shrink-0 gap-1.5 rounded-xl px-2.5 text-xs sm:px-3"
           >
