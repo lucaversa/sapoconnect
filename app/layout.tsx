@@ -3,9 +3,9 @@ import { Plus_Jakarta_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { ThemeProvider } from "@/context/ThemeContext"
-import { Own3dScreen } from "@/components/own3d/Own3dScreen"
+import { LiteLockedScreen } from "@/components/lite"
 import { PwaRuntime } from "@/components/pwa-runtime"
-import { isOwn3dSession } from "@/lib/server/own3d-session"
+import { getCurrentLiteAccessSnapshot } from "@/lib/server/lite-usage"
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -38,25 +38,25 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const showOwn3dScreen = await isOwn3dSession()
+  const liteAccess = await getCurrentLiteAccessSnapshot()
+  const isLiteSession = liteAccess.tier === "lite"
 
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={`${plusJakartaSans.className} antialiased`}>
-        {showOwn3dScreen ? (
-          <>
-            <PwaRuntime />
-            <Own3dScreen />
-          </>
-        ) : (
-          <>
-            <ThemeProvider>
-              <PwaRuntime />
+        <ThemeProvider>
+          <PwaRuntime />
+          {liteAccess.state === "locked" ? (
+            <LiteLockedScreen snapshot={liteAccess} />
+          ) : isLiteSession ? (
+            <div className="contents" data-sapoconnect-lite={liteAccess.state}>
               {children}
-            </ThemeProvider>
-            <Analytics />
-          </>
-        )}
+            </div>
+          ) : (
+            children
+          )}
+        </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   )

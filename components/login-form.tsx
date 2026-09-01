@@ -20,8 +20,10 @@ import { markReconnectCookieConfirmed, saveOfflineSessionHint } from '@/lib/stor
 import { getLoginFailureView, type LoginFailureView } from '@/lib/login-error';
 import { AlertCircle, Loader2, Shield, Lock, Code, GraduationCap, Server, ExternalLink } from 'lucide-react';
 
-const EXPECTED_SERVICE_WORKER_VERSION = 4;
+const EXPECTED_SERVICE_WORKER_VERSION = 5;
 const SERVICE_WORKER_VERSION_REQUEST = 'SAPOCONNECT_SW_VERSION';
+const SERVICE_WORKER_ARM_LITE_REQUEST = 'SAPOCONNECT_SW_ARM_LITE';
+const SERVICE_WORKER_ARM_LITE_ACK = 'SAPOCONNECT_SW_ARM_LITE_ACK';
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
@@ -32,12 +34,51 @@ async function readServiceWorkerVersion(worker: ServiceWorker | null): Promise<n
 
   return new Promise((resolve) => {
     const channel = new MessageChannel();
-    const timeoutId = window.setTimeout(() => resolve(null), 250);
-    channel.port1.onmessage = (event: MessageEvent<{ version?: number }>) => {
+    const finish = (version: number | null) => {
       window.clearTimeout(timeoutId);
-      resolve(event.data?.version ?? null);
+      channel.port1.onmessage = null;
+      channel.port1.close();
+      resolve(version);
     };
-    worker.postMessage({ type: SERVICE_WORKER_VERSION_REQUEST }, [channel.port2]);
+    const timeoutId = window.setTimeout(() => finish(null), 250);
+    channel.port1.onmessage = (event: MessageEvent<{ version?: number }>) => {
+      finish(event.data?.version ?? null);
+    };
+    try {
+      worker.postMessage({ type: SERVICE_WORKER_VERSION_REQUEST }, [channel.port2]);
+    } catch {
+      finish(null);
+    }
+  });
+}
+
+async function armLiteServiceWorker(worker: ServiceWorker): Promise<boolean> {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const finish = (armed: boolean) => {
+      window.clearTimeout(timeoutId);
+      channel.port1.onmessage = null;
+      channel.port1.close();
+      resolve(armed);
+    };
+    const timeoutId = window.setTimeout(() => finish(false), 1_000);
+    channel.port1.onmessage = (event: MessageEvent<{
+      type?: string;
+      armed?: boolean;
+      version?: number;
+    }>) => {
+      finish(
+        event.data?.type === SERVICE_WORKER_ARM_LITE_ACK &&
+        event.data.armed === true &&
+        event.data.version === EXPECTED_SERVICE_WORKER_VERSION
+      );
+    };
+
+    try {
+      worker.postMessage({ type: SERVICE_WORKER_ARM_LITE_REQUEST }, [channel.port2]);
+    } catch {
+      finish(false);
+    }
   });
 }
 
@@ -46,12 +87,12 @@ async function clearLegacyPwaCaches(): Promise<void> {
   const names = await window.caches.keys();
   await Promise.all(
     names
-      .filter((name) => name.startsWith('sapoconnect-') && !name.endsWith('-v4'))
+      .filter((name) => name.startsWith('sapoconnect-') && !name.endsWith('-v5'))
       .map((name) => window.caches.delete(name))
   );
 }
 
-async function prepareRestrictedNavigation(): Promise<boolean> {
+export async function prepareLiteNavigation(timeoutMs = 8_000): Promise<boolean> {
   if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return true;
 
   try {
@@ -61,21 +102,31 @@ async function prepareRestrictedNavigation(): Promise<boolean> {
     });
     await registration.update();
 
-    // Stay on the already-rendered restricted screen until v4 actually owns
-    // this client. A v3 controller intentionally never satisfies the check.
-    while (
-      await readServiceWorkerVersion(navigator.serviceWorker.controller)
-        !== EXPECTED_SERVICE_WORKER_VERSION
-    ) {
+    // Keep the login document visible until the Lite-aware worker controls this
+    // client. Older workers must never cache a personalized Lite document.
+    const deadline = performance.now() + timeoutMs;
+    while (performance.now() < deadline) {
+      const controller = navigator.serviceWorker.controller;
+      const version = await readServiceWorkerVersion(controller);
+
+      if (
+        controller &&
+        version === EXPECTED_SERVICE_WORKER_VERSION &&
+        await armLiteServiceWorker(controller) &&
+        navigator.serviceWorker.controller === controller
+      ) {
+        return true;
+      }
+
       await delay(150);
     }
-    return true;
+    return false;
   } catch {
     return false;
   }
 }
 
-export function LoginForm({ onRestrictedExperience }: { onRestrictedExperience: () => void }) {
+export function LoginForm() {
   const [codUsuario, setCodUsuario] = useState('');
   const [senha, setSenha] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -102,7 +153,7 @@ export function LoginForm({ onRestrictedExperience }: { onRestrictedExperience: 
         migrationConfirmed?: boolean;
         cacheScope?: string;
         ra?: string;
-        restrictedExperience?: boolean;
+        accessTier?: 'full' | 'lite';
       };
 
       if (!response.ok) {
@@ -116,10 +167,12 @@ export function LoginForm({ onRestrictedExperience }: { onRestrictedExperience: 
       if (data.ra && data.cacheScope) {
         await saveOfflineSessionHint(data.ra, data.cacheScope).catch(() => {});
       }
-      if (data.restrictedExperience) {
-        onRestrictedExperience();
+      if (data.accessTier === 'lite') {
         await clearLegacyPwaCaches().catch(() => {});
-        if (!await prepareRestrictedNavigation()) return;
+        if (!await prepareLiteNavigation()) {
+          setError(getLoginFailureView('NETWORK_ERROR'));
+          return;
+        }
       }
       window.location.replace('/app/calendario');
     } catch {
