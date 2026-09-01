@@ -181,12 +181,12 @@ describe("frontend information architecture", () => {
     expect(pullToRefresh).toContain("resetPullGesture()")
   })
 
-  it("ends each absence risk timeline at its first red day", () => {
+  it("ends each absence risk projection at its first critical date", () => {
     const absences = read("app/app/faltas/page.tsx")
 
-    expect(absences).toContain("findIndex((dia) => dia.acimaLimite && !dia.removido)")
+    expect(absences).toContain("getLinhaTempoRisco")
+    expect(absences).toContain("findIndex((dia) => dia.aboveLimit && !dia.removed)")
     expect(absences).toContain("linhaTempo.slice(0, primeiroRiscoIndex + 1)")
-    expect(absences).toContain("Risco em {format(primeiroDiaCritico.dia.date, 'dd/MM')}")
   })
 
   it("makes weekday absence groups independently collapsible", () => {
@@ -215,6 +215,57 @@ describe("frontend information architecture", () => {
     expect(absences).toContain("</span> de {item.limiteFaltas}")
     expect(absences).toContain("{disciplinaExpanded ? (")
     expect(absences).toContain('id={disciplinaPanelId} className="detail-reveal')
+  })
+
+  it("loads absence dates when the subject opens and renders them as a section", () => {
+    const absences = read("app/app/faltas/page.tsx")
+    const disclosure = read("components/faltas/datas-falta-disclosure.tsx")
+    const hook = read("hooks/use-faltas.ts")
+
+    expect(absences).toContain("<DatasFaltaSection")
+    expect(disclosure).toContain("data-absence-history")
+    expect(disclosure).toContain("Dias em que faltei")
+    expect(disclosure).toContain("useDatasFalta(codigo, true)")
+    expect(disclosure).toContain("aria-busy={isFetching}")
+    expect(disclosure).toContain('<time')
+    expect(disclosure).not.toContain("prazo de até 15 dias após a aula")
+    expect(disclosure).toContain("error && data")
+    expect(disclosure).toContain("Não foi possível atualizar agora. Exibindo a última consulta salva.")
+    expect(hook).toContain("useDatasFalta(codigo: string, enabled: boolean)")
+    expect(hook).toContain("{ enabled, staleTime: QUERY_STALE_TIME.faltas }")
+  })
+
+  it("separates current absence status, consultation, and future simulation", () => {
+    const absences = read("app/app/faltas/page.tsx")
+
+    expect(absences).toContain("Cada falta de 50 minutos equivale")
+    expect(absences).toContain("Simulação de faltas futuras")
+    expect(absences).toContain("sem alterar seus registros reais")
+    expect(absences).toContain("divide-y divide-gray-200/75")
+    expect(absences).toContain('className="py-4 sm:py-5"')
+    expect(absences).toContain("Aulas consideradas na simulação")
+    expect(absences).toContain('role="switch"')
+    expect(absences).toContain("aria-checked={!grupoTodoRemovido}")
+    expect(absences).toContain("aria-checked={!removido}")
+    expect(absences).not.toContain("Remover {grupo.label}")
+    expect(absences).not.toContain("Remover dia")
+  })
+
+  it("renders the absence risk projection as one cohesive responsive component", () => {
+    const absences = read("app/app/faltas/page.tsx")
+    const projection = read("components/faltas/frequency-risk-projection.tsx")
+
+    expect(absences).toContain("<FrequencyRiskProjection")
+    expect(projection).toContain("data-risk-projection")
+    expect(projection).toContain("Projeção por data")
+    expect(projection).toContain("Limite ultrapassado em")
+    expect(projection).toContain("Dentro do limite nas aulas simuladas")
+    expect(projection).toContain('role="region"')
+    expect(projection).toContain("sm:w-full sm:min-w-0")
+    expect(projection).toContain("Percentual acumulado ao faltar nas aulas incluídas")
+    expect(projection).toContain("acima do limite")
+    expect(projection).toContain("não incluído")
+    expect(projection).not.toContain("Risco em")
   })
 
   it("uses one Liquid Glass system for mobile navigation and feedback", () => {
@@ -511,7 +562,7 @@ describe("frontend information architecture", () => {
     const detail = read("app/app/ava/[courseId]/page.tsx")
     const persistence = read("lib/query-persist.ts")
 
-    expect(serviceWorker).toContain("sapoconnect-shell-v3")
+    expect(serviceWorker).toContain("sapoconnect-shell-v4")
     expect(serviceWorker).toContain("'/app/ava'")
     expect(serviceWorker).toContain("url.pathname.startsWith('/app/ava') ? '/app/ava' : '/app'")
     expect(persistence).toContain("'ava-connection'")
@@ -572,12 +623,4 @@ describe("frontend information architecture", () => {
     }
   })
 
-  it("renders the absence risk projection as an aligned timeline", () => {
-    const absences = read("app/app/faltas/page.tsx")
-
-    expect(absences).toContain("Projeção por data")
-    expect(absences).toContain('aria-label="Linha do tempo da projeção de faltas"')
-    expect(absences).toContain("absolute inset-x-1 top-0 h-0.5 rounded-full")
-    expect(absences).not.toContain("shrink-0 border-t-2")
-  })
 })
