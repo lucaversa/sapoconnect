@@ -131,6 +131,7 @@ describe('own3d service-worker isolation', () => {
     expect(await cache.match(harness.api.own3dStateKey)).toBeUndefined();
 
     harness.navigatorState.onLine = false;
+    harness.fetchMock.mockRejectedValueOnce(new Error('offline'));
     const offline = await harness.api.navigationResponse(new Request(`${ORIGIN}/app/faltas`));
     const offlineHtml = await offline.text();
     expect(offlineHtml).toContain('portal acadêmico');
@@ -148,6 +149,41 @@ describe('own3d service-worker isolation', () => {
 
     expect(response.type).toBe('error');
     expect(await response.text()).not.toContain('portal acadêmico');
+  });
+
+  it('returns the fetched target screen and removes normal fallbacks when cache persistence fails', async () => {
+    const harness = await createHarness();
+    const cache = await harness.caches.open(harness.api.shellCacheName);
+    await cache.put('/app', htmlResponse(NORMAL_HTML));
+    const put = cache.put.bind(cache);
+    vi.spyOn(cache, 'put').mockImplementation(async (input, response) => {
+      if (cacheKey(input).endsWith(harness.api.own3dDocumentKey)) {
+        throw new Error('quota exceeded');
+      }
+      await put(input, response);
+    });
+    harness.fetchMock.mockResolvedValue(htmlResponse(TARGET_HTML));
+
+    const online = await harness.api.navigationResponse(new Request(`${ORIGIN}/app`));
+    expect(await online.text()).toContain('own3d by tub1cs');
+    expect(await cache.match('/app')).toBeUndefined();
+
+    harness.navigatorState.onLine = false;
+    const offline = await harness.api.navigationResponse(new Request(`${ORIGIN}/app`));
+    expect(offline.type).toBe('error');
+  });
+
+  it('reports the current worker version through the activation handshake', async () => {
+    const harness = await createHarness();
+    const postMessage = vi.fn();
+    const message = harness.listeners.get('message') as unknown as (event: {
+      data: { type: string };
+      ports: Array<{ postMessage: (value: unknown) => void }>;
+    }) => void;
+
+    message({ data: { type: 'SAPOCONNECT_SW_VERSION' }, ports: [{ postMessage }] });
+
+    expect(postMessage).toHaveBeenCalledWith({ version: 4 });
   });
 
   it('purges stale personalized v3 caches when v4 activates', async () => {

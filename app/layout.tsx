@@ -44,7 +44,10 @@ export default async function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={`${plusJakartaSans.className} antialiased`}>
         {showOwn3dScreen ? (
-          <Own3dScreen />
+          <>
+            <PwaRuntime />
+            <Own3dScreen />
+          </>
         ) : (
           <>
             <ThemeProvider>

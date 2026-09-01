@@ -57,12 +57,17 @@ describe('login route diagnostics', () => {
 
   it('keeps a correctly configured request on the external-auth path', async () => {
     vi.stubEnv('SESSION_ENCRYPTION_KEY', 'a'.repeat(64));
-    sessionMocks.createSession.mockResolvedValue({ cacheScope: 'scope-a' });
+    sessionMocks.createSession.mockResolvedValue({ cacheScope: 'scope-a', ra: '12345' });
 
     const response = await POST(request() as never);
 
     expect(response.status).toBe(200);
     expect(authMocks.performExternalLogin).toHaveBeenCalledOnce();
-    await expect(response.json()).resolves.toMatchObject({ ok: true, cacheScope: 'scope-a' });
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      cacheScope: 'scope-a',
+      ra: '12345',
+      restrictedExperience: false,
+    });
   });
 });

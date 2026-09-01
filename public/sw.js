@@ -6,6 +6,8 @@ const CACHE_PREFIX = 'sapoconnect-';
 const OWN3D_DOCUMENT_KEY = '/__sapoconnect-own3d-document';
 const OWN3D_STATE_KEY = '/__sapoconnect-own3d-state';
 const OWN3D_MARKER = 'data-own3d-screen';
+const SERVICE_WORKER_VERSION = 4;
+const SERVICE_WORKER_VERSION_REQUEST = 'SAPOCONNECT_SW_VERSION';
 const SHELL_ROUTES = [
   '/',
   '/login',
@@ -23,6 +25,7 @@ const CORE_ASSETS = [
   '/brand/sapoconnect-icon-192.png',
   '/brand/sapoconnect-icon-512.png',
 ];
+let own3dFailClosed = false;
 
 function isStaticAsset(url) {
   return url.pathname.startsWith('/_next/static/')
@@ -52,9 +55,17 @@ async function cacheNavigationResponse(cache, pathname, response) {
   if (isOwn3dDocument) {
     // Keep the restricted document separate from route caches so it can never
     // leak into another account that later uses the same browser profile.
-    await cache.put(OWN3D_DOCUMENT_KEY, response.clone());
-    await cache.put(OWN3D_STATE_KEY, new Response('active'));
-    await cache.delete(pathname);
+    own3dFailClosed = true;
+    const normalDocumentKeys = new Set([...SHELL_ROUTES, pathname]);
+    await Promise.allSettled(Array.from(normalDocumentKeys, (key) => cache.delete(key)));
+    try {
+      // Write the state first: if document persistence fails, offline requests
+      // return Response.error() instead of falling back to a normal shell.
+      await cache.put(OWN3D_STATE_KEY, new Response('active'));
+      await cache.put(OWN3D_DOCUMENT_KEY, response.clone());
+    } catch {
+      // The network response remains usable and the in-memory gate stays closed.
+    }
     return true;
   }
 
@@ -62,12 +73,13 @@ async function cacheNavigationResponse(cache, pathname, response) {
   // ordering keeps an interrupted account switch fail-closed.
   await cache.put(pathname, response.clone());
   await cache.delete(OWN3D_STATE_KEY);
+  own3dFailClosed = false;
   return false;
 }
 
 async function getActiveOwn3dDocument(cache) {
   const state = await cache.match(OWN3D_STATE_KEY);
-  if (!state) return null;
+  if (!state && !own3dFailClosed) return null;
   return await cache.match(OWN3D_DOCUMENT_KEY) || Response.error();
 }
 
@@ -126,6 +138,11 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+self.addEventListener('message', (event) => {
+  if (event.data?.type !== SERVICE_WORKER_VERSION_REQUEST) return;
+  event.ports[0]?.postMessage({ version: SERVICE_WORKER_VERSION });
+});
+
 async function staticAssetResponse(request) {
   const cache = await caches.open(STATIC_CACHE);
   const cached = await cache.match(request);
@@ -144,11 +161,9 @@ async function navigationResponse(request) {
     if (cached) return cached;
   }
 
+  let response;
   try {
-    const response = await fetch(request);
-    const classification = await cacheNavigationResponse(cache, url.pathname, response);
-    if (activeOwn3dDocument && classification === null) return activeOwn3dDocument;
-    return response;
+    response = await fetch(request);
   } catch {
     if (activeOwn3dDocument) return activeOwn3dDocument;
     const moduleFallback = url.pathname.startsWith('/app/ava') ? '/app/ava' : '/app';
@@ -158,6 +173,14 @@ async function navigationResponse(request) {
       || await cache.match('/')
       || Response.error();
   }
+
+  try {
+    const classification = await cacheNavigationResponse(cache, url.pathname, response);
+    if (activeOwn3dDocument && classification === null) return activeOwn3dDocument;
+  } catch {
+    if (activeOwn3dDocument) return activeOwn3dDocument;
+  }
+  return response;
 }
 
 self.addEventListener('fetch', (event) => {
