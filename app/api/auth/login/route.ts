@@ -5,7 +5,7 @@
 
 import { NextRequest } from 'next/server';
 import { ExternalAuthError, performExternalLogin } from '@/lib/external-auth';
-import { isOwn3dTargetRa } from '@/lib/own3d-target';
+import { isLiteTargetRa } from '@/lib/lite-policy';
 import { createSession } from '@/lib/session';
 import { privateJson } from '@/lib/server/http';
 import { AuthInputError, readAuthCredentials } from '@/lib/server/auth-input';
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       cacheScope: session.cacheScope,
       migrationConfirmed: true,
       ra: session.ra,
-      restrictedExperience: isOwn3dTargetRa(session.ra),
+      accessTier: isLiteTargetRa(session.ra) ? 'lite' : 'full',
     });
   } catch (error) {
     if (error instanceof RequestGuardError) {

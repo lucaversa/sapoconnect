@@ -14,14 +14,18 @@ describe('session cookie encryption', () => {
     const session = encryptSessionData('{"ra":"123"}', 'session');
     const reconnect = encryptSessionData('{"senha":"secret"}', 'reconnect');
     const moodle = encryptSessionData('{"token":"moodle-token"}', 'moodle');
+    const lite = encryptSessionData('{"remainingMs":180000}', 'lite');
 
     expect(decryptSessionData(session, 'session')).toBe('{"ra":"123"}');
     expect(decryptSessionData(reconnect, 'reconnect')).toBe('{"senha":"secret"}');
     expect(decryptSessionData(moodle, 'moodle')).toBe('{"token":"moodle-token"}');
+    expect(decryptSessionData(lite, 'lite')).toBe('{"remainingMs":180000}');
     expect(() => decryptSessionData(session, 'reconnect')).toThrow();
     expect(() => decryptSessionData(reconnect, 'session')).toThrow();
     expect(() => decryptSessionData(moodle, 'session')).toThrow();
     expect(() => decryptSessionData(session, 'moodle')).toThrow();
+    expect(() => decryptSessionData(session, 'lite')).toThrow();
+    expect(() => decryptSessionData(lite, 'session')).toThrow();
   });
 
   it('reads an older key from an explicit rotation keyring', () => {

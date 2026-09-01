@@ -563,7 +563,7 @@ describe("frontend information architecture", () => {
     const detail = read("app/app/ava/[courseId]/page.tsx")
     const persistence = read("lib/query-persist.ts")
 
-    expect(serviceWorker).toContain("sapoconnect-shell-v4")
+    expect(serviceWorker).toContain("sapoconnect-shell-v5")
     expect(serviceWorker).toContain("'/app/ava'")
     expect(serviceWorker).toContain("url.pathname.startsWith('/app/ava') ? '/app/ava' : '/app'")
     expect(persistence).toContain("'ava-connection'")
