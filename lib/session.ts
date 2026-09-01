@@ -4,7 +4,7 @@ import { ExternalCookies } from './external-auth';
 import { decryptSessionData, deserializeSessionData, encryptSessionData, serializeSessionData } from './session-encryption';
 import { createCacheScope, invalidateCacheScope } from './server/cache';
 
-const SESSION_COOKIE_NAME = 'sapoconnect_session';
+export const SESSION_COOKIE_NAME = 'sapoconnect_session';
 const RECONNECT_COOKIE_NAME = 'sapoconnect_reconnect';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 const RECONNECT_MAX_AGE = 60 * 60 * 24 * 30;
@@ -70,6 +70,17 @@ function validSession(value: unknown): value is SessionData {
   return s?.version === 1 && typeof s.sessionId === 'string' && typeof s.ra === 'string' && typeof s.cacheScope === 'string' && typeof s.expiresAt === 'number' && s.expiresAt > Date.now() && !!s.externalCookies?.aspNetSessionId && !!s.externalCookies?.aspxAuth;
 }
 
+export function readSessionCookie(value: string | undefined): SessionData | null {
+  if (!value) return null;
+  try {
+    const session = decode<SessionData>(value, 'session');
+    return validSession(session) ? session : null;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('SESSION_ENCRYPTION')) throw error;
+    return null;
+  }
+}
+
 export async function createSession(
   externalCookies: ExternalCookies,
   ra?: string,
@@ -88,11 +99,7 @@ export async function createSession(
 
 export async function getSession(): Promise<SessionData | null> {
   const value = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
-  if (!value) return null;
-  try { const session = decode<SessionData>(value, 'session'); return validSession(session) ? session : null; } catch (error) {
-    if (error instanceof Error && error.message.includes('SESSION_ENCRYPTION')) throw error;
-    return null;
-  }
+  return readSessionCookie(value);
 }
 
 export async function updateSessionCookies(

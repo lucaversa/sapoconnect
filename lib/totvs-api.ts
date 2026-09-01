@@ -9,6 +9,11 @@ import { fetchTotvs, isTransientUpstreamError, UpstreamTimeoutError } from '@/li
 const BASE_URL =
   'https://fundacaoeducacional132827.rm.cloudtotvs.com.br';
 
+export interface TotvsFetchOptions {
+  requestProfile?: 'document' | 'ajax-html' | 'ajax-json';
+  refererPath?: string;
+}
+
 export class HTTPError extends Error {
   constructor(
     message: string,
@@ -36,20 +41,46 @@ function isExternalLoginResponse(response: Response, _html: string): boolean {
   );
 }
 
-export async function fetchTOTVS(
-  path: string,
-  _logPrefix = '[TOTVS API]'
-): Promise<string> {
-  return (await fetchTOTVSResult(path, _logPrefix)).html;
+function assertSuccessfulResponse(response: Response): void {
+  if (response.ok) return;
+
+  if (response.status >= 500) {
+    throw new HTTPError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw new HTTPError('Sessão expirada no sistema TOTVS.', 401, 'SESSION_EXPIRED');
+  }
+  throw new HTTPError(`Erro HTTP ${response.status}`, 502, 'UPSTREAM_ERROR');
 }
 
-async function fetchTOTVSResult(
+export async function fetchTOTVS(
   path: string,
-  _logPrefix = '[TOTVS API]'
+  _logPrefix = '[TOTVS API]',
+  options?: TotvsFetchOptions
+): Promise<string> {
+  return (await fetchTOTVSResult(path, _logPrefix, options)).html;
+}
+
+export async function fetchTOTVSResult(
+  path: string,
+  _logPrefix = '[TOTVS API]',
+  options?: TotvsFetchOptions
 ): Promise<{ html: string; cache: 'hit' | 'miss' | 'stale' }> {
   const scope = (await getSession())?.cacheScope;
-  if (!scope) return { html: await fetchTOTVSUncached(path, _logPrefix), cache: 'miss' };
-  const result = await getOrLoad(scope, `html:${path}`, () => fetchTOTVSUncached(path, _logPrefix), {
+  if (!scope) {
+    return {
+      html: await fetchTOTVSUncached(path, _logPrefix, options),
+      cache: 'miss',
+    };
+  }
+
+  const responseProfileKey = options?.requestProfile?.startsWith('ajax-')
+    ? `${options.requestProfile}:${path}`
+    : `html:${path}`;
+  const cacheKey = options?.refererPath
+    ? `v3:${responseProfileKey}:referer:${options.refererPath}`
+    : `v3:${responseProfileKey}`;
+  const result = await getOrLoad(scope, cacheKey, () => fetchTOTVSUncached(path, _logPrefix, options), {
     ttlMs: 45_000,
     staleMs: 120_000,
     canServeStale: isTransientUpstreamError,
@@ -59,7 +90,8 @@ async function fetchTOTVSResult(
 
 async function fetchTOTVSUncached(
   path: string,
-  _logPrefix = '[TOTVS API]'
+  _logPrefix = '[TOTVS API]',
+  options?: TotvsFetchOptions
 ): Promise<string> {
   const session = await getSession();
   const externalCookies = session?.externalCookies;
@@ -70,6 +102,44 @@ async function fetchTOTVSUncached(
 
   const cookieHeader = formatCookiesForRequest(externalCookies);
   const url = `${BASE_URL}${path}`;
+  const isAjax = options?.requestProfile?.startsWith('ajax-') === true;
+  const isAjaxJson = options?.requestProfile === 'ajax-json';
+  const refererUrl = (() => {
+    if (!options?.refererPath) return `${BASE_URL}/EducaMobile/Home/Index`;
+
+    try {
+      const candidate = new URL(options.refererPath, BASE_URL);
+      return candidate.origin === BASE_URL
+        ? `${candidate.origin}${candidate.pathname}${candidate.search}`
+        : `${BASE_URL}/EducaMobile/Home/Index`;
+    } catch {
+      return `${BASE_URL}/EducaMobile/Home/Index`;
+    }
+  })();
+  const requestHeaders = {
+    Cookie: cookieHeader,
+    Accept: isAjaxJson
+      ? 'application/json, text/javascript, */*; q=0.01'
+      : isAjax
+        ? '*/*; q=0.01'
+        : 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'pt-BR,pt;q=0.9',
+    'User-Agent':
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+    Referer: refererUrl,
+    'Sec-Fetch-Dest': isAjax ? 'empty' : 'document',
+    'Sec-Fetch-Mode': isAjax ? 'cors' : 'navigate',
+    'Sec-Fetch-Site': 'same-origin',
+    ...(isAjax
+      ? {
+          'X-Requested-With': 'XMLHttpRequest',
+          ...(isAjaxJson ? { 'Content-Type': 'application/json' } : {}),
+        }
+      : {
+          'Sec-Fetch-User': '?1',
+          'Upgrade-Insecure-Requests': '1',
+        }),
+  };
 
   try {
     await ensureTotvsContext(cookieHeader, session.cacheScope);
@@ -85,28 +155,13 @@ async function fetchTOTVSUncached(
     response = await fetchTotvs(url, {
       method: 'GET',
       redirect: 'follow',
-      headers: {
-        Cookie: cookieHeader,
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9',
-        'User-Agent':
-          'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
-        Referer: `${BASE_URL}/EducaMobile/Home/Index`,
-      },
+      headers: requestHeaders,
     }, { idempotentRead: true });
   } catch (error) {
     throw new HTTPError(error instanceof UpstreamTimeoutError ? 'Tempo de espera da TOTVS esgotado.' : 'Sistema da TOTVS possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
   }
 
-  if (!response.ok) {
-    if (response.status >= 500) {
-      throw new HTTPError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
-    }
-    if (response.status === 401 || response.status === 403) {
-      throw new HTTPError('Sessão expirada no sistema TOTVS.', 401, 'SESSION_EXPIRED');
-    }
-    throw new HTTPError(`Erro HTTP ${response.status}`, 502, 'UPSTREAM_ERROR');
-  }
+  assertSuccessfulResponse(response);
 
   let html = await response.text();
 
@@ -128,18 +183,13 @@ async function fetchTOTVSUncached(
       response = await fetchTotvs(url, {
         method: 'GET',
         redirect: 'follow',
-        headers: {
-          Cookie: cookieHeader,
-          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'User-Agent':
-            'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
-          Referer: `${BASE_URL}/EducaMobile/Home/Index`,
-        },
+        headers: requestHeaders,
       }, { idempotentRead: true });
     } catch (error) {
       throw new HTTPError(error instanceof UpstreamTimeoutError ? 'Tempo de espera da TOTVS esgotado.' : 'Sistema da TOTVS possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
     }
 
+    assertSuccessfulResponse(response);
     html = await response.text();
 
     if (isExternalLoginResponse(response, html)) {

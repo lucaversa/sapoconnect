@@ -1,5 +1,16 @@
 {
-  "only": ["ts", "tsx", "js", "json", "css", "md"],
-  "exclude": [".git", ".next", "node_modules", "icons", "public/tutorial", "*.tsbuildinfo"],
+  "only": ["ts", "tsx", "js", "mjs", "mts", "json", "css", "md"],
+  "exclude": [
+    ".git",
+    ".next",
+    ".vercel",
+    "node_modules",
+    "coverage",
+    "icons",
+    "output",
+    "tmp",
+    "public/tutorial",
+    "*.tsbuildinfo"
+  ],
   "depth": 5
 }

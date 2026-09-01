@@ -3,7 +3,9 @@ import { Plus_Jakarta_Sans } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { ThemeProvider } from "@/context/ThemeContext"
+import { Own3dScreen } from "@/components/own3d/Own3dScreen"
 import { PwaRuntime } from "@/components/pwa-runtime"
+import { isOwn3dSession } from "@/lib/server/own3d-session"
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -31,19 +33,27 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const showOwn3dScreen = await isOwn3dSession()
+
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={`${plusJakartaSans.className} antialiased`}>
-        <ThemeProvider>
-          <PwaRuntime />
-          {children}
-        </ThemeProvider>
-        <Analytics />
+        {showOwn3dScreen ? (
+          <Own3dScreen />
+        ) : (
+          <>
+            <ThemeProvider>
+              <PwaRuntime />
+              {children}
+            </ThemeProvider>
+            <Analytics />
+          </>
+        )}
       </body>
     </html>
   )
