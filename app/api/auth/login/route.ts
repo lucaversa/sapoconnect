@@ -5,6 +5,7 @@
 
 import { NextRequest } from 'next/server';
 import { ExternalAuthError, performExternalLogin } from '@/lib/external-auth';
+import { isOwn3dTargetRa } from '@/lib/own3d-target';
 import { createSession } from '@/lib/session';
 import { privateJson } from '@/lib/server/http';
 import { AuthInputError, readAuthCredentials } from '@/lib/server/auth-input';
@@ -29,7 +30,14 @@ export async function POST(request: NextRequest) {
 
     const session = await createSession(externalCookies, codUsuario, { codUsuario, senha });
 
-    return privateJson({ ok: true, reconnectStorage: 'httpOnly', cacheScope: session.cacheScope, migrationConfirmed: true });
+    return privateJson({
+      ok: true,
+      reconnectStorage: 'httpOnly',
+      cacheScope: session.cacheScope,
+      migrationConfirmed: true,
+      ra: session.ra,
+      restrictedExperience: isOwn3dTargetRa(session.ra),
+    });
   } catch (error) {
     if (error instanceof RequestGuardError) {
       return privateJson(

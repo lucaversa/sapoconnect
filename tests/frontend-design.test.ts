@@ -224,7 +224,8 @@ describe("frontend information architecture", () => {
 
     expect(absences).toContain("<DatasFaltaSection")
     expect(disclosure).toContain("data-absence-history")
-    expect(disclosure).toContain("Dias em que faltei")
+    expect(disclosure).toContain("Faltas disponíveis para revisão")
+    expect(disclosure).toContain("Apenas datas que a TOTVS permite revisar neste momento")
     expect(disclosure).toContain("useDatasFalta(codigo, true)")
     expect(disclosure).toContain("aria-busy={isFetching}")
     expect(disclosure).toContain('<time')

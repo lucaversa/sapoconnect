@@ -58,10 +58,10 @@ export function DatasFaltaSection({
         </span>
         <span className="min-w-0 flex-1">
           <h4 id={sectionTitleId} className="text-sm font-bold text-gray-950 dark:text-white">
-            Dias em que faltei
+            Faltas disponíveis para revisão
           </h4>
           <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
-            Datas disponibilizadas pela TOTVS
+            Apenas datas que a TOTVS permite revisar neste momento
           </span>
         </span>
         {typeof count === 'number' ? (
@@ -109,12 +109,12 @@ export function DatasFaltaSection({
             </div>
           ) : data?.datasFaltaStatus === 'sem_dados' ? (
             <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
-              Nenhum dia de falta está disponível nesta consulta.
+              Nenhuma falta está disponível para revisão nesta consulta.
             </p>
           ) : data ? (
             <ol
               className="grid grid-cols-1 gap-x-6 sm:grid-cols-2"
-              aria-label="Dias de falta informados pela TOTVS"
+              aria-label="Faltas disponíveis para revisão informadas pela TOTVS"
             >
               {data.datasFalta.map((item) => (
                 <li

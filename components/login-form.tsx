@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,17 +16,73 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { markReconnectCookieConfirmed } from '@/lib/storage';
+import { markReconnectCookieConfirmed, saveOfflineSessionHint } from '@/lib/storage';
 import { getLoginFailureView, type LoginFailureView } from '@/lib/login-error';
+import { Own3dScreen } from '@/components/own3d/Own3dScreen';
 import { AlertCircle, Loader2, Shield, Lock, Code, GraduationCap, Server, ExternalLink } from 'lucide-react';
 
+const EXPECTED_SERVICE_WORKER_VERSION = 4;
+const SERVICE_WORKER_VERSION_REQUEST = 'SAPOCONNECT_SW_VERSION';
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function readServiceWorkerVersion(worker: ServiceWorker | null): Promise<number | null> {
+  if (!worker) return null;
+
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const timeoutId = window.setTimeout(() => resolve(null), 250);
+    channel.port1.onmessage = (event: MessageEvent<{ version?: number }>) => {
+      window.clearTimeout(timeoutId);
+      resolve(event.data?.version ?? null);
+    };
+    worker.postMessage({ type: SERVICE_WORKER_VERSION_REQUEST }, [channel.port2]);
+  });
+}
+
+async function clearLegacyPwaCaches(): Promise<void> {
+  if (!('caches' in window)) return;
+  const names = await window.caches.keys();
+  await Promise.all(
+    names
+      .filter((name) => name.startsWith('sapoconnect-') && !name.endsWith('-v4'))
+      .map((name) => window.caches.delete(name))
+  );
+}
+
+async function prepareRestrictedNavigation(): Promise<boolean> {
+  if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return true;
+
+  try {
+    const registration = await navigator.serviceWorker.register('/sw.js', {
+      scope: '/',
+      updateViaCache: 'none',
+    });
+    await registration.update();
+
+    // Stay on the already-rendered restricted screen until v4 actually owns
+    // this client. A v3 controller intentionally never satisfies the check.
+    while (
+      await readServiceWorkerVersion(navigator.serviceWorker.controller)
+        !== EXPECTED_SERVICE_WORKER_VERSION
+    ) {
+      await delay(150);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function LoginForm() {
-  const router = useRouter();
   const [codUsuario, setCodUsuario] = useState('');
   const [senha, setSenha] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<LoginFailureView | null>(null);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [showRestrictedExperience, setShowRestrictedExperience] = useState(false);
   const reducedMotion = useReducedMotion();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -48,6 +103,8 @@ export function LoginForm() {
         reconnectStorage?: 'httpOnly';
         migrationConfirmed?: boolean;
         cacheScope?: string;
+        ra?: string;
+        restrictedExperience?: boolean;
       };
 
       if (!response.ok) {
@@ -58,13 +115,23 @@ export function LoginForm() {
       if (data.reconnectStorage === 'httpOnly' || data.migrationConfirmed) {
         void markReconnectCookieConfirmed(data.cacheScope);
       }
-      router.replace('/app/calendario');
+      if (data.ra && data.cacheScope) {
+        await saveOfflineSessionHint(data.ra, data.cacheScope).catch(() => {});
+      }
+      if (data.restrictedExperience) {
+        setShowRestrictedExperience(true);
+        await clearLegacyPwaCaches().catch(() => {});
+        if (!await prepareRestrictedNavigation()) return;
+      }
+      window.location.replace('/app/calendario');
     } catch {
       setError(getLoginFailureView('NETWORK_ERROR'));
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (showRestrictedExperience) return <Own3dScreen />;
 
   return (
     <>
