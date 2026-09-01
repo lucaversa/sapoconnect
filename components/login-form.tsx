@@ -18,7 +18,6 @@ import {
 } from '@/components/ui/dialog';
 import { markReconnectCookieConfirmed, saveOfflineSessionHint } from '@/lib/storage';
 import { getLoginFailureView, type LoginFailureView } from '@/lib/login-error';
-import { Own3dScreen } from '@/components/own3d/Own3dScreen';
 import { AlertCircle, Loader2, Shield, Lock, Code, GraduationCap, Server, ExternalLink } from 'lucide-react';
 
 const EXPECTED_SERVICE_WORKER_VERSION = 4;
@@ -76,13 +75,12 @@ async function prepareRestrictedNavigation(): Promise<boolean> {
   }
 }
 
-export function LoginForm() {
+export function LoginForm({ onRestrictedExperience }: { onRestrictedExperience: () => void }) {
   const [codUsuario, setCodUsuario] = useState('');
   const [senha, setSenha] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<LoginFailureView | null>(null);
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
-  const [showRestrictedExperience, setShowRestrictedExperience] = useState(false);
   const reducedMotion = useReducedMotion();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -119,7 +117,7 @@ export function LoginForm() {
         await saveOfflineSessionHint(data.ra, data.cacheScope).catch(() => {});
       }
       if (data.restrictedExperience) {
-        setShowRestrictedExperience(true);
+        onRestrictedExperience();
         await clearLegacyPwaCaches().catch(() => {});
         if (!await prepareRestrictedNavigation()) return;
       }
@@ -130,8 +128,6 @@ export function LoginForm() {
       setIsLoading(false);
     }
   };
-
-  if (showRestrictedExperience) return <Own3dScreen />;
 
   return (
     <>

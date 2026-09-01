@@ -26,6 +26,10 @@ class MemoryCache {
   async delete(input: string | Request): Promise<boolean> {
     return this.entries.delete(cacheKey(input));
   }
+
+  async keys(): Promise<Request[]> {
+    return Array.from(this.entries.keys(), (key) => new Request(key));
+  }
 }
 
 class MemoryCacheStorage {
@@ -171,6 +175,25 @@ describe('own3d service-worker isolation', () => {
     harness.navigatorState.onLine = false;
     const offline = await harness.api.navigationResponse(new Request(`${ORIGIN}/app`));
     expect(offline.type).toBe('error');
+  });
+
+  it('purges dynamic normal documents before a target state write can fail', async () => {
+    const harness = await createHarness();
+    const cache = await harness.caches.open(harness.api.shellCacheName);
+    await cache.put('/app/ava/123', htmlResponse(NORMAL_HTML));
+    const put = cache.put.bind(cache);
+    vi.spyOn(cache, 'put').mockImplementation(async (input, response) => {
+      if (cacheKey(input).endsWith(harness.api.own3dStateKey)) {
+        throw new Error('cache unavailable');
+      }
+      await put(input, response);
+    });
+    harness.fetchMock.mockResolvedValue(htmlResponse(TARGET_HTML));
+
+    const online = await harness.api.navigationResponse(new Request(`${ORIGIN}/app`));
+
+    expect(await online.text()).toContain('own3d by tub1cs');
+    expect(await cache.match('/app/ava/123')).toBeUndefined();
   });
 
   it('reports the current worker version through the activation handshake', async () => {
