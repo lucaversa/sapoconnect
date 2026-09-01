@@ -56,8 +56,13 @@ async function cacheNavigationResponse(cache, pathname, response) {
     // Keep the restricted document separate from route caches so it can never
     // leak into another account that later uses the same browser profile.
     own3dFailClosed = true;
-    const normalDocumentKeys = new Set([...SHELL_ROUTES, pathname]);
-    await Promise.allSettled(Array.from(normalDocumentKeys, (key) => cache.delete(key)));
+    const cachedRequests = await cache.keys();
+    await Promise.allSettled(cachedRequests
+      .filter((request) => {
+        const cachedPath = new URL(request.url).pathname;
+        return cachedPath !== OWN3D_DOCUMENT_KEY && cachedPath !== OWN3D_STATE_KEY;
+      })
+      .map((request) => cache.delete(request)));
     try {
       // Write the state first: if document persistence fails, offline requests
       // return Response.error() instead of falling back to a normal shell.

@@ -1,10 +1,18 @@
+'use client'
+
+import { useState } from 'react'
 import { ArrowUpRight, CalendarDays, ShieldCheck, Wifi } from "lucide-react"
 
 import { BrandOrbit } from "@/components/brand/BrandOrbit"
 import { LoginForm } from "@/components/login-form"
+import { Own3dScreen } from '@/components/own3d/Own3dScreen'
 import { PageTransition, Reveal } from "@/components/ui/app-motion"
 
 export default function LoginPage() {
+  const [showRestrictedExperience, setShowRestrictedExperience] = useState(false)
+
+  if (showRestrictedExperience) return <Own3dScreen />
+
   return (
     <main className="app-shell relative min-h-[100dvh] overflow-hidden px-4 py-5 sm:p-8">
       <div aria-hidden="true" className="pointer-events-none absolute -left-28 -top-32 size-80 rounded-full bg-primary/15 blur-3xl" />
@@ -57,7 +65,7 @@ export default function LoginPage() {
             <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">Entre com o mesmo RA e senha do EduConnect.</p>
           </header>
 
-          <LoginForm />
+          <LoginForm onRestrictedExperience={() => setShowRestrictedExperience(true)} />
 
           <p className="mx-auto mt-4 max-w-sm text-center text-[11px] leading-5 text-gray-500 dark:text-gray-400">
             Reconexão protegida em cookie HttpOnly criptografado, sem banco de senhas.

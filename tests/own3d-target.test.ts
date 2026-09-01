@@ -44,12 +44,15 @@ describe('own3d target policy', () => {
   it('uses a document navigation after login so the service worker classifies the first target session', async () => {
     const loginForm = await readFile(projectFile('components/login-form.tsx'), 'utf8');
 
-    expect(loginForm).toContain('setShowRestrictedExperience(true)');
+    expect(loginForm).toContain('onRestrictedExperience()');
     expect(loginForm).toContain('await prepareRestrictedNavigation()');
     expect(loginForm).toContain('EXPECTED_SERVICE_WORKER_VERSION = 4');
     expect(loginForm).toContain('while (');
     expect(loginForm).toContain("window.location.replace('/app/calendario')");
     expect(loginForm).not.toContain("router.replace('/app/calendario')");
+
+    const loginPage = await readFile(projectFile('app/login/page.tsx'), 'utf8');
+    expect(loginPage).toContain('if (showRestrictedExperience) return <Own3dScreen />');
   });
 
   it('renders only the requested phrase in a full-viewport reduced-motion-safe screen', async () => {
