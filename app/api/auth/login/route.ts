@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     if (isTotvsOffline) {
       return privateJson(
-        { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
+        { error: 'Sistema do EduConnect possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
         { status: 503 }
       );
     }

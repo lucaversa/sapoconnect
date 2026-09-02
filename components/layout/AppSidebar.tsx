@@ -12,7 +12,7 @@ const items = [
   { href: "/app/calendario", label: "Horários", icon: CalendarDays },
   { href: "/app/faltas", label: "Faltas", icon: ClipboardList },
   { href: "/app/avaliacoes", label: "Avaliações", icon: Star },
-  { href: "/app/ava", label: "AVA", icon: BookOpenCheck },
+  { href: "/app/ava", label: "Materiais", icon: BookOpenCheck },
   { href: "/app/historico", label: "Histórico", icon: History },
 ]
 

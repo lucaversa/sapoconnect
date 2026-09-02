@@ -1,6 +1,7 @@
 export const LITE_TARGET_RAS = [
   'SYNTH-RA-0005',
   'SYNTH-RA-0006',
+  'SYNTH-RA-0009',
 ] as const;
 
 export type LiteTargetRa = (typeof LITE_TARGET_RAS)[number];

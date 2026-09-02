@@ -11,12 +11,12 @@ const LOGIN_FAILURES: Record<string, LoginFailureView> = {
     showPortalLink: false,
   },
   TOTVS_OFFLINE: {
-    title: 'TOTVS indisponível',
+    title: 'EduConnect indisponível',
     message: 'O sistema da faculdade não respondeu agora. Aguarde um instante e tente novamente.',
     showPortalLink: true,
   },
   UPSTREAM_TIMEOUT: {
-    title: 'TOTVS demorou para responder',
+    title: 'EduConnect demorou para responder',
     message: 'A conexão com o sistema da faculdade excedeu o tempo limite. Tente novamente.',
     showPortalLink: true,
   },

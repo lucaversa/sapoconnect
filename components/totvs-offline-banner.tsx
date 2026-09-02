@@ -3,7 +3,7 @@
 import { WifiOff } from 'lucide-react';
 
 export function TotvsOfflineBanner({
-  message = 'Sistema da TOTVS possivelmente fora do ar. Exibindo dados em cache.',
+  message = 'EduConnect possivelmente fora do ar. Exibindo dados em cache.',
   updatedAt,
   onRetry,
 }: {

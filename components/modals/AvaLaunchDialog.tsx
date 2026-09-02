@@ -114,10 +114,10 @@ export function AvaLaunchDialog() {
               transition={{ duration: reducedMotion ? 0 : 0.42, delay: reducedMotion ? 0 : 0.12 }}
             >
               <DialogPrimitive.Title className="text-balance text-[1.65rem] font-extrabold leading-[1.05] tracking-[-0.045em] sm:text-3xl">
-                Novo módulo AVA
+                Seus materiais, reunidos
               </DialogPrimitive.Title>
               <DialogPrimitive.Description className="mx-auto mt-2 max-w-sm text-sm leading-5 text-gray-600 dark:text-gray-300">
-                Disciplinas, materiais e tarefas do Moodle no SapoConnect.
+                Arquivos do EduConnect, conteúdos e tarefas do AVA por disciplina.
               </DialogPrimitive.Description>
             </motion.div>
           </div>

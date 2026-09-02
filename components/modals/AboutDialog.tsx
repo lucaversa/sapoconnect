@@ -90,7 +90,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
               <div className="min-w-0">
                 <h3 className="font-extrabold text-gray-950 dark:text-white">Privacidade e reconexão</h3>
                 <div className="mt-1 space-y-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
-                  <p>Não existe banco de credenciais. A reconexão usa um cookie criptografado e HttpOnly, restrito à autenticação, quando a sessão da TOTVS expira.</p>
+                  <p>Não existe banco de credenciais. A reconexão usa um cookie criptografado e HttpOnly, restrito à autenticação, quando a sessão do EduConnect expira.</p>
                   <p>Instalações antigas podem manter uma cópia criptografada no IndexedDB do navegador por até 7 dias durante a migração. Depois disso, ela é removida automaticamente.</p>
                 </div>
               </div>

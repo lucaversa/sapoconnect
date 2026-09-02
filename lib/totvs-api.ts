@@ -45,10 +45,10 @@ function assertSuccessfulResponse(response: Response): void {
   if (response.ok) return;
 
   if (response.status >= 500) {
-    throw new HTTPError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
+    throw new HTTPError('Sistema do EduConnect possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
   }
   if (response.status === 401 || response.status === 403) {
-    throw new HTTPError('Sessão expirada no sistema TOTVS.', 401, 'SESSION_EXPIRED');
+    throw new HTTPError('Sessão expirada no EduConnect.', 401, 'SESSION_EXPIRED');
   }
   throw new HTTPError(`Erro HTTP ${response.status}`, 502, 'UPSTREAM_ERROR');
 }
@@ -147,7 +147,7 @@ async function fetchTOTVSUncached(
     if (error instanceof TotvsContextError) {
       throw new HTTPError(error.message, error.status, error.code);
     }
-    throw new HTTPError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
+    throw new HTTPError('Sistema do EduConnect possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
   }
 
   let response: Response;
@@ -158,7 +158,7 @@ async function fetchTOTVSUncached(
       headers: requestHeaders,
     }, { idempotentRead: true });
   } catch (error) {
-    throw new HTTPError(error instanceof UpstreamTimeoutError ? 'Tempo de espera da TOTVS esgotado.' : 'Sistema da TOTVS possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
+    throw new HTTPError(error instanceof UpstreamTimeoutError ? 'Tempo de espera do EduConnect esgotado.' : 'Sistema do EduConnect possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
   }
 
   assertSuccessfulResponse(response);
@@ -176,7 +176,7 @@ async function fetchTOTVSUncached(
       if (error instanceof TotvsContextError) {
         throw new HTTPError(error.message, error.status, error.code);
       }
-      throw new HTTPError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
+      throw new HTTPError('Sistema do EduConnect possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
     }
 
     try {
@@ -186,7 +186,7 @@ async function fetchTOTVSUncached(
         headers: requestHeaders,
       }, { idempotentRead: true });
     } catch (error) {
-      throw new HTTPError(error instanceof UpstreamTimeoutError ? 'Tempo de espera da TOTVS esgotado.' : 'Sistema da TOTVS possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
+      throw new HTTPError(error instanceof UpstreamTimeoutError ? 'Tempo de espera do EduConnect esgotado.' : 'Sistema do EduConnect possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
     }
 
     assertSuccessfulResponse(response);

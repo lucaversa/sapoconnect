@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TOTVS | Educa Mobile</title>
+  <link rel="stylesheet" href="/EducaMobile/Content/jquery.mobile.css">
+  <script src="/EducaMobile/Scripts/jquery.js"></script>
+  <script>
+    var urlLogin = '/EducaMobile/Account/Login';
+    var urlKeepSession = '/EducaMobile/Account/KeepSession';
+  </script>
+</head>
+<body>
+  <div data-role="popup" id="popupAlertSessionTimeOut" data-dismissible="false">
+    <div data-role="header"><h1>Aten&#231;&#227;o</h1></div>
+    <div data-role="content">
+      <p>Sua sess&#227;o est&#225; prestes a expirar. Deseja continuar?</p>
+      <a href="#" data-role="button" data-rel="back">Continuar</a>
+    </div>
+  </div>
+  <div data-role="popup" id="popupAlertSessionFinished" data-dismissible="false">
+    <div data-role="header"><h1>Aten&#231;&#227;o</h1></div>
+    <div data-role="content">
+      <p>Sua sess&#227;o foi finalizada.</p>
+      <a href="#" data-role="button">OK</a>
+    </div>
+  </div>
+  <div data-role="page" id="main">
+    <div data-role="header">
+      <a href="#left-panel" data-icon="bars">Menu</a>
+      <h1>Arquivos Disciplina</h1>
+    </div>
+    <div data-role="content" id="content-main">
+      <!-- discipline files -->
+      <div data-role="collapsible">
+        <h3>CL&#205;NICA CIR&#218;RGICA I</h3>
+        <ul data-role="listview">
+          <li>
+            <a href="/EducaMobile/Educacional/EduArquivos/Download/9526?arquivo=202691_6175_aula%2Banestesico.pdf&amp;httproute=True">
+              <img src="/EducaMobile/Content/images/download.png" alt="Download">
+              <b>aula01</b><span class="ui-li-count">3156 Kb</span><br>
+              01/09/2026 - aula anestesico.pdf<br>
+            </a>
+          </li>
+        </ul>
+      </div>
+      <!-- end discipline files -->
+    </div>
+    <div data-role="panel" id="left-panel">
+      <div data-role="collapsibleset">
+        <div data-role="collapsible">
+          <h3>Acad&#234;mico</h3>
+          <div data-role="collapsible">
+            <h4>Materiais</h4>
+            <ul data-role="listview">
+              <li><a href="/EducaMobile/Educacional/EduMateriais/EduArquivosDisciplina?tp=A">Disciplina</a></li>
+              <li><a href="/EducaMobile/Educacional/EduMateriais/EduArquivosInstitucionais">Institucionais</a></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

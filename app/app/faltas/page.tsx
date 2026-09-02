@@ -261,7 +261,7 @@ export default function FaltasPage() {
       toast.success('Atualizado com sucesso!', { id: toastId });
     } catch (err) {
       if (isTotvsOfflineError(err)) {
-        toast.error('Sistema da TOTVS possivelmente fora do ar.', { id: toastId });
+        toast.error('EduConnect possivelmente fora do ar.', { id: toastId });
         return;
       }
       toast.error('Erro ao atualizar. Tente novamente.', { id: toastId });
@@ -421,7 +421,7 @@ export default function FaltasPage() {
         desktopActionsOnly
       />
 
-      <Stagger className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+      <Stagger className="hidden grid-cols-2 gap-2.5 lg:grid lg:grid-cols-4 lg:gap-3">
         <StaggerItem className="h-full"><MetricCard tile icon={BookOpen} label="Disciplinas" value={totalDisciplinas} /></StaggerItem>
         <StaggerItem className="h-full"><MetricCard tile icon={Shield} label="Seguras" value={disciplinasSeguras} /></StaggerItem>
         <StaggerItem className="h-full"><MetricCard tile icon={AlertTriangle} label="Atenção" value={disciplinasAtencao} /></StaggerItem>

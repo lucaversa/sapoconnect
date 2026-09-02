@@ -8,7 +8,7 @@ describe('login error presentation', () => {
       showPortalLink: false,
     });
     expect(getLoginFailureView('TOTVS_OFFLINE')).toMatchObject({
-      title: 'TOTVS indisponível',
+      title: 'EduConnect indisponível',
       showPortalLink: true,
     });
     expect(getLoginFailureView('SERVER_CONFIGURATION_ERROR')).toMatchObject({

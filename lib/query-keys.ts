@@ -8,6 +8,7 @@ export const queryKeys = {
   calendario: () => ['calendario'] as const,
   historico: () => ['historico'] as const,
   avaConnection: () => ['ava-connection'] as const,
+  totvsMaterials: () => ['materiais-totvs'] as const,
   avaOverview: () => ['ava', 'overview'] as const,
   avaContentSummary: (courseIds: number[]) => ['ava', 'content-summary', ...courseIds] as const,
   avaCourse: (courseId: number) => ['ava', 'course', courseId] as const,

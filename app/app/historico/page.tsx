@@ -110,7 +110,7 @@ export default function HistoricoPage() {
       toast.success('Atualizado com sucesso!', { id: toastId });
     } catch (err) {
       if (isTotvsOfflineError(err)) {
-        toast.error('Sistema da TOTVS possivelmente fora do ar.', { id: toastId });
+        toast.error('EduConnect possivelmente fora do ar.', { id: toastId });
         return;
       }
       toast.error('Erro ao atualizar. Tente novamente.', { id: toastId });
