@@ -41,8 +41,8 @@ const ERROR_CONFIG = {
   },
   offline: {
     icon: WifiOff,
-    title: 'TOTVS indisponível',
-    message: 'Sistema da TOTVS possivelmente fora do ar. Tente novamente mais tarde.',
+    title: 'EduConnect indisponível',
+    message: 'EduConnect possivelmente fora do ar. Tente novamente mais tarde.',
   },
   notFound: {
     icon: FileSearch,

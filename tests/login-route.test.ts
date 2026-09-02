@@ -71,7 +71,7 @@ describe('login route diagnostics', () => {
     });
   });
 
-  it.each(['124101.00574', '23201.00120'])(
+  it.each(['124101.00574', '23201.00120', '23201.00134'])(
     'reports the Lite access tier for exact RA %s',
     async (ra) => {
       vi.stubEnv('SESSION_ENCRYPTION_KEY', 'a'.repeat(64));

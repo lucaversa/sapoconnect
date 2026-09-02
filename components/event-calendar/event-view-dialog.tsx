@@ -139,7 +139,7 @@ export function EventViewDialog({ event, isOpen, onClose }: EventViewDialogProps
           <div className="px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
             <Button asChild className="w-full gap-2">
               <Link href={event.href} onClick={onClose}>
-                Abrir disciplina no AVA <MoveRight className="size-4" aria-hidden="true" />
+                Abrir disciplina <MoveRight className="size-4" aria-hidden="true" />
               </Link>
             </Button>
           </div>

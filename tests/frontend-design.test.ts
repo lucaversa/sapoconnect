@@ -133,9 +133,17 @@ describe("frontend information architecture", () => {
     expect(sidebar).toContain("lg:flex")
   })
 
-  it("keeps long calendar summaries full-width on phones", () => {
+  it("replaces the mobile Saturday summary with the connected AVA task", () => {
     const calendar = read("app/app/calendario/page.tsx")
-    expect(calendar).toContain('className="grid grid-cols-1 gap-3 sm:grid-cols-2"')
+    expect(calendar).toContain('connection.connected ? "sm:grid-cols-2" : "lg:grid-cols-2"')
+    expect(calendar).toContain('<StaggerItem className="lg:hidden">')
+    expect(calendar).toContain('label="Próxima tarefa"')
+    expect(calendar).toContain('proximaTarefaAva.courseId')
+    expect(calendar).toContain('getAvaTaskDisplayName(proximaTarefaAva.name)')
+    expect(calendar).toContain('está marcado\\(a\\) para esta data')
+    expect(calendar).toContain('Entrega em {format(new Date(proximaTarefaAva.deadline)')
+    expect(calendar).toContain('<StaggerItem className="hidden lg:block">')
+    expect(calendar).toContain('label="Próximo sábado letivo"')
     expect(calendar).not.toContain("min-[390px]:grid-cols-2")
   })
 
@@ -143,8 +151,9 @@ describe("frontend information architecture", () => {
     const evaluations = read("app/app/avaliacoes/page.tsx")
     const pullToRefresh = read("components/pull-to-refresh.tsx")
 
-    expect(evaluations).toContain('grid grid-cols-1 gap-2.5 sm:grid-cols-3')
+    expect(evaluations).toContain('grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3')
     expect(evaluations).toContain("<MetricCard compact")
+    expect(evaluations).toContain("metrica.label === 'Na média' ? 'hidden lg:block'")
     expect(pullToRefresh).toContain("Puxe para baixo para atualizar")
     expect(pullToRefresh).toContain("PULL_HINT_SEEN_KEY")
     expect(pullToRefresh).toContain("PULL_HINT_DURATION_MS = 4_000")
@@ -162,14 +171,22 @@ describe("frontend information architecture", () => {
     expect(pullToRefresh).not.toContain("isRefreshing\n    ? 'Atualizando...'")
   })
 
-  it("uses an aligned 2x2 tile grid for absence metrics on phones", () => {
+  it("hides absence metrics on phones while preserving the desktop grid", () => {
     const absences = read("app/app/faltas/page.tsx")
     const metricCard = read("components/ui/metric-card.tsx")
 
-    expect(absences).toContain('className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4"')
+    expect(absences).toContain('className="hidden grid-cols-2 gap-2.5 lg:grid lg:grid-cols-4 lg:gap-3"')
     expect(absences.match(/<MetricCard tile/g)).toHaveLength(4)
     expect(metricCard).toContain('tile ? "p-3 sm:p-4"')
     expect(metricCard).toContain('min-h-[6.5rem] flex-col justify-between')
+  })
+
+  it("hides the AVA overview cards and courses heading only on phones", () => {
+    const overview = read("app/app/ava/page.tsx")
+
+    expect(overview).toContain('className="hidden grid-cols-1 gap-3 lg:grid lg:grid-cols-[minmax(0,1.45fr)_minmax(15rem,0.75fr)]"')
+    expect(overview).toContain('className="mb-3 hidden text-sm font-extrabold tracking-[-0.02em] text-gray-900 dark:text-white lg:block"')
+    expect(overview).toContain('>Disciplinas</h2>')
   })
 
   it("keeps pull-to-refresh behind the scrollable about dialog", () => {
@@ -224,8 +241,9 @@ describe("frontend information architecture", () => {
 
     expect(absences).toContain("<DatasFaltaSection")
     expect(disclosure).toContain("data-absence-history")
-    expect(disclosure).toContain("Faltas disponíveis para revisão")
-    expect(disclosure).toContain("Apenas datas que a TOTVS permite revisar neste momento")
+    expect(disclosure).toContain("Dias que faltei")
+    expect(disclosure).toContain('aria-label="Dias em que faltei"')
+    expect(disclosure).not.toContain("Apenas datas que a TOTVS permite revisar neste momento")
     expect(disclosure).toContain("useDatasFalta(codigo, true)")
     expect(disclosure).toContain("aria-busy={isFetching}")
     expect(disclosure).toContain('<time')
@@ -508,7 +526,7 @@ describe("frontend information architecture", () => {
     expect(announcement).toContain("wasFirstLoginGuideSeen")
     expect(announcement).toContain("FIRST_LOGIN_GUIDE_COMPLETED_EVENT")
     expect(announcement).toContain("rememberAvaAnnouncement")
-    expect(announcement).toContain("Novo módulo AVA")
+    expect(announcement).toContain("Seus materiais, reunidos")
     expect(announcement).toContain('title: "Disciplinas"')
     expect(announcement).toContain('title: "Materiais"')
     expect(announcement).toContain('title: "Tarefas e prazos"')
@@ -562,6 +580,7 @@ describe("frontend information architecture", () => {
     const overview = read("app/app/ava/page.tsx")
     const detail = read("app/app/ava/[courseId]/page.tsx")
     const persistence = read("lib/query-persist.ts")
+    const sourceStatus = read("components/materials/source-status.tsx")
 
     expect(serviceWorker).toContain("sapoconnect-shell-v5")
     expect(serviceWorker).toContain("'/app/ava'")
@@ -569,10 +588,12 @@ describe("frontend information architecture", () => {
     expect(persistence).toContain("'ava-connection'")
     expect(provider).toContain("connectionQuery.fetchStatus === 'paused'")
     expect(provider).toContain("connectionQuery.isError")
-    expect(overview).toContain("isConnectionUnavailable")
-    expect(detail).toContain("isConnectionUnavailable")
-    expect(overview).toContain("Sua integração continua salva")
-    expect(detail).toContain("Sua integração continua salva")
+    expect(overview).toContain("<AvaSourceStatus />")
+    expect(detail).toContain("<AvaSourceStatus />")
+    expect(sourceStatus).toContain("isUnavailable")
+    expect(sourceStatus).toContain("Sua integração continua salva")
+    expect(overview).not.toContain("promptedRef")
+    expect(detail).not.toContain("promptedRef")
   })
 
   it("excludes equivalent subjects from every history count", () => {

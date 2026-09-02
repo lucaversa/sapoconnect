@@ -303,7 +303,7 @@ export async function GET() {
         );
       }
       return privateJson(
-        { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
+        { error: 'Sistema do EduConnect possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
         { status: 503 }
       );
     }
@@ -331,13 +331,13 @@ export async function GET() {
       if (error instanceof TotvsFetchError) {
         if (error.status === 401) {
           return privateJson(
-            { error: 'Sessão expirada no sistema TOTVS', code: 'SESSION_EXPIRED' },
+            { error: 'Sessão expirada no EduConnect', code: 'SESSION_EXPIRED' },
             { status: 401 }
           );
         }
         if (error.status >= 500) {
           return privateJson(
-            { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
+            { error: 'Sistema do EduConnect possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
             { status: 503 }
           );
         }
@@ -489,13 +489,13 @@ export async function GET() {
     if (error instanceof TotvsFetchError) {
       if (error.status === 401) {
         return privateJson(
-          { error: 'Sessão expirada no sistema TOTVS', code: 'SESSION_EXPIRED' },
+          { error: 'Sessão expirada no EduConnect', code: 'SESSION_EXPIRED' },
           { status: 401 }
         );
       }
       if (error.status >= 500) {
         return privateJson(
-          { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
+          { error: 'Sistema do EduConnect possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
           { status: 503 }
         );
       }

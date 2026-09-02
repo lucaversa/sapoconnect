@@ -47,15 +47,15 @@ export async function ensureTotvsContext(cookieHeader: string, cacheScope?: stri
       },
     }, { idempotentRead: true });
   } catch (error) {
-    throw new TotvsContextError(error instanceof UpstreamTimeoutError ? 'Tempo de espera da TOTVS esgotado.' : 'Sistema da TOTVS possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
+    throw new TotvsContextError(error instanceof UpstreamTimeoutError ? 'Tempo de espera do EduConnect esgotado.' : 'Sistema do EduConnect possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
   }
 
   if (!response.ok) {
     if (response.status >= 500) {
-      throw new TotvsContextError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
+      throw new TotvsContextError('Sistema do EduConnect possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
     }
     if (response.status === 401 || response.status === 403) {
-      throw new TotvsContextError('Sessão expirada no sistema TOTVS.', 401, 'SESSION_EXPIRED');
+      throw new TotvsContextError('Sessão expirada no EduConnect.', 401, 'SESSION_EXPIRED');
     }
     throw new TotvsContextError('Erro ao validar contexto.', 502, 'UPSTREAM_ERROR');
   }
@@ -95,7 +95,7 @@ export async function ensureTotvsContext(cookieHeader: string, cacheScope?: stri
         },
       }, { idempotentRead: true });
     } catch (error) {
-      throw new TotvsContextError(error instanceof UpstreamTimeoutError ? 'Tempo de espera da TOTVS esgotado.' : 'Sistema da TOTVS possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
+      throw new TotvsContextError(error instanceof UpstreamTimeoutError ? 'Tempo de espera do EduConnect esgotado.' : 'Sistema do EduConnect possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
     }
   } else {
     const targetUrl = selecao.formAction.startsWith('http')
@@ -120,16 +120,16 @@ export async function ensureTotvsContext(cookieHeader: string, cacheScope?: stri
         body,
       }, { idempotentRead: false });
     } catch (error) {
-      throw new TotvsContextError(error instanceof UpstreamTimeoutError ? 'Tempo de espera da TOTVS esgotado.' : 'Sistema da TOTVS possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
+      throw new TotvsContextError(error instanceof UpstreamTimeoutError ? 'Tempo de espera do EduConnect esgotado.' : 'Sistema do EduConnect possivelmente fora do ar.', error instanceof UpstreamTimeoutError ? 504 : 503, error instanceof UpstreamTimeoutError ? 'UPSTREAM_TIMEOUT' : 'TOTVS_OFFLINE');
     }
   }
 
   if (!response.ok) {
     if (response.status >= 500) {
-      throw new TotvsContextError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
+      throw new TotvsContextError('Sistema do EduConnect possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
     }
     if (response.status === 401 || response.status === 403) {
-      throw new TotvsContextError('Sessão expirada no sistema TOTVS.', 401, 'SESSION_EXPIRED');
+      throw new TotvsContextError('Sessão expirada no EduConnect.', 401, 'SESSION_EXPIRED');
     }
     throw new TotvsContextError('Erro ao selecionar período.', 502, 'UPSTREAM_ERROR');
   }

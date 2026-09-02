@@ -96,7 +96,7 @@ export default function AvaliacoesPage() {
       toast.success('Atualizado com sucesso!', { id: toastId });
     } catch (err) {
       if (isTotvsOfflineError(err)) {
-        toast.error('Sistema da TOTVS possivelmente fora do ar.', { id: toastId });
+        toast.error('EduConnect possivelmente fora do ar.', { id: toastId });
         return;
       }
       toast.error('Erro ao atualizar. Tente novamente.', { id: toastId });
@@ -378,10 +378,10 @@ function getCategoriaStyle(categoria: string) {
         desktopActionsOnly
       />
 
-      <Stagger className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
+      <Stagger className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
         {metricas.map((metrica) => {
           return (
-            <StaggerItem key={metrica.label}>
+            <StaggerItem key={metrica.label} className={metrica.label === 'Na média' ? 'hidden lg:block' : undefined}>
               <MetricCard compact icon={metrica.icon} label={metrica.label} value={metrica.value} detail={metrica.detail} progress={metrica.progress} progressClassName={metrica.bar} />
             </StaggerItem>
           );

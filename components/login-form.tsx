@@ -314,7 +314,7 @@ export function LoginForm() {
                   </h4>
                   <div className="mt-2 space-y-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
                     <p><strong className="text-gray-800 dark:text-gray-100">Não existe banco de credenciais.</strong> A reconexão usa um cookie criptografado e HttpOnly, que o JavaScript da interface não consegue ler.</p>
-                    <p>Esse cookie só participa da autenticação para renovar o acesso quando a sessão da TOTVS expira.</p>
+                    <p>Esse cookie só participa da autenticação para renovar o acesso quando a sessão do EduConnect expira.</p>
                     <p>Instalações antigas podem manter uma cópia criptografada no IndexedDB do navegador por até 7 dias durante a migração. Depois disso, ela é apagada.</p>
                   </div>
                 </div>

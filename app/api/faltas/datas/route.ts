@@ -80,7 +80,7 @@ async function loadFrequencyReviewDates(codigo: string) {
 
   if (!reviewPath) {
     throw new FrequencyReviewSourceError(
-      'A revisão de frequência não está disponível na TOTVS.',
+      'A revisão de frequência não está disponível no EduConnect.',
       'FREQUENCY_REVIEW_UNAVAILABLE'
     );
   }
@@ -120,7 +120,7 @@ async function loadFrequencyReviewDates(codigo: string) {
     responsePayload = JSON.parse(responseText);
   } catch {
     throw new FrequencyReviewSourceError(
-      'A TOTVS não retornou a lista de datas esperada.',
+      'O EduConnect não retornou a lista de datas esperada.',
       'FREQUENCY_REVIEW_DATES_INVALID'
     );
   }
@@ -128,7 +128,7 @@ async function loadFrequencyReviewDates(codigo: string) {
   const datasFalta = parseFrequencyReviewDates(responsePayload);
   if (!datasFalta) {
     throw new FrequencyReviewSourceError(
-      'A TOTVS não retornou a lista de datas esperada.',
+      'O EduConnect não retornou a lista de datas esperada.',
       'FREQUENCY_REVIEW_DATES_INVALID'
     );
   }

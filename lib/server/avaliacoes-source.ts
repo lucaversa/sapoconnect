@@ -46,15 +46,15 @@ async function fetchDisciplinasHTMLUncached(cookieHeader: string): Promise<strin
       },
     }, { idempotentRead: true })
   } catch {
-    throw new AvaliacoesFetchError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE')
+    throw new AvaliacoesFetchError('Sistema do EduConnect possivelmente fora do ar.', 503, 'TOTVS_OFFLINE')
   }
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      throw new AvaliacoesFetchError('Sessão expirada no sistema TOTVS.', 401, 'SESSION_EXPIRED')
+      throw new AvaliacoesFetchError('Sessão expirada no EduConnect.', 401, 'SESSION_EXPIRED')
     }
     if (response.status >= 500) {
-      throw new AvaliacoesFetchError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE')
+      throw new AvaliacoesFetchError('Sistema do EduConnect possivelmente fora do ar.', 503, 'TOTVS_OFFLINE')
     }
     throw new AvaliacoesFetchError(`Erro HTTP ${response.status}`, 502, 'UPSTREAM_ERROR')
   }
@@ -92,15 +92,15 @@ async function fetchNotasUncached(
       body: `ddlTurmaDisc=${encodeURIComponent(codigo)}`,
     }, { idempotentRead: true })
   } catch {
-    throw new AvaliacoesFetchError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE')
+    throw new AvaliacoesFetchError('Sistema do EduConnect possivelmente fora do ar.', 503, 'TOTVS_OFFLINE')
   }
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      throw new AvaliacoesFetchError('Sessão expirada no sistema TOTVS.', 401, 'SESSION_EXPIRED')
+      throw new AvaliacoesFetchError('Sessão expirada no EduConnect.', 401, 'SESSION_EXPIRED')
     }
     if (response.status >= 500) {
-      throw new AvaliacoesFetchError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE')
+      throw new AvaliacoesFetchError('Sistema do EduConnect possivelmente fora do ar.', 503, 'TOTVS_OFFLINE')
     }
     throw new AvaliacoesFetchError(`Erro HTTP ${response.status}`, 502, 'UPSTREAM_ERROR')
   }

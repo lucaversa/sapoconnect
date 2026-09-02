@@ -58,11 +58,8 @@ export function DatasFaltaSection({
         </span>
         <span className="min-w-0 flex-1">
           <h4 id={sectionTitleId} className="text-sm font-bold text-gray-950 dark:text-white">
-            Faltas disponíveis para revisão
+            Dias que faltei
           </h4>
-          <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
-            Apenas datas que a TOTVS permite revisar neste momento
-          </span>
         </span>
         {typeof count === 'number' ? (
           <span className="shrink-0 rounded-lg bg-gray-100 px-2 py-1 text-xs font-semibold tabular-nums text-gray-600 dark:bg-white/[0.055] dark:text-gray-300">
@@ -90,7 +87,7 @@ export function DatasFaltaSection({
           ) : isPending ? (
             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400" role="status">
               <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />
-              Consultando datas na TOTVS...
+              Consultando datas no EduConnect...
             </div>
           ) : error && !data ? (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -114,7 +111,7 @@ export function DatasFaltaSection({
           ) : data ? (
             <ol
               className="grid grid-cols-1 gap-x-6 sm:grid-cols-2"
-              aria-label="Faltas disponíveis para revisão informadas pela TOTVS"
+              aria-label="Dias em que faltei"
             >
               {data.datasFalta.map((item) => (
                 <li

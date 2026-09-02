@@ -25,7 +25,7 @@ function sessionCookie(ra: string, expiresAt = Date.now() + 60_000): string {
 }
 
 function liteCookie(
-  ra: '124101.00574' | '23201.00120',
+  ra: '124101.00574' | '23201.00120' | '23201.00134',
   startedAt: number,
   mode: 'running' | 'paused' | 'locked' = 'running'
 ): string {
@@ -61,7 +61,7 @@ describe('SapoConnect Lite encrypted-cookie API integration', () => {
     process.env = { ...originalEnv };
   });
 
-  it.each(['124101.00574', '23201.00120'] as const)(
+  it.each(['124101.00574', '23201.00120', '23201.00134'] as const)(
     'allows an exact target session only during its active window for %s',
     (ra) => {
       const now = Date.now();
@@ -70,11 +70,14 @@ describe('SapoConnect Lite encrypted-cookie API integration', () => {
     }
   );
 
-  it('requires the intro before a target receives protected API data', async () => {
-    const response = proxy(protectedRequest(sessionCookie('124101.00574')));
-    expect(response.status).toBe(428);
-    await expect(response.json()).resolves.toMatchObject({ code: 'LITE_START_REQUIRED' });
-  });
+  it.each(['124101.00574', '23201.00120', '23201.00134'])(
+    'requires the intro before %s receives protected API data',
+    async (ra) => {
+      const response = proxy(protectedRequest(sessionCookie(ra)));
+      expect(response.status).toBe(428);
+      await expect(response.json()).resolves.toMatchObject({ code: 'LITE_START_REQUIRED' });
+    }
+  );
 
   it('requires resume after a lease expires', async () => {
     const ra = '23201.00120';
@@ -86,18 +89,20 @@ describe('SapoConnect Lite encrypted-cookie API integration', () => {
     await expect(paused.json()).resolves.toMatchObject({ code: 'LITE_RESUME_REQUIRED' });
   });
 
-  it('locks exhausted and tampered Lite ledgers', async () => {
-    const ra = '23201.00120';
-    const exhausted = proxy(
-      protectedRequest(sessionCookie(ra), liteCookie(ra, Date.now(), 'locked'))
-    );
-    const tampered = proxy(protectedRequest(sessionCookie(ra), 'invalid-cookie'));
+  it.each(['124101.00574', '23201.00120', '23201.00134'] as const)(
+    'locks exhausted and tampered Lite ledgers for %s',
+    async (ra) => {
+      const exhausted = proxy(
+        protectedRequest(sessionCookie(ra), liteCookie(ra, Date.now(), 'locked'))
+      );
+      const tampered = proxy(protectedRequest(sessionCookie(ra), 'invalid-cookie'));
 
-    expect(exhausted.status).toBe(403);
-    expect(tampered.status).toBe(403);
-    await expect(exhausted.json()).resolves.toMatchObject({ code: 'LITE_TIME_EXPIRED' });
-    await expect(tampered.json()).resolves.toMatchObject({ code: 'LITE_TIME_EXPIRED' });
-  });
+      expect(exhausted.status).toBe(403);
+      expect(tampered.status).toBe(403);
+      await expect(exhausted.json()).resolves.toMatchObject({ code: 'LITE_TIME_EXPIRED' });
+      await expect(tampered.json()).resolves.toMatchObject({ code: 'LITE_TIME_EXPIRED' });
+    }
+  );
 
   it('allows a nearby identity and an expired target session through to route authorization', () => {
     const nearby = proxy(protectedRequest(sessionCookie('23201.00121'), 'invalid-cookie'));

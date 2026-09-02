@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import {
@@ -31,17 +31,21 @@ import { ptBR } from 'date-fns/locale'
 import { toast } from 'sonner'
 
 import { ApiError } from '@/components/api-error'
-import { PageLoading } from '@/components/page-loading'
+import { AvaSourceStatus, SourceBadge, SourceStatus } from '@/components/materials/source-status'
 import { PullToRefresh } from '@/components/pull-to-refresh'
 import { AcademicPanel, AcademicPanelBody } from '@/components/ui/academic-panel'
 import { PageTransition } from '@/components/ui/app-motion'
 import { Button } from '@/components/ui/button'
 import { PageHeading } from '@/components/ui/page-heading'
-import { useAvaCourse } from '@/hooks/use-ava'
+import { useAvaCourse, useAvaOverview } from '@/hooks/use-ava'
+import { useTotvsMaterials } from '@/hooks/use-totvs-materials'
 import type { AvaMaterial, AvaTask } from '@/lib/ava-types'
 import { getAvaMaterialKind, type AvaMaterialKind } from '@/lib/ava-material-kind'
 import { useAvaIntegration } from '@/lib/ava-integration-provider'
 import { cn } from '@/lib/utils'
+import { mergeMaterialSubjects } from '@/lib/materials-matching'
+import { downloadTotvsMaterial } from '@/lib/download-totvs-material'
+import type { TotvsMaterial } from '@/lib/totvs-materials-types'
 
 function formatFileSize(bytes?: number): string | null {
   if (!bytes || bytes <= 0) return null
@@ -119,11 +123,23 @@ function TaskRow({ task }: { task: AvaTask }) {
   )
 }
 
-function MaterialRow({ material }: { material: AvaMaterial }) {
-  const size = formatFileSize(material.fileSize)
+function MaterialRow({ material, totvsFile }: { material: AvaMaterial; totvsFile?: TotvsMaterial }) {
+  const [downloading, setDownloading] = useState(false)
+  const size = totvsFile?.sizeLabel || formatFileSize(material.fileSize)
   const actionUrl = material.downloadUrl || material.externalUrl
   const isDownload = Boolean(material.downloadUrl)
   const materialKind = getAvaMaterialKind(material)
+  const download = async () => {
+    if (!totvsFile || downloading) return
+    setDownloading(true)
+    try {
+      await downloadTotvsMaterial(totvsFile)
+    } catch {
+      toast.error('Não foi possível baixar o arquivo. Verifique sua conexão e tente novamente.')
+    } finally {
+      setDownloading(false)
+    }
+  }
   return (
     <article className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:px-5">
       <span className={cn('flex size-10 shrink-0 items-center justify-center rounded-2xl border', MATERIAL_ICON_STYLES[materialKind])}>
@@ -132,11 +148,16 @@ function MaterialRow({ material }: { material: AvaMaterial }) {
       <div className="min-w-0 flex-1">
         <h3 className="break-words text-sm font-extrabold leading-5 text-gray-950 dark:text-white">{material.name}</h3>
         <p className="mt-1 break-words text-xs leading-5 text-gray-500 dark:text-gray-400">
-          {[material.typeLabel, material.fileName, size].filter(Boolean).join(', ')}
+          {[totvsFile ? null : material.typeLabel, material.fileName, size, totvsFile?.publishedAtLabel].filter(Boolean).join(' · ')}
         </p>
         {material.description ? <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400">{material.description}</p> : null}
       </div>
-      {actionUrl ? (
+      {totvsFile ? (
+        <Button variant="outline" size="sm" disabled={downloading} onClick={() => void download()} className="w-full shrink-0 gap-2 sm:w-auto" aria-label={`Baixar ${totvsFile.fileName}`}>
+          {downloading ? <RefreshCw className="size-3.5 animate-spin" aria-hidden="true" /> : <Download className="size-3.5" aria-hidden="true" />}
+          {downloading ? 'Baixando…' : 'Baixar'}
+        </Button>
+      ) : actionUrl ? (
         <Button asChild variant="outline" size="sm" className="w-full shrink-0 gap-2 sm:w-auto">
           <a href={actionUrl} target={isDownload ? undefined : '_blank'} rel={isDownload ? undefined : 'noopener noreferrer'} download={isDownload ? material.fileName : undefined}>
             {isDownload ? <Download className="size-3.5" aria-hidden="true" /> : <ExternalLink className="size-3.5" aria-hidden="true" />}
@@ -151,23 +172,17 @@ function MaterialRow({ material }: { material: AvaMaterial }) {
 export default function AvaCoursePage() {
   const params = useParams<{ courseId: string }>()
   const parsedCourseId = Number(params.courseId)
-  const courseId = Number.isSafeInteger(parsedCourseId) && parsedCourseId > 1 ? parsedCourseId : null
-  const {
-    connection,
-    isLoading: isConnectionLoading,
-    isUnavailable: isConnectionUnavailable,
-    openConnectionDialog,
-    retryConnection,
-  } = useAvaIntegration()
-  const promptedRef = useRef(false)
+  const numericId = /^\d+$/.test(params.courseId) && Number.isSafeInteger(parsedCourseId) && parsedCourseId > 1 ? parsedCourseId : null
+  const totvsId = /^totvs-[a-f0-9]{16,64}$/.test(params.courseId) ? params.courseId.slice(6) : null
+  const { connection } = useAvaIntegration()
+  const overview = useAvaOverview(connection.connected)
+  const totvs = useTotvsMaterials()
+  const subjects = useMemo(() => mergeMaterialSubjects(overview.data?.courses ?? [], totvs.data?.courses ?? []), [overview.data?.courses, totvs.data?.courses])
+  const subject = subjects.find((item) => totvsId ? item.totvsCourse?.id === totvsId : item.avaCourse?.id === numericId)
+  const courseId = numericId ?? subject?.avaCourse?.id ?? null
+  const totvsCourse = subject?.totvsCourse
   const [expandedSections, setExpandedSections] = useState<Set<number>>(() => new Set())
   const detail = useAvaCourse(courseId, connection.connected)
-
-  useEffect(() => {
-    if (isConnectionLoading || isConnectionUnavailable || connection.connected || promptedRef.current) return
-    promptedRef.current = true
-    openConnectionDialog()
-  }, [connection.connected, isConnectionLoading, isConnectionUnavailable, openConnectionDialog])
 
   const toggleSection = (sectionId: number) => {
     setExpandedSections((current) => {
@@ -180,63 +195,46 @@ export default function AvaCoursePage() {
 
   const refresh = async () => {
     const toastId = toast.loading('Atualizando disciplina...', { id: 'refresh-ava-course' })
-    const result = await detail.refetch()
-    if (result.error) toast.error('Não foi possível atualizar a disciplina.', { id: toastId })
+    const results = await Promise.all([
+      totvs.refetch(),
+      ...(connection.connected ? [overview.refetch()] : []),
+      ...(connection.connected && courseId ? [detail.refetch()] : []),
+    ])
+    const failed = results.filter((result) => result.error).length
+    if (failed === results.length) toast.error('Não foi possível atualizar a disciplina.', { id: toastId })
+    else if (failed) toast.warning('Atualização parcial. Uma das fontes está indisponível.', { id: toastId })
     else toast.success('Disciplina atualizada.', { id: toastId })
   }
 
-  if (courseId === null) return <ApiError error={new Error('Disciplina inválida.')} />
-  if (isConnectionLoading) return <PageLoading message="Preparando integração com o AVA..." />
-  if (isConnectionUnavailable) {
-    return (
-      <PageTransition className="app-page">
-        <PageHeading icon={BookOpenCheck} title="AVA" />
-        <section className="liquid-float rounded-[1.75rem] px-5 py-10 text-center sm:px-8 sm:py-14">
-          <h2 className="text-lg font-extrabold text-gray-950 dark:text-white">Não foi possível verificar o AVA</h2>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600 dark:text-gray-300">
-            Sua integração continua salva. Reconecte-se para abrir esta disciplina caso ela ainda não esteja disponível offline.
-          </p>
-          <Button type="button" onClick={() => void retryConnection()} className="mt-5">Tentar novamente</Button>
-        </section>
-      </PageTransition>
-    )
-  }
-  if (!connection.connected) {
-    return (
-      <PageTransition className="app-page">
-        <Button asChild variant="ghost" size="sm" className="w-fit gap-2"><Link href="/app/ava"><ArrowLeft className="size-4" /> Voltar ao AVA</Link></Button>
-        <section className="content-surface px-5 py-10 text-center">
-          <h1 className="text-lg font-extrabold text-gray-950 dark:text-white">Conecte seu AVA</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">A conexão é necessária para abrir esta disciplina.</p>
-          <Button type="button" onClick={openConnectionDialog} className="mt-5">Conectar AVA</Button>
-        </section>
-      </PageTransition>
-    )
-  }
-  if (detail.isLoading) return <PageLoading message="Carregando conteúdos da disciplina..." />
-  if (detail.error && !detail.data) return <ApiError error={detail.error} retry={() => detail.refetch()} />
-  if (!detail.data) return null
+  if (numericId === null && totvsId === null) return <ApiError error={new Error('Disciplina inválida.')} />
 
-  const { course, tasks, sections } = detail.data
-  const materialCount = sections.reduce((total, section) => total + section.materials.length, 0)
+  const tasks = detail.data?.tasks ?? []
+  const sections = detail.data?.sections ?? []
+  const materialCount = sections.reduce((total, section) => total + section.materials.length, 0) + (totvsCourse?.materials.length ?? 0)
+  const isFetching = totvs.isFetching || overview.isFetching || detail.isFetching
 
   return (
     <PageTransition className="app-page">
-      <Button asChild variant="ghost" size="sm" className="w-fit gap-2"><Link href="/app/ava"><ArrowLeft className="size-4" aria-hidden="true" /> Voltar ao AVA</Link></Button>
+      <Button asChild variant="ghost" size="sm" className="w-fit gap-2"><Link href="/app/ava"><ArrowLeft className="size-4" aria-hidden="true" /> Voltar aos materiais</Link></Button>
       <PageHeading
         icon={BookOpenCheck}
-        title={course.fullName}
-        meta={`${tasks.length} ${tasks.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'}, ${materialCount} ${materialCount === 1 ? 'material' : 'materiais'}`}
+        title={detail.data?.course.fullName ?? subject?.name ?? 'Materiais da disciplina'}
+        meta={detail.data || totvsCourse ? `${detail.data ? `${tasks.length} ${tasks.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'} · ` : ''}${materialCount} ${materialCount === 1 ? 'material' : 'materiais'}` : undefined}
         actions={(
-          <Button variant="outline" size="icon" onClick={() => void refresh()} disabled={detail.isFetching} aria-label="Atualizar" className="hidden sm:inline-flex">
-            <RefreshCw className={`size-4 ${detail.isFetching ? 'animate-spin' : ''}`} aria-hidden="true" />
+          <Button variant="outline" size="icon" onClick={() => void refresh()} disabled={isFetching} aria-label="Atualizar" className="hidden sm:inline-flex">
+            <RefreshCw className={`size-4 ${isFetching ? 'animate-spin' : ''}`} aria-hidden="true" />
           </Button>
         )}
         desktopActionsOnly
       />
 
-      <section aria-labelledby="pending-tasks-title">
-        <h2 id="pending-tasks-title" className="mb-3 text-sm font-extrabold tracking-[-0.02em] text-gray-900 dark:text-white">Atividades pendentes</h2>
+      <AvaSourceStatus />
+      {detail.isLoading || overview.isLoading ? <SourceStatus title="Buscando conteúdos do AVA…" loading /> : null}
+      {detail.fetchStatus === 'paused' || overview.fetchStatus === 'paused' ? <SourceStatus title="AVA offline" description={detail.data ? 'Exibindo os conteúdos salvos. Os downloads precisam de conexão.' : 'Sem conteúdos salvos para esta disciplina. Conecte-se para consultar o AVA.'} /> : null}
+      {detail.error || overview.error ? <SourceStatus title="Não foi possível atualizar o AVA" description="Os arquivos do EduConnect continuam disponíveis." retry={() => void refresh()} /> : null}
+
+      {detail.data ? <section aria-labelledby="pending-tasks-title">
+        <div className="mb-3 flex items-center gap-2"><h2 id="pending-tasks-title" className="text-sm font-extrabold tracking-[-0.02em] text-gray-900 dark:text-white">Atividades pendentes</h2><SourceBadge source="AVA" /></div>
         {tasks.length > 0 ? (
           <div className="content-list">{tasks.map((task) => <TaskRow key={task.id} task={task} />)}</div>
         ) : (
@@ -245,10 +243,24 @@ export default function AvaCoursePage() {
             <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">O Moodle não retornou tarefas que aguardam uma ação sua.</p>
           </div>
         )}
+      </section> : null}
+
+      <section aria-labelledby="totvs-materials-title" className="space-y-3">
+        <div className="flex items-center gap-2"><h2 id="totvs-materials-title" className="text-sm font-extrabold tracking-[-0.02em] text-gray-900 dark:text-white">Arquivos da disciplina</h2><SourceBadge source="TOTVS" /></div>
+        {totvs.isLoading ? <SourceStatus title="Buscando arquivos do EduConnect…" loading /> : null}
+        {totvs.fetchStatus === 'paused' ? <SourceStatus title="EduConnect offline" description={totvs.data ? 'Exibindo a última lista salva. Os downloads precisam de conexão.' : 'Sem arquivos salvos para esta disciplina.'} /> : null}
+        {totvs.error || totvs.data?.__cacheStale ? <SourceStatus title="Não foi possível atualizar o EduConnect" description={totvs.data ? 'Exibindo os últimos arquivos consultados.' : undefined} retry={() => void totvs.refetch()} /> : null}
+        {totvsCourse?.materials.length ? (
+          <div className="content-list">{totvsCourse.materials.map((file) => <MaterialRow key={file.id} totvsFile={file} material={{ id: file.id, moduleId: 0, name: file.title, fileName: file.fileName, type: 'resource', typeLabel: 'Arquivo' }} />)}</div>
+        ) : totvs.data && !totvs.error && (totvsId || overview.data) ? (
+          <p className="content-surface px-4 py-5 text-sm text-gray-500 dark:text-gray-400">{totvsId ? 'Esta disciplina não está mais disponível na lista atual do EduConnect.' : 'Nenhum arquivo do EduConnect associado a esta disciplina.'}</p>
+        ) : numericId && !overview.isLoading && !overview.data ? (
+          <p className="content-surface px-4 py-5 text-sm leading-6 text-gray-500 dark:text-gray-400">Abra a lista de <Link href="/app/ava" className="font-bold text-primary underline">materiais</Link> para consultar os arquivos do EduConnect por disciplina.</p>
+        ) : null}
       </section>
 
-      <section aria-labelledby="course-materials-title">
-        <h2 id="course-materials-title" className="mb-3 text-sm font-extrabold tracking-[-0.02em] text-gray-900 dark:text-white">Conteúdos por seção</h2>
+      {detail.data ? <section aria-labelledby="course-materials-title" className="border-t border-gray-200/80 pt-5 dark:border-white/10">
+        <div className="mb-3 flex items-center gap-2"><h2 id="course-materials-title" className="text-sm font-extrabold tracking-[-0.02em] text-gray-900 dark:text-white">Conteúdos por seção</h2><SourceBadge source="AVA" /></div>
         {sections.length > 0 ? (
           <div className="academic-stack">
             {sections.map((section) => {
@@ -280,7 +292,7 @@ export default function AvaCoursePage() {
             <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">Pode ser que a disciplina ainda não tenha conteúdos publicados para seu grupo.</p>
           </div>
         )}
-      </section>
+      </section> : null}
       <PullToRefresh onRefresh={refresh} />
     </PageTransition>
   )

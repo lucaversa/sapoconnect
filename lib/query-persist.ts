@@ -13,6 +13,7 @@ const PERSISTED_QUERY_ROOTS = new Set([
   'historico',
   'ava',
   'ava-connection',
+  'materiais-totvs',
 ]);
 
 export function getPersistKeyForScope(cacheScope: string): string {

@@ -43,7 +43,7 @@ export async function GET() {
         return privateJson({ error: error.message, code: error.code }, { status: error.status })
       }
       return privateJson(
-        { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
+        { error: 'Sistema do EduConnect possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
         { status: 503 },
       )
     }

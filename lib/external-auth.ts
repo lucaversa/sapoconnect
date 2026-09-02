@@ -68,7 +68,7 @@ export async function performExternalLogin(
 
   if (!response.ok && response.status !== 302) {
     if (response.status >= 500) {
-      throw new ExternalAuthError('Sistema da TOTVS possivelmente fora do ar.', 'TOTVS_OFFLINE', 503);
+      throw new ExternalAuthError('Sistema do EduConnect possivelmente fora do ar.', 'TOTVS_OFFLINE', 503);
     }
     throw new ExternalAuthError('Credenciais inválidas.', 'INVALID_CREDENTIALS', 401);
   }

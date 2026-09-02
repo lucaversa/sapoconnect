@@ -1,8 +1,9 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { Calendar as CalendarIcon, CalendarDays, Download, RefreshCw, Sun } from "lucide-react"
+import { Calendar as CalendarIcon, CalendarClock, CalendarDays, Download, RefreshCw, Sun } from "lucide-react"
 import { format, formatDistanceToNow, isAfter } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { toast } from "sonner"
@@ -35,7 +36,16 @@ const EventViewDialog = dynamic(
   { ssr: false },
 )
 
+function getAvaTaskDisplayName(name: string): string {
+  const cleanedName = name
+    .replace(/\s*-\s*\d{1,2}\/\d{1,2}\/\d{2,4}\s*está marcado\(a\) para esta data\.?\s*$/i, "")
+    .trim()
+
+  return cleanedName || name
+}
+
 export default function CalendarioPage() {
+  const router = useRouter()
   const { data, error, isLoading, isFetching, fetchStatus, refetch, dataUpdatedAt } = useHorario()
   const { connection } = useAvaIntegration()
   const avaOverview = useAvaOverview(connection.connected)
@@ -56,7 +66,7 @@ export default function CalendarioPage() {
       else toast.success("Atualizado com sucesso!", { id: toastId })
     } catch (refreshError) {
       if (isTotvsOfflineError(refreshError)) {
-        toast.error("Sistema da TOTVS possivelmente fora do ar.", { id: toastId })
+        toast.error("EduConnect possivelmente fora do ar.", { id: toastId })
         return
       }
       toast.error("Erro ao atualizar. Tente novamente.", { id: toastId })
@@ -115,6 +125,8 @@ export default function CalendarioPage() {
   ]
   const proximaAula = encontrarProximaAula()
   const proximoSabado = encontrarProximoSabado()
+  const tarefasAva = avaOverview.data?.tasks ?? []
+  const proximaTarefaAva = tarefasAva.find((task) => !task.overdue) ?? tarefasAva[0] ?? null
   const lastUpdatedLabel = dataUpdatedAt
     ? formatDistanceToNow(new Date(dataUpdatedAt), { addSuffix: true, locale: ptBR })
     : null
@@ -141,7 +153,7 @@ export default function CalendarioPage() {
           </>}
         />
 
-        <Stagger className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Stagger className={`grid grid-cols-1 gap-3 ${connection.connected ? "sm:grid-cols-2" : "lg:grid-cols-2"}`}>
           <StaggerItem>
             <MetricCard
               icon={CalendarIcon}
@@ -157,7 +169,30 @@ export default function CalendarioPage() {
               detail={proximaAula ? format(new Date(proximaAula.start), "EEE, dd/MM 'às' HH:mm", { locale: ptBR }) : undefined}
             />
           </StaggerItem>
-          <StaggerItem>
+          {connection.connected ? (
+            <StaggerItem className="lg:hidden">
+              <MetricCard
+                icon={CalendarClock}
+                label="Próxima tarefa"
+                value={proximaTarefaAva
+                  ? <span className="line-clamp-2 block break-words text-[15px] leading-5">{getAvaTaskDisplayName(proximaTarefaAva.name)}</span>
+                  : <span className="text-sm text-gray-400">Nenhuma pendente</span>}
+                detail={proximaTarefaAva
+                  ? (
+                    <span className="block">
+                      <span className="line-clamp-1 block">{proximaTarefaAva.courseName}</span>
+                      <span className="mt-0.5 block font-semibold text-primary-700 dark:text-primary-300">
+                        Entrega em {format(new Date(proximaTarefaAva.deadline), "dd/MM 'às' HH:mm")}
+                      </span>
+                    </span>
+                  )
+                  : "Tudo certo por enquanto."}
+                onClick={proximaTarefaAva ? () => router.push(`/app/ava/${proximaTarefaAva.courseId}`) : undefined}
+                actionHint={proximaTarefaAva ? "Abrir disciplina" : undefined}
+              />
+            </StaggerItem>
+          ) : null}
+          <StaggerItem className="hidden lg:block">
             <MetricCard
               icon={Sun}
               label="Próximo sábado letivo"

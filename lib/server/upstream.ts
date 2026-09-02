@@ -6,7 +6,7 @@ const DEFAULT_TIMEOUT_MS = Number.isFinite(configuredTimeout) && configuredTimeo
   : 12_000;
 
 export class UpstreamTimeoutError extends Error {
-  constructor() { super('Tempo de espera da TOTVS esgotado'); this.name = 'UpstreamTimeoutError'; }
+  constructor() { super('Tempo de espera do EduConnect esgotado'); this.name = 'UpstreamTimeoutError'; }
 }
 
 export function isTransientUpstreamError(error: unknown): boolean {

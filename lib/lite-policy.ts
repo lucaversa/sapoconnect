@@ -1,6 +1,7 @@
 export const LITE_TARGET_RAS = [
   '124101.00574',
   '23201.00120',
+  '23201.00134',
 ] as const;
 
 export type LiteTargetRa = (typeof LITE_TARGET_RAS)[number];

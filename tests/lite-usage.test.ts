@@ -22,7 +22,7 @@ vi.mock('next/headers', () => ({
   cookies: vi.fn(async () => cookieMocks.store),
 }));
 
-import { LITE_DAILY_LIMIT_MS, LITE_RUN_LEASE_MS } from '@/lib/lite-policy';
+import { LITE_DAILY_LIMIT_MS, LITE_RUN_LEASE_MS, LITE_TARGET_RAS } from '@/lib/lite-policy';
 import {
   getLiteAccessSnapshotForRa,
   LITE_USAGE_COOKIE_NAME,
@@ -43,8 +43,7 @@ describe('Lite usage cookie ledger', () => {
     process.env = { ...originalEnv };
   });
 
-  it('requires start once, then heartbeats persist only elapsed foreground time', async () => {
-    const ra = '124101.00574';
+  it.each(LITE_TARGET_RAS)('requires start once, then heartbeats persist only elapsed foreground time for %s', async (ra) => {
     const startedAt = Date.parse('2026-09-01T15:00:00.000Z');
 
     for (const action of ['resume', 'heartbeat', 'pause'] as const) {
@@ -83,8 +82,7 @@ describe('Lite usage cookie ledger', () => {
     expect(cookieMocks.store.set).toHaveBeenCalledTimes(3);
   });
 
-  it('pauses for hours without consuming and resumes the same daily balance', async () => {
-    const ra = '23201.00120';
+  it.each(LITE_TARGET_RAS)('pauses for hours without consuming and resumes the same daily balance for %s', async (ra) => {
     const startedAt = Date.parse('2026-09-01T12:00:00.000Z');
 
     await updateLiteAccessForRa(ra, 'start', startedAt);

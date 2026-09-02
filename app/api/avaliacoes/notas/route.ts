@@ -51,15 +51,15 @@ async function loadNotas(codigo: string, cookieHeader: string): Promise<Resultad
       body: `ddlTurmaDisc=${encodeURIComponent(codigo)}`,
     }, { idempotentRead: true });
   } catch {
-    throw new NotasError('Sistema da TOTVS possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
+    throw new NotasError('Sistema do EduConnect possivelmente fora do ar.', 503, 'TOTVS_OFFLINE');
   }
 
   if (response.status === 401 || response.status === 403 || isLoginResponse(response)) {
-    throw new NotasError('Sessão expirada no sistema TOTVS.', 401, 'SESSION_EXPIRED');
+    throw new NotasError('Sessão expirada no EduConnect.', 401, 'SESSION_EXPIRED');
   }
   if (!response.ok) {
     throw new NotasError(
-      response.status >= 500 ? 'Sistema da TOTVS possivelmente fora do ar.' : 'Erro ao buscar avaliações.',
+      response.status >= 500 ? 'Sistema do EduConnect possivelmente fora do ar.' : 'Erro ao buscar avaliações.',
       response.status >= 500 ? 503 : 502,
       response.status >= 500 ? 'TOTVS_OFFLINE' : 'UPSTREAM_ERROR'
     );

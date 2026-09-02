@@ -15,13 +15,17 @@ import {
 } from '@/lib/lite-policy';
 
 describe('SapoConnect Lite policy', () => {
-  it('targets only the two exact requested RAs', () => {
-    expect(LITE_TARGET_RAS).toEqual(['124101.00574', '23201.00120']);
+  it('targets only the three exact requested RAs', () => {
+    expect(LITE_TARGET_RAS).toEqual(['124101.00574', '23201.00120', '23201.00134']);
 
     for (const ra of LITE_TARGET_RAS) expect(isLiteTargetRa(ra)).toBe(true);
     for (const ra of [
       '124101.00573',
       '23201.00121',
+      '23201.00133',
+      '23201.00135',
+      '2320100134',
+      ' 23201.00134 ',
       '12410100574',
       '2320100120',
       ' 124101.00574 ',

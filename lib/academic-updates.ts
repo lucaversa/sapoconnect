@@ -108,7 +108,7 @@ export const ACADEMIC_MODULE_META: Record<
   calendario: { label: 'Horários', href: '/app/calendario' },
   faltas: { label: 'Faltas', href: '/app/faltas' },
   avaliacoes: { label: 'Avaliações', href: '/app/avaliacoes' },
-  ava: { label: 'AVA', href: '/app/ava' },
+  ava: { label: 'Materiais', href: '/app/ava' },
   historico: { label: 'Histórico', href: '/app/historico' },
 }
 

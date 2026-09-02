@@ -64,7 +64,7 @@ export async function GET(request: Request) {
     if (!response.ok) {
       if (response.status === 401) {
         return privateJson(
-          { error: 'Sessão expirada no sistema TOTVS', code: 'SESSION_EXPIRED' },
+          { error: 'Sessão expirada no EduConnect', code: 'SESSION_EXPIRED' },
           { status: 401 }
         );
       }
@@ -87,7 +87,7 @@ export async function GET(request: Request) {
     const isTotvsOffline = /HTTP 5\d{2}/.test(errorMessage) || errorMessage.includes('fetch');
     if (isTotvsOffline) {
       return privateJson(
-        { error: 'Sistema da TOTVS possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
+        { error: 'Sistema do EduConnect possivelmente fora do ar.', code: 'TOTVS_OFFLINE' },
         { status: 503 }
       );
     }
