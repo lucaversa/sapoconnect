@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
+vi.mock('@/lib/lite-targets', () => ({
+  LITE_TARGET_RAS: ['SYNTH-RA-0005', 'SYNTH-RA-0006', 'SYNTH-RA-0009'],
+}));
+
 const sessionMocks = vi.hoisted(() => ({
   readSessionCookie: vi.fn(),
 }));

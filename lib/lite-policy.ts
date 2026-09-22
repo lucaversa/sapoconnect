@@ -1,8 +1,6 @@
-export const LITE_TARGET_RAS = [
-  'SYNTH-RA-0005',
-  'SYNTH-RA-0006',
-  'SYNTH-RA-0009',
-] as const;
+import { LITE_TARGET_RAS } from '@/lib/lite-targets';
+
+export { LITE_TARGET_RAS } from '@/lib/lite-targets';
 
 export type LiteTargetRa = (typeof LITE_TARGET_RAS)[number];
 export type LiteAccessTier = 'full' | 'lite';

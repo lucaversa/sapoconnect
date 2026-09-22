@@ -72,7 +72,7 @@ describe('login route diagnostics', () => {
   });
 
   it.each(['SYNTH-RA-0005', 'SYNTH-RA-0006', 'SYNTH-RA-0009'])(
-    'reports the Lite access tier for exact RA %s',
+    'reports full access for previously restricted RA %s',
     async (ra) => {
       vi.stubEnv('SESSION_ENCRYPTION_KEY', 'a'.repeat(64));
       sessionMocks.createSession.mockResolvedValue({ cacheScope: 'scope-lite', ra });
@@ -80,7 +80,7 @@ describe('login route diagnostics', () => {
       const response = await POST(request() as never);
 
       expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toMatchObject({ ra, accessTier: 'lite' });
+      await expect(response.json()).resolves.toMatchObject({ ra, accessTier: 'full' });
     }
   );
 });
