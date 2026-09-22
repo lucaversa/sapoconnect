@@ -1,8 +1,6 @@
-export const LITE_TARGET_RAS = [
-  '124101.00574',
-  '23201.00120',
-  '23201.00134',
-] as const;
+import { LITE_TARGET_RAS } from '@/lib/lite-targets';
+
+export { LITE_TARGET_RAS } from '@/lib/lite-targets';
 
 export type LiteTargetRa = (typeof LITE_TARGET_RAS)[number];
 export type LiteAccessTier = 'full' | 'lite';

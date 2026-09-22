@@ -3,6 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
+vi.mock('@/lib/lite-targets', () => ({
+  LITE_TARGET_RAS: ['124101.00574', '23201.00120', '23201.00134'],
+}));
+
 import { proxy } from '@/proxy';
 import { createLiteUsageRecord, resumeLiteUsageRecord } from '@/lib/lite-policy';
 import { encryptSessionData, serializeSessionData } from '@/lib/session-encryption';

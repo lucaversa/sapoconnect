@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/lite-targets', () => ({
+  LITE_TARGET_RAS: ['124101.00574', '23201.00120', '23201.00134'],
+}));
 
 import {
   createLiteUsageRecord,
@@ -15,7 +19,7 @@ import {
 } from '@/lib/lite-policy';
 
 describe('SapoConnect Lite policy', () => {
-  it('targets only the three exact requested RAs', () => {
+  it('targets only the exact configured test RAs', () => {
     expect(LITE_TARGET_RAS).toEqual(['124101.00574', '23201.00120', '23201.00134']);
 
     for (const ra of LITE_TARGET_RAS) expect(isLiteTargetRa(ra)).toBe(true);
