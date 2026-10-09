@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 vi.mock('@/lib/lite-targets', () => ({
-  LITE_TARGET_RAS: ['SYNTH-RA-0005', 'SYNTH-RA-0006', 'SYNTH-RA-0009'],
+  LITE_TARGET_RAS: ['SYNTH-A.00001', 'SYNTH-B.00001', 'SYNTH-B.00002'],
 }));
 
 const sessionMocks = vi.hoisted(() => ({
@@ -64,7 +64,7 @@ describe('SapoConnect Lite API boundary', () => {
     ['intro', 428, 'LITE_START_REQUIRED'],
     ['locked', 403, 'LITE_TIME_EXPIRED'],
   ] as const)('blocks protected API data in %s state', async (state, status, code) => {
-    sessionMocks.readSessionCookie.mockReturnValue({ ra: 'SYNTH-RA-0005' });
+    sessionMocks.readSessionCookie.mockReturnValue({ ra: 'SYNTH-A.00001' });
     usageMocks.getLiteAccessSnapshotFromCookie.mockReturnValue(liteSnapshot(state));
 
     const response = proxy(apiRequest('/api/faltas/completo'));
@@ -75,7 +75,7 @@ describe('SapoConnect Lite API boundary', () => {
   });
 
   it('blocks a started balance after its foreground lease pauses', async () => {
-    sessionMocks.readSessionCookie.mockReturnValue({ ra: 'SYNTH-RA-0005' });
+    sessionMocks.readSessionCookie.mockReturnValue({ ra: 'SYNTH-A.00001' });
     usageMocks.getLiteAccessSnapshotFromCookie.mockReturnValue(
       liteSnapshot('active', false)
     );
@@ -87,7 +87,7 @@ describe('SapoConnect Lite API boundary', () => {
   });
 
   it('allows protected API data only while the server snapshot is active', () => {
-    sessionMocks.readSessionCookie.mockReturnValue({ ra: 'SYNTH-RA-0006' });
+    sessionMocks.readSessionCookie.mockReturnValue({ ra: 'SYNTH-B.00001' });
     usageMocks.getLiteAccessSnapshotFromCookie.mockReturnValue(liteSnapshot('active', true));
 
     const response = proxy(apiRequest('/api/historico'));
@@ -96,7 +96,7 @@ describe('SapoConnect Lite API boundary', () => {
   });
 
   it('does not restrict nearby or unauthenticated identities', () => {
-    for (const ra of ['SYNTH-RA-0004', 'SYNTH-RA-0007', undefined]) {
+    for (const ra of ['SYNTH-A.00000', 'SYNTH-B.00003', undefined]) {
       sessionMocks.readSessionCookie.mockReturnValue(ra ? { ra } : null);
       const response = proxy(apiRequest('/api/historico'));
       expect(response.headers.get('x-middleware-next')).toBe('1');

@@ -18,7 +18,7 @@ vi.mock('@/lib/external-auth', () => ({
 import { POST } from '@/app/api/auth/login/route';
 import { resetRequestGuardsForTests } from '@/lib/server/request-guard';
 
-function request() {
+function request(ra = '12345') {
   return new Request('https://app.example.com/api/auth/login', {
     method: 'POST',
     headers: {
@@ -27,7 +27,7 @@ function request() {
       'x-forwarded-for': '198.51.100.21',
       'content-type': 'application/json',
     },
-    body: JSON.stringify({ codUsuario: '12345', senha: 'secret' }),
+    body: JSON.stringify({ codUsuario: ra, senha: 'secret' }),
   });
 }
 
@@ -71,13 +71,15 @@ describe('login route diagnostics', () => {
     });
   });
 
-  it.each(['SYNTH-RA-0005', 'SYNTH-RA-0006', 'SYNTH-RA-0009'])(
-    'reports full access for previously restricted RA %s',
+  it.each(['SYNTH-A.00001', 'SYNTH-B.00001', 'SYNTH-B.00002'])(
+    'reports full access for synthetic RA %s while Lite is disabled',
     async (ra) => {
       vi.stubEnv('SESSION_ENCRYPTION_KEY', 'a'.repeat(64));
       sessionMocks.createSession.mockResolvedValue({ cacheScope: 'scope-lite', ra });
 
-      const response = await POST(request() as never);
+      const response = await POST(request(ra) as never);
+
+      expect(authMocks.performExternalLogin).toHaveBeenCalledWith({ codUsuario: ra, senha: 'secret' });
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toMatchObject({ ra, accessTier: 'full' });

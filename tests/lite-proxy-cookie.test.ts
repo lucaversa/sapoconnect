@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 vi.mock('@/lib/lite-targets', () => ({
-  LITE_TARGET_RAS: ['SYNTH-RA-0005', 'SYNTH-RA-0006', 'SYNTH-RA-0009'],
+  LITE_TARGET_RAS: ['SYNTH-A.00001', 'SYNTH-B.00001', 'SYNTH-B.00002'],
 }));
 
 import { proxy } from '@/proxy';
@@ -29,7 +29,7 @@ function sessionCookie(ra: string, expiresAt = Date.now() + 60_000): string {
 }
 
 function liteCookie(
-  ra: 'SYNTH-RA-0005' | 'SYNTH-RA-0006' | 'SYNTH-RA-0009',
+  ra: 'SYNTH-A.00001' | 'SYNTH-B.00001' | 'SYNTH-B.00002',
   startedAt: number,
   mode: 'running' | 'paused' | 'locked' = 'running'
 ): string {
@@ -65,7 +65,7 @@ describe('SapoConnect Lite encrypted-cookie API integration', () => {
     process.env = { ...originalEnv };
   });
 
-  it.each(['SYNTH-RA-0005', 'SYNTH-RA-0006', 'SYNTH-RA-0009'] as const)(
+  it.each(['SYNTH-A.00001', 'SYNTH-B.00001', 'SYNTH-B.00002'] as const)(
     'allows an exact target session only during its active window for %s',
     (ra) => {
       const now = Date.now();
@@ -74,7 +74,7 @@ describe('SapoConnect Lite encrypted-cookie API integration', () => {
     }
   );
 
-  it.each(['SYNTH-RA-0005', 'SYNTH-RA-0006', 'SYNTH-RA-0009'])(
+  it.each(['SYNTH-A.00001', 'SYNTH-B.00001', 'SYNTH-B.00002'])(
     'requires the intro before %s receives protected API data',
     async (ra) => {
       const response = proxy(protectedRequest(sessionCookie(ra)));
@@ -84,7 +84,7 @@ describe('SapoConnect Lite encrypted-cookie API integration', () => {
   );
 
   it('requires resume after a lease expires', async () => {
-    const ra = 'SYNTH-RA-0006';
+    const ra = 'SYNTH-B.00001';
     const paused = proxy(
       protectedRequest(sessionCookie(ra), liteCookie(ra, Date.now() - 10_000))
     );
@@ -93,7 +93,7 @@ describe('SapoConnect Lite encrypted-cookie API integration', () => {
     await expect(paused.json()).resolves.toMatchObject({ code: 'LITE_RESUME_REQUIRED' });
   });
 
-  it.each(['SYNTH-RA-0005', 'SYNTH-RA-0006', 'SYNTH-RA-0009'] as const)(
+  it.each(['SYNTH-A.00001', 'SYNTH-B.00001', 'SYNTH-B.00002'] as const)(
     'locks exhausted and tampered Lite ledgers for %s',
     async (ra) => {
       const exhausted = proxy(
@@ -109,9 +109,9 @@ describe('SapoConnect Lite encrypted-cookie API integration', () => {
   );
 
   it('allows a nearby identity and an expired target session through to route authorization', () => {
-    const nearby = proxy(protectedRequest(sessionCookie('SYNTH-RA-0007'), 'invalid-cookie'));
+    const nearby = proxy(protectedRequest(sessionCookie('SYNTH-B.00003'), 'invalid-cookie'));
     const expiredSession = proxy(
-      protectedRequest(sessionCookie('SYNTH-RA-0006', Date.now() - 1), 'invalid-cookie')
+      protectedRequest(sessionCookie('SYNTH-B.00001', Date.now() - 1), 'invalid-cookie')
     );
 
     expect(nearby.headers.get('x-middleware-next')).toBe('1');

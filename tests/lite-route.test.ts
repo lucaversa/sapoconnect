@@ -56,13 +56,13 @@ describe('/api/lite', () => {
   });
 
   it('returns a private server snapshot and repairs an invalid ledger', async () => {
-    sessionMocks.getSession.mockResolvedValue({ ra: 'SYNTH-RA-0005' });
+    sessionMocks.getSession.mockResolvedValue({ ra: 'SYNTH-A.00001' });
     const response = await GET();
 
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toContain('no-store');
     expect(usageMocks.getLiteAccessSnapshotForRa).toHaveBeenCalledWith(
-      'SYNTH-RA-0005',
+      'SYNTH-A.00001',
       expect.any(Number),
       { repairInvalid: true }
     );
@@ -72,12 +72,12 @@ describe('/api/lite', () => {
   it.each(['start', 'resume', 'heartbeat', 'pause'])(
     'applies the %s action for a same-origin request',
     async (action) => {
-      sessionMocks.getSession.mockResolvedValue({ ra: 'SYNTH-RA-0006' });
+      sessionMocks.getSession.mockResolvedValue({ ra: 'SYNTH-B.00001' });
       const response = await POST(postRequest('https://app.example.com', action));
 
       expect(response.status).toBe(200);
       expect(usageMocks.updateLiteAccessForRa).toHaveBeenCalledWith(
-        'SYNTH-RA-0006',
+        'SYNTH-B.00001',
         action
       );
       await expect(response.json()).resolves.toEqual(snapshot);

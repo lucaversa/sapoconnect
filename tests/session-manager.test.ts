@@ -108,7 +108,7 @@ describe('client logout safety', () => {
 describe('offline cache identity', () => {
   it('restores the opaque cache scope when the session endpoint is unreachable', async () => {
     storageMocks.getOfflineSessionHint.mockResolvedValue({
-      ra: 'SYNTH-RA-0003',
+      ra: 'SYNTH-C.00001',
       cacheScope: 'scope_offline_1234',
       expiresAt: Date.now() + 60_000,
     });
@@ -118,7 +118,7 @@ describe('offline cache identity', () => {
     const session = await manager.initialize();
 
     expect(session).toMatchObject({
-      user: { ra: 'SYNTH-RA-0003' },
+      user: { ra: 'SYNTH-C.00001' },
       status: 'error',
       cacheScope: 'scope_offline_1234',
     });
@@ -126,7 +126,7 @@ describe('offline cache identity', () => {
 
   it('updates the offline cache hint after a valid server session', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
-      ra: 'SYNTH-RA-0003',
+      ra: 'SYNTH-C.00001',
       cacheScope: 'scope_active_1234',
       lastExternalLoginAt: 123,
     }), { status: 200 })));
@@ -134,12 +134,12 @@ describe('offline cache identity', () => {
     const manager = new SessionManager();
     await manager.initialize();
 
-    expect(storageMocks.saveOfflineSessionHint).toHaveBeenCalledWith('SYNTH-RA-0003', 'scope_active_1234');
+    expect(storageMocks.saveOfflineSessionHint).toHaveBeenCalledWith('SYNTH-C.00001', 'scope_active_1234');
   });
 
   it('keeps cached identity when reconnect itself has a network failure', async () => {
     storageMocks.getOfflineSessionHint.mockResolvedValue({
-      ra: 'SYNTH-RA-0003',
+      ra: 'SYNTH-C.00001',
       cacheScope: 'scope_offline_1234',
       expiresAt: 0,
     });
@@ -150,7 +150,7 @@ describe('offline cache identity', () => {
 
     await expect(manager.refreshSession()).resolves.toBe(false);
     expect(manager.getCurrentState()).toMatchObject({
-      user: { ra: 'SYNTH-RA-0003' },
+      user: { ra: 'SYNTH-C.00001' },
       status: 'error',
       cacheScope: 'scope_offline_1234',
     });
@@ -158,7 +158,7 @@ describe('offline cache identity', () => {
 
   it('restores cached identity when the session expired and TOTVS is unavailable', async () => {
     storageMocks.getOfflineSessionHint.mockResolvedValue({
-      ra: 'SYNTH-RA-0003',
+      ra: 'SYNTH-C.00001',
       cacheScope: 'scope_offline_1234',
       expiresAt: 0,
     });
@@ -171,7 +171,7 @@ describe('offline cache identity', () => {
 
     await expect(manager.refreshSession()).resolves.toBe(false);
     expect(manager.getCurrentState()).toMatchObject({
-      user: { ra: 'SYNTH-RA-0003' },
+      user: { ra: 'SYNTH-C.00001' },
       status: 'error',
       cacheScope: 'scope_offline_1234',
     });
@@ -180,7 +180,7 @@ describe('offline cache identity', () => {
   it('keeps the active cache scope while a session check is being recovered', async () => {
     vi.stubGlobal('fetch', vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({
-        ra: 'SYNTH-RA-0003',
+        ra: 'SYNTH-C.00001',
         cacheScope: 'scope_active_1234',
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response('{"authenticated":false}', { status: 401 })));
@@ -190,7 +190,7 @@ describe('offline cache identity', () => {
     const checked = await manager.checkSession(false);
 
     expect(checked).toMatchObject({
-      user: { ra: 'SYNTH-RA-0003' },
+      user: { ra: 'SYNTH-C.00001' },
       status: 'expired',
       cacheScope: 'scope_active_1234',
     });

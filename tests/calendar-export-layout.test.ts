@@ -15,16 +15,16 @@ function classFixture(overrides: Partial<Aula>): Aula {
     dia: 'Segunda-feira',
     inicio: '07:00',
     fim: '07:50',
-    disciplina: 'CLÍNICA MÉDICA II',
-    turma: '7M80D',
-    subturma: '7M80 - D08',
-    data_inicial: '17/08/2026',
-    data_inicial_iso: '2026-08-17T07:00:00-03:00',
-    data_final: '17/08/2026',
-    data_final_iso: '2026-08-17T07:50:00-03:00',
-    predio: 'UNIDADE II',
-    bloco: '7º A',
-    sala: 'SL701/702',
+    disciplina: 'DISCIPLINA SINTÉTICA II',
+    turma: 'TEST-TURMA',
+    subturma: 'TEST-GRUPO',
+    data_inicial: '03/01/2000',
+    data_inicial_iso: '2000-01-03T07:00:00-03:00',
+    data_final: '03/01/2000',
+    data_final_iso: '2000-01-03T07:50:00-03:00',
+    predio: 'TEST-PREDIO-B',
+    bloco: 'TEST-BLOCO',
+    sala: 'TEST-SALA',
     tipo_turma: 'Teórica',
     detalhe_id: 'fixture',
     detalhe_url: '',
@@ -44,9 +44,9 @@ describe('weekly schedule PDF layout', () => {
 
   it('merges consecutive class periods into one weekly block', () => {
     const aulas = Array.from({ length: 5 }, (_, week) => [
-      classFixture({ detalhe_id: `week-${week}-1`, inicio: '07:00', fim: '07:50', predio: 'UNIDADE I', bloco: 'A', sala: `101-${week}` }),
-      classFixture({ detalhe_id: `week-${week}-2`, inicio: '08:00', fim: '08:50', predio: 'UNIDADE II', bloco: 'B', sala: `202-${week}` }),
-      classFixture({ detalhe_id: `week-${week}-3`, inicio: '09:00', fim: '09:50', predio: 'UNIDADE III', bloco: 'C', sala: `303-${week}` }),
+      classFixture({ detalhe_id: `week-${week}-1`, inicio: '07:00', fim: '07:50', predio: 'TEST-PREDIO-A', bloco: 'A', sala: `101-${week}` }),
+      classFixture({ detalhe_id: `week-${week}-2`, inicio: '08:00', fim: '08:50', predio: 'TEST-PREDIO-B', bloco: 'B', sala: `202-${week}` }),
+      classFixture({ detalhe_id: `week-${week}-3`, inicio: '09:00', fim: '09:50', predio: 'TEST-PREDIO-C', bloco: 'C', sala: `303-${week}` }),
     ]).flat()
 
     const blocks = prepareWeeklyBlocksForExport(aulas)
@@ -73,9 +73,9 @@ describe('weekly schedule PDF layout', () => {
 
     expect(subjects).toEqual([
       expect.objectContaining({
-        disciplina: 'CLÍNICA MÉDICA II',
-        turma: '7M80D',
-        subturma: '7M80 - D08',
+        disciplina: 'DISCIPLINA SINTÉTICA II',
+        turma: 'TEST-TURMA',
+        subturma: 'TEST-GRUPO',
         sessions: [expect.objectContaining({
           dayIndex: 0,
           startHour: 7,
@@ -90,7 +90,7 @@ describe('weekly schedule PDF layout', () => {
     const aulas = Array.from({ length: 5 }, (_, week) =>
       classFixture({ detalhe_id: `pdf-${week}` }),
     )
-    const pdf = await buildCalendarioPDF(aulas, 'SYNTH-RA-0003', new Date('2026-08-14T12:00:00-03:00'))
+    const pdf = await buildCalendarioPDF(aulas, 'SYNTH-C.00001', new Date('2000-01-01T12:00:00-03:00'))
 
     expect(pdf.getNumberOfPages()).toBe(2)
     expect(pdf.internal.pageSize.getWidth()).toBeGreaterThan(pdf.internal.pageSize.getHeight())

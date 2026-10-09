@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/lite-targets', () => ({
-  LITE_TARGET_RAS: ['SYNTH-RA-0005', 'SYNTH-RA-0006', 'SYNTH-RA-0009'],
+  LITE_TARGET_RAS: ['SYNTH-A.00001', 'SYNTH-B.00001', 'SYNTH-B.00002'],
 }));
 
 import {
@@ -20,19 +20,19 @@ import {
 
 describe('SapoConnect Lite policy', () => {
   it('targets only the exact configured test RAs', () => {
-    expect(LITE_TARGET_RAS).toEqual(['SYNTH-RA-0005', 'SYNTH-RA-0006', 'SYNTH-RA-0009']);
+    expect(LITE_TARGET_RAS).toEqual(['SYNTH-A.00001', 'SYNTH-B.00001', 'SYNTH-B.00002']);
 
     for (const ra of LITE_TARGET_RAS) expect(isLiteTargetRa(ra)).toBe(true);
     for (const ra of [
-      'SYNTH-RA-0004',
-      'SYNTH-RA-0007',
-      'SYNTH-RA-0008',
-      'SYNTH-RA-0010',
-      'SYNTH-RA-0009',
-      ' SYNTH-RA-0009 ',
-      'SYNTH-RA-0005',
-      'SYNTH-RA-0006',
-      ' SYNTH-RA-0005 ',
+      'SYNTH-A.00000',
+      'SYNTH-B.00003',
+      'SYNTH-B.00004',
+      'SYNTH-B.00005',
+      'SYNTH-B00002',
+      ' SYNTH-B.00002 ',
+      'SYNTH-A00001',
+      'SYNTH-B00001',
+      ' SYNTH-A.00001 ',
       null,
       undefined,
     ]) {
@@ -51,7 +51,7 @@ describe('SapoConnect Lite policy', () => {
   });
 
   it('moves a Lite account from intro to a server-leased active run', () => {
-    const ra = 'SYNTH-RA-0005';
+    const ra = 'SYNTH-A.00001';
     const startedAt = Date.parse('2026-09-01T15:00:00.000Z');
 
     expect(evaluateLiteAccess(ra, null, 'missing', startedAt)).toMatchObject({
@@ -90,7 +90,7 @@ describe('SapoConnect Lite policy', () => {
       leaseUntil: null,
     });
     expect(
-      evaluateLiteAccess('SYNTH-RA-0005', paused, 'valid', startedAt + 8 * 60 * 60_000)
+      evaluateLiteAccess('SYNTH-A.00001', paused, 'valid', startedAt + 8 * 60 * 60_000)
     ).toMatchObject({
       state: 'active',
       consumedMs: 1_250,
@@ -100,7 +100,7 @@ describe('SapoConnect Lite policy', () => {
   });
 
   it('resets an old record on the next Sao Paulo calendar day', () => {
-    const ra = 'SYNTH-RA-0006';
+    const ra = 'SYNTH-B.00001';
     const startedAt = Date.parse('2026-09-02T02:59:30.000Z');
     const record = resumeLiteUsageRecord(createLiteUsageRecord(startedAt), startedAt);
 
@@ -119,12 +119,12 @@ describe('SapoConnect Lite policy', () => {
   });
 
   it('fails a Lite account closed for an invalid ledger without affecting full accounts', () => {
-    expect(evaluateLiteAccess('SYNTH-RA-0005', null, 'invalid', 1_788_000_000_000)).toMatchObject({
+    expect(evaluateLiteAccess('SYNTH-A.00001', null, 'invalid', 1_788_000_000_000)).toMatchObject({
       tier: 'lite',
       state: 'locked',
       remainingMs: 0,
     });
-    expect(evaluateLiteAccess('SYNTH-RA-0004', null, 'invalid', 1_788_000_000_000)).toMatchObject({
+    expect(evaluateLiteAccess('SYNTH-A.00000', null, 'invalid', 1_788_000_000_000)).toMatchObject({
       tier: 'full',
       state: 'full',
     });

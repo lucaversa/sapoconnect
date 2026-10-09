@@ -9,6 +9,8 @@ O desenvolvimento e as publicações do SapoConnect são mantidos por Luca Janin
 
 Nunca publique RA, senha, notas, nomes de professores, capturas sem tratamento ou outros dados acadêmicos pessoais. Remova essas informações antes de anexar uma imagem.
 
+Para testes, use identificadores `SYNTH-*` e dados mínimos inventados, conforme `tests/fixtures/README.md`. Não versione exportações acadêmicas ou arquivos `.env` com valores reais.
+
 ## Relatos úteis
 
 Informe a área afetada, os passos para reproduzir, o resultado esperado, o aparelho e o navegador. Quando a falha envolver carregamento, confira também se o portal oficial da TOTVS está disponível.
