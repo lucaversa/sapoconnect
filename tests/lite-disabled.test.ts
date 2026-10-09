@@ -20,7 +20,7 @@ describe('Lite restrictions disabled', () => {
     expect(LITE_TARGET_RAS).toEqual([]);
   });
 
-  it.each(['124101.00574', '23201.00120', '23201.00134'])(
+  it.each(['SYNTH-A.00001', 'SYNTH-B.00001', 'SYNTH-B.00002'])(
     'grants full access to %s even with an exhausted or invalid ledger',
     (ra) => {
       const now = Date.now();

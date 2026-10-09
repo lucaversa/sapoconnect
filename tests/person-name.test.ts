@@ -4,7 +4,7 @@ import { normalizePersonName } from "@/lib/person-name"
 
 describe("normalizePersonName", () => {
   it("removes extra whitespace and Moodle's trailing punctuation", () => {
-    expect(normalizePersonName("  Luca   Verslani Janini .  ")).toBe("Luca Verslani Janini")
+    expect(normalizePersonName("  Pessoa   Sintetica Exemplo .  ")).toBe("Pessoa Sintetica Exemplo")
   })
 
   it("preserves periods that are part of the person's name", () => {

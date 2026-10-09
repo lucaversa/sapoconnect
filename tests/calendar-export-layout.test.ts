@@ -15,16 +15,16 @@ function classFixture(overrides: Partial<Aula>): Aula {
     dia: 'Segunda-feira',
     inicio: '07:00',
     fim: '07:50',
-    disciplina: 'CLÍNICA MÉDICA II',
-    turma: '7M80D',
-    subturma: '7M80 - D08',
+    disciplina: 'DISCIPLINA SINTÉTICA II',
+    turma: 'TEST-TURMA',
+    subturma: 'TEST-GRUPO',
     data_inicial: '17/08/2026',
     data_inicial_iso: '2026-08-17T07:00:00-03:00',
     data_final: '17/08/2026',
     data_final_iso: '2026-08-17T07:50:00-03:00',
     predio: 'UNIDADE II',
-    bloco: '7º A',
-    sala: 'SL701/702',
+    bloco: 'TEST-BLOCO',
+    sala: 'TEST-SALA',
     tipo_turma: 'Teórica',
     detalhe_id: 'fixture',
     detalhe_url: '',
@@ -73,9 +73,9 @@ describe('weekly schedule PDF layout', () => {
 
     expect(subjects).toEqual([
       expect.objectContaining({
-        disciplina: 'CLÍNICA MÉDICA II',
-        turma: '7M80D',
-        subturma: '7M80 - D08',
+        disciplina: 'DISCIPLINA SINTÉTICA II',
+        turma: 'TEST-TURMA',
+        subturma: 'TEST-GRUPO',
         sessions: [expect.objectContaining({
           dayIndex: 0,
           startHour: 7,
@@ -90,7 +90,7 @@ describe('weekly schedule PDF layout', () => {
     const aulas = Array.from({ length: 5 }, (_, week) =>
       classFixture({ detalhe_id: `pdf-${week}` }),
     )
-    const pdf = await buildCalendarioPDF(aulas, '124101.00571', new Date('2026-08-14T12:00:00-03:00'))
+    const pdf = await buildCalendarioPDF(aulas, 'SYNTH-C.00001', new Date('2026-08-14T12:00:00-03:00'))
 
     expect(pdf.getNumberOfPages()).toBe(2)
     expect(pdf.internal.pageSize.getWidth()).toBeGreaterThan(pdf.internal.pageSize.getHeight())

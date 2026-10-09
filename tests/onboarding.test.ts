@@ -10,7 +10,7 @@ import {
 
 describe('first-login onboarding identity', () => {
   it('derives a stable per-installation key without exposing the RA', async () => {
-    const ra = '12345.67890';
+    const ra = 'SYNTH-D.00001';
     const first = await createFirstLoginGuideStorageKey(ra, 'device-a');
     const repeated = await createFirstLoginGuideStorageKey(` ${ra} `, 'device-a');
     const otherDevice = await createFirstLoginGuideStorageKey(ra, 'device-b');

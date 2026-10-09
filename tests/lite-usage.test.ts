@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 
 vi.mock('@/lib/lite-targets', () => ({
-  LITE_TARGET_RAS: ['124101.00574', '23201.00120', '23201.00134'],
+  LITE_TARGET_RAS: ['SYNTH-A.00001', 'SYNTH-B.00001', 'SYNTH-B.00002'],
 }));
 
 const cookieMocks = vi.hoisted(() => {
@@ -121,7 +121,7 @@ describe('Lite usage cookie ledger', () => {
   });
 
   it('caps abrupt-close consumption at the short lease until an explicit resume', async () => {
-    const ra = '124101.00574';
+    const ra = 'SYNTH-A.00001';
     const startedAt = Date.parse('2026-09-01T15:00:00.000Z');
 
     await updateLiteAccessForRa(ra, 'start', startedAt);
@@ -147,7 +147,7 @@ describe('Lite usage cookie ledger', () => {
   });
 
   it('locks after 180 seconds of accumulated leased runs', async () => {
-    const ra = '124101.00574';
+    const ra = 'SYNTH-A.00001';
     const startedAt = Date.parse('2026-09-01T15:00:00.000Z');
     await updateLiteAccessForRa(ra, 'start', startedAt);
 
@@ -176,20 +176,20 @@ describe('Lite usage cookie ledger', () => {
     const firstAt = Date.parse('2026-09-01T15:00:00.000Z');
     const secondAt = firstAt + 1_000;
 
-    await updateLiteAccessForRa('124101.00574', 'start', firstAt);
-    await updateLiteAccessForRa('124101.00574', 'pause', firstAt + 500);
-    await updateLiteAccessForRa('23201.00120', 'start', secondAt);
+    await updateLiteAccessForRa('SYNTH-A.00001', 'start', firstAt);
+    await updateLiteAccessForRa('SYNTH-A.00001', 'pause', firstAt + 500);
+    await updateLiteAccessForRa('SYNTH-B.00001', 'start', secondAt);
 
     await expect(
-      getLiteAccessSnapshotForRa('124101.00574', secondAt)
+      getLiteAccessSnapshotForRa('SYNTH-A.00001', secondAt)
     ).resolves.toMatchObject({ state: 'active', consumedMs: 500, running: false });
     await expect(
-      getLiteAccessSnapshotForRa('23201.00120', secondAt)
+      getLiteAccessSnapshotForRa('SYNTH-B.00001', secondAt)
     ).resolves.toMatchObject({ state: 'active', consumedMs: 0, running: true });
   });
 
   it('caps today at midnight, then requires a fresh start after the reset', async () => {
-    const ra = '124101.00574';
+    const ra = 'SYNTH-A.00001';
     const beforeMidnight = Date.parse('2026-09-02T02:59:58.000Z');
     const afterMidnight = Date.parse('2026-09-02T03:00:00.000Z');
 
@@ -220,7 +220,7 @@ describe('Lite usage cookie ledger', () => {
   });
 
   it('fails closed on tampering and repairs the ledger as locked for the current day', async () => {
-    const ra = '23201.00120';
+    const ra = 'SYNTH-B.00001';
     const now = Date.parse('2026-09-01T15:00:00.000Z');
     cookieMocks.jar.set(LITE_USAGE_COOKIE_NAME, 'tampered');
 
@@ -234,7 +234,7 @@ describe('Lite usage cookie ledger', () => {
 
     const stored = readLiteUsageCookie(cookieMocks.jar.get(LITE_USAGE_COOKIE_NAME));
     expect(stored.integrity).toBe('valid');
-    await expect(getLiteAccessSnapshotForRa('124101.00574', now)).resolves.toMatchObject({
+    await expect(getLiteAccessSnapshotForRa('SYNTH-A.00001', now)).resolves.toMatchObject({
       state: 'locked',
       remainingMs: 0,
     });
@@ -247,7 +247,7 @@ describe('Lite usage cookie ledger', () => {
   it('never creates or reads a Lite ledger for a full account', async () => {
     cookieMocks.jar.set(LITE_USAGE_COOKIE_NAME, 'tampered');
     await expect(
-      updateLiteAccessForRa('124101.00573', 'start', Date.now())
+      updateLiteAccessForRa('SYNTH-A.00000', 'start', Date.now())
     ).resolves.toMatchObject({ tier: 'full', state: 'full' });
     expect(cookieMocks.store.get).not.toHaveBeenCalled();
     expect(cookieMocks.store.set).not.toHaveBeenCalled();
